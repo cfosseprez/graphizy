@@ -382,6 +382,29 @@ class Graphing:
         """
         save_graph(image_graph, filename)
 
+    @staticmethod
+    def get_connections_per_object(graph: Any) -> Dict[Any, int]:
+        """
+        Calculates the number of connections (degree) for each vertex in the graph.
+
+        Args:
+            graph: An igraph Graph object.
+
+        Returns:
+            A dictionary mapping each object's original ID to its number of connections.
+            Example: {101: 5, 102: 7, 103: 6}
+        """
+        try:
+            if graph is None or graph.vcount() == 0:
+                return {}
+            # graph.degree() returns a list of connection counts.
+            # graph.vs["id"] returns the list of your original object IDs.
+            # We zip them together to create a user-friendly dictionary.
+            return {obj_id: degree for obj_id, degree in zip(graph.vs["id"], graph.degree())}
+
+        except Exception as e:
+            raise IgraphMethodError(f"Failed to get connections per object: {str(e)}")
+
     # Graph analysis methods (keeping all original methods)
     @staticmethod
     def average_path_length(graph: Any) -> float:

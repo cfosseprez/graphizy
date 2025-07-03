@@ -5,7 +5,7 @@ A powerful graph maker for computational geometry and network visualization, spe
 
 ![Detection to Graph](https://raw.githubusercontent.com/lesptizami/graphizy/main/images/detection_to_graph.png)
 
-*Figure: Detection positions are converted to a graph in just a few milliseconds for hundreds of individuals using OpenCV.  
+*Figure: Positions are converted to a graph in just a few milliseconds for hundreds of individuals using OpenCV.  
 Graph analytics are accessible in real time as well, by interfacing with igraph.*
 
 ## Features
