@@ -192,7 +192,7 @@ def make_subdiv(point_array: np.ndarray, dimensions: Union[List, Tuple],
                 raise SubdivisionError("Failed to insert all points", point_array, dimensions)
 
         elapsed_time = round((time.time() - timer) * 1000, 3)
-        logger.info(f"Subdivision creation took {elapsed_time}ms")
+        logger.debug(f"Subdivision creation took {elapsed_time}ms")
 
         return subdiv
 
