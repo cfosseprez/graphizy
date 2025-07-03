@@ -10,11 +10,16 @@ Graph analytics are accessible in real time as well, by interfacing with igraph.
 
 ## Features
 
+### Graph construction
 - **Delaunay Triangulation**: Create optimal triangular meshes from point sets
 - **Proximity Graphs**: Connect nearby points based on distance thresholds  
+- **Collision Graphs**: Connect points based on history of collisions
+### Graph Analysis
+- **Igraph based**: https://igraph.org/python/tutorial/0.9.7/analysis.html
+- **Comprehensive API**: Call any igraph method safely with error handling
+### Design
 - **Flexible Configuration**: Runtime-configurable parameters using dataclasses
 - **Multiple Output Formats**: Save graphs as images or display interactively
-- **Comprehensive API**: Call any igraph method safely with error handling
 - **Command Line Interface**: Easy-to-use CLI for common operations
 - **Robust Error Handling**: Detailed exceptions and validation
 - **Performance Monitoring**: Built-in timing and optimization tracking
