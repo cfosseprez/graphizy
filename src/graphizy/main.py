@@ -169,6 +169,10 @@ class Graphing:
                 if not isinstance(data_points, np.ndarray):
                     raise GraphCreationError("Expected numpy array for 'array' aspect")
 
+                # Simple type check - reject string/object IDs
+                if data_points.dtype.kind in ['U', 'S', 'O']:
+                    raise GraphCreationError("Object IDs must be numeric, not string type")
+
                 graph = create_graph_array(data_points)
 
                 # Make triangulation with appropriate columns
@@ -438,7 +442,34 @@ class Graphing:
 
     @staticmethod
     def call_method(graph: Any, method_name: str, *args, **kwargs) -> Any:
-        """Call any igraph method on the graph
+        """Call any igraph method on the graph, return either one value or a per object value if the output of the method is a list
+
+        Args:
+            graph: igraph Graph object
+            method_name: Name of the method to call
+            *args: Positional arguments for the method
+            **kwargs: Keyword arguments for the method
+
+        Returns:
+            Result of the method call
+
+        Raises:
+            IgraphMethodError: If method call fails
+        """
+        try:
+            result = call_igraph_method(graph, method_name, *args, **kwargs)
+
+            if isinstance(result, list):
+                return {obj_id: degree for obj_id, degree in zip(graph.vs["id"], result)}
+            else:
+                return result
+        except Exception as e:
+            raise IgraphMethodError(f"Failed to get connections per object: {str(e)}")
+
+
+    @staticmethod
+    def call_method_raw(graph: Any, method_name: str, *args, **kwargs) -> Any:
+        """Call any igraph method on the graph, rettunr unformated output
 
         Args:
             graph: igraph Graph object
