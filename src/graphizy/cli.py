@@ -73,6 +73,18 @@ Examples:
                                   choices=['euclidean', 'manhattan', 'chebyshev'],
                                   help='Distance metric (default: euclidean)')
 
+    # Memory subcommand
+    memory_parser = subparsers.add_parser('memory', parents=[common_parser],
+                                          help='Create memory-based graph')
+    memory_parser.add_argument('--memory-size', type=int, default=100,
+                               help='Maximum memory connections per object (default: 100)')
+    memory_parser.add_argument('--memory-iterations', type=int, default=None,
+                               help='Maximum iterations to keep in memory (default: unlimited)')
+    memory_parser.add_argument('--proximity-thresh', type=float, default=50.0,
+                               help='Proximity threshold for updating memory (default: 50.0)')
+    memory_parser.add_argument('--iterations', type=int, default=10,
+                               help='Number of simulation iterations (default: 10)')
+
     # Both subcommand
     both_parser = subparsers.add_parser('both', parents=[common_parser],
                                         help='Create both Delaunay and proximity graphs')
@@ -263,6 +275,72 @@ def cmd_proximity(args) -> None:
         sys.exit(1)
 
 
+def cmd_memory(args):
+    """Handle memory command"""
+    config = create_config_from_args(args)
+    config.memory.max_memory_size = args.memory_size
+    config.memory.max_iterations = args.memory_iterations
+
+    setup_logging(args.verbose)
+
+    try:
+        # Generate initial data
+        particle_stack = generate_data(config)
+
+        # Create grapher with memory
+        grapher = Graphing(config=config)
+        grapher.init_memory_manager(args.memory_size, args.memory_iterations)
+
+        # Simulate multiple iterations
+        print(f"Simulating {args.iterations} iterations...")
+
+        for i in range(args.iterations):
+            # Add some random movement (optional)
+            if i > 0:
+                # Small random movements
+                particle_stack[:, 1:3] += np.random.normal(0, 5, (len(particle_stack), 2))
+                # Keep within bounds
+                particle_stack[:, 1] = np.clip(particle_stack[:, 1], 0, config.graph.dimension[0] - 1)
+                particle_stack[:, 2] = np.clip(particle_stack[:, 2], 0, config.graph.dimension[1] - 1)
+
+            # Update memory with current proximities
+            current_connections = grapher.update_memory_with_proximity(
+                particle_stack, args.proximity_thresh
+            )
+
+            print(
+                f"Iteration {i + 1}: {sum(len(conns) for conns in current_connections.values()) // 2} current connections")
+
+        # Create final memory graph
+        memory_graph = grapher.make_memory_graph(particle_stack)
+
+        # Get statistics
+        stats = grapher.get_memory_stats()
+        graph_info = grapher.get_graph_info(memory_graph)
+
+        print(f"\nMemory Graph Results:")
+        print(f"  Total Objects: {stats['total_objects']}")
+        print(f"  Memory Connections: {stats['total_connections']}")
+        print(f"  Graph Vertices: {graph_info['vertex_count']}")
+        print(f"  Graph Edges: {graph_info['edge_count']}")
+        print(f"  Graph Density: {graph_info['density']:.4f}")
+
+        # Draw graph
+        image = grapher.draw_graph(memory_graph)
+
+        # Save if requested
+        if args.output:
+            grapher.save_graph(image, args.output)
+            print(f"Memory graph saved to {args.output}")
+
+        # Show if requested
+        if args.show:
+            grapher.show_graph(image, f"Memory Graph ({stats['total_connections']} connections)")
+
+    except Exception as e:
+        logging.error(f"Failed to create memory graph: {e}")
+        sys.exit(1)
+        
 def cmd_both(args) -> None:
     """Handle both command"""
     config = create_config_from_args(args)

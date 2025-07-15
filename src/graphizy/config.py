@@ -8,7 +8,7 @@ Configuration module for graphizy
 """
 
 from dataclasses import dataclass, field
-from typing import Tuple, Union, Any
+from typing import Tuple, Union, Any, Optional
 import logging
 
 
@@ -60,6 +60,20 @@ class GraphConfig:
 
 
 @dataclass
+class MemoryConfig:
+    """Configuration for memory graph parameters"""
+    max_memory_size: int = 5
+    max_iterations: Optional[int] = None
+    auto_update_from_proximity: bool = True
+    memory_decay_factor: float = 1.0  # Future: for weighted memory decay
+
+    def __post_init__(self):
+        if self.max_memory_size <= 0:
+            raise ValueError("max_memory_size must be positive")
+        if self.max_iterations is not None and self.max_iterations <= 0:
+            raise ValueError("max_iterations must be positive or None")
+
+@dataclass
 class GenerationConfig:
     """Configuration for position generation"""
     size_x: int = 1200
@@ -103,6 +117,7 @@ class GraphizyConfig:
     graph: GraphConfig = field(default_factory=GraphConfig)
     generation: GenerationConfig = field(default_factory=GenerationConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
 
     def update(self, **kwargs):
         """Update configuration values at runtime"""

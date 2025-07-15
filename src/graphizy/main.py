@@ -13,16 +13,16 @@ import timeit
 from typing import Union, Dict, Any, List, Tuple, Optional
 import numpy as np
 
-from .config import GraphizyConfig, DrawingConfig, GraphConfig
-from .exceptions import (
+from graphizy.config import GraphizyConfig, DrawingConfig, GraphConfig
+from graphizy.exceptions import (
     InvalidAspectError, InvalidDimensionError, GraphCreationError,
     IgraphMethodError, DrawingError
 )
-from .algorithms import (
+from graphizy.algorithms import (
     create_graph_array, create_graph_dict, DataInterface, make_subdiv,
     graph_delaunay, graph_distance, call_igraph_method
 )
-from .drawing import draw_point, draw_line, show_graph, save_graph
+from graphizy.drawing import draw_point, draw_line, show_graph, save_graph
 
 
 class Graphing:
@@ -89,6 +89,9 @@ class Graphing:
             self.point_color = self.config.drawing.point_color
 
             logging.info("Graphing object initialized successfully")
+
+            # Add memory manager
+            self.memory_manager = None
 
         except Exception as e:
             raise GraphCreationError(f"Failed to initialize Graphing object: {str(e)}")
@@ -250,6 +253,47 @@ class Graphing:
 
         except Exception as e:
             raise GraphCreationError(f"Failed to create proximity graph: {str(e)}")
+
+    def init_memory_manager(self, max_memory_size: int = 100, max_iterations: int = None):
+        """Initialize memory manager for this graphing instance"""
+        from .algorithms import MemoryManager
+        self.memory_manager = MemoryManager(max_memory_size, max_iterations)
+        return self.memory_manager
+
+    def make_memory_graph(self, data_points, memory_connections=None):
+        """Create a memory-based graph"""
+        from .algorithms import create_memory_graph
+
+        if memory_connections is None:
+            if self.memory_manager is None:
+                raise GraphCreationError("No memory manager initialized and no connections provided")
+            memory_connections = self.memory_manager.get_current_memory_graph()
+
+        return create_memory_graph(data_points, memory_connections, self.aspect)
+
+    def update_memory_with_proximity(self, data_points, proximity_thresh=None):
+        """Update memory manager with current proximity connections"""
+        from .algorithms import update_memory_from_proximity
+
+        if self.memory_manager is None:
+            raise GraphCreationError("Memory manager not initialized. Call init_memory_manager() first")
+
+        if proximity_thresh is None:
+            proximity_thresh = self.config.graph.proximity_threshold
+
+        return update_memory_from_proximity(
+            data_points,
+            proximity_thresh,
+            self.memory_manager,
+            self.config.graph.distance_metric,
+            self.aspect
+        )
+
+    def get_memory_stats(self):
+        """Get memory statistics"""
+        if self.memory_manager is None:
+            return {"error": "Memory manager not initialized"}
+        return self.memory_manager.get_memory_stats()
 
     def draw_graph(self, graph: Any, radius: int = None, thickness: int = None) -> np.ndarray:
         """Draw the graph from igraph

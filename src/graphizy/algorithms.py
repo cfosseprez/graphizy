@@ -13,13 +13,13 @@ import random
 import timeit
 from typing import List, Tuple, Dict, Any, Union, Optional
 import numpy as np
+from collections import defaultdict, deque
 
-from .exceptions import (
+from graphizy.exceptions import (
     InvalidPointArrayError, SubdivisionError, TriangulationError,
     GraphCreationError, PositionGenerationError, DependencyError,
     IgraphMethodError
 )
-
 try:
     import cv2
 except ImportError:
@@ -676,3 +676,370 @@ def call_igraph_method(graph: Any, method_name: str, *args, **kwargs) -> Any:
 
     except Exception as e:
         raise IgraphMethodError(f"Failed to call method '{method_name}': {str(e)}")
+
+
+class MemoryManager:
+    """Manages memory connections between objects"""
+
+    def __init__(self, max_memory_size: int = 100, max_iterations: int = None):
+        """Initialize memory manager
+
+        Args:
+            max_memory_size: Maximum number of connections to keep per object
+            max_iterations: Maximum number of iterations to keep connections (None = unlimited)
+        """
+        self.max_memory_size = max_memory_size
+        self.max_iterations = max_iterations
+        self.current_iteration = 0
+
+        # Memory structure: {object_id: deque([(connected_id, iteration), ...])}
+        self.memory = defaultdict(lambda: deque(maxlen=max_memory_size))
+
+        # Track all unique object IDs that have been seen
+        self.all_objects = set()
+
+    def add_connections(self, connections: Dict[str, List[str]]) -> None:
+        """Add new connections to memory
+
+        Args:
+            connections: Dictionary like {"A": ["C", "D"], "B": [], ...}
+        """
+        self.current_iteration += 1
+
+        for obj_id, connected_ids in connections.items():
+            self.all_objects.add(obj_id)
+
+            # Add each connection with current iteration timestamp
+            for connected_id in connected_ids:
+                self.all_objects.add(connected_id)
+
+                # Add bidirectional connections
+                self.memory[obj_id].append((connected_id, self.current_iteration))
+                self.memory[connected_id].append((obj_id, self.current_iteration))
+
+        # Clean old iterations if max_iterations is set
+        if self.max_iterations:
+            self._clean_old_iterations()
+
+    def _clean_old_iterations(self) -> None:
+        """Remove connections older than max_iterations"""
+        cutoff_iteration = self.current_iteration - self.max_iterations
+
+        for obj_id in self.memory:
+            # Filter connections to keep only recent ones
+            self.memory[obj_id] = deque(
+                [(connected_id, iteration) for connected_id, iteration in self.memory[obj_id]
+                 if iteration > cutoff_iteration],
+                maxlen=self.max_memory_size
+            )
+
+    def get_current_memory_graph(self) -> Dict[str, List[str]]:
+        """Get current memory as a graph dictionary
+
+        Returns:
+            Dictionary with current memory connections
+        """
+        result = {}
+
+        # Include all objects, even those with no connections
+        for obj_id in self.all_objects:
+            connections = []
+            if obj_id in self.memory:
+                # Get unique connections (remove duplicates and self-connections)
+                unique_connections = set()
+                for connected_id, _ in self.memory[obj_id]:
+                    if connected_id != obj_id:
+                        unique_connections.add(connected_id)
+                connections = list(unique_connections)
+
+            result[obj_id] = connections
+
+        return result
+
+    def get_memory_stats(self) -> Dict[str, Any]:
+        """Get statistics about current memory state"""
+        total_connections = sum(len(connections) for connections in self.memory.values())
+
+        return {
+            "total_objects": len(self.all_objects),
+            "total_connections": total_connections // 2,  # Divide by 2 because connections are bidirectional
+            "current_iteration": self.current_iteration,
+            "objects_with_memory": len([obj for obj in self.all_objects if obj in self.memory and self.memory[obj]]),
+            "max_memory_size": self.max_memory_size,
+            "max_iterations": self.max_iterations
+        }
+
+
+def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
+                        memory_connections: Dict[str, List[str]],
+                        aspect: str = "array") -> Any:
+    """Create a graph with current positions and memory-based edges
+
+    Args:
+        current_positions: Current positions as array [id, x, y, ...] or dict
+        memory_connections: Memory connections {"obj_id": ["connected_id1", "connected_id2"]}
+        aspect: Data format ("array" or "dict")
+
+    Returns:
+        igraph Graph object with memory-based edges
+
+    Raises:
+        GraphCreationError: If graph creation fails
+    """
+    try:
+        from .algorithms import create_graph_array, create_graph_dict
+
+        # Create basic graph with positions
+        if aspect == "array":
+            if not isinstance(current_positions, np.ndarray):
+                raise GraphCreationError("Expected numpy array for 'array' aspect")
+            graph = create_graph_array(current_positions)
+
+        elif aspect == "dict":
+            if isinstance(current_positions, np.ndarray):
+                # Convert array to dict format if needed
+                data_interface = DataInterface([("id", int), ("x", int), ("y", int)])
+                current_positions = data_interface.convert(current_positions)
+
+            if not isinstance(current_positions, dict):
+                raise GraphCreationError("Expected dictionary for 'dict' aspect")
+            graph = create_graph_dict(current_positions)
+        else:
+            raise GraphCreationError("Aspect must be 'array' or 'dict'")
+
+        # Create mapping from object ID to vertex index
+        id_to_vertex = {}
+        for i, obj_id in enumerate(graph.vs["id"]):
+            id_to_vertex[obj_id] = i
+
+        # Add memory-based edges
+        edges_to_add = []
+        for obj_id, connected_ids in memory_connections.items():
+            if obj_id not in id_to_vertex:
+                logging.warning(f"Object {obj_id} in memory but not in current positions")
+                continue
+
+            vertex_from = id_to_vertex[obj_id]
+
+            for connected_id in connected_ids:
+                if connected_id not in id_to_vertex:
+                    logging.warning(f"Connected object {connected_id} in memory but not in current positions")
+                    continue
+
+                vertex_to = id_to_vertex[connected_id]
+
+                # Avoid self-loops and ensure consistent edge ordering
+                if vertex_from != vertex_to:
+                    edge = tuple(sorted([vertex_from, vertex_to]))
+                    edges_to_add.append(edge)
+
+        # Remove duplicates and add edges
+        unique_edges = list(set(edges_to_add))
+        if unique_edges:
+            graph.add_edges(unique_edges)
+
+            # Add memory attribute to edges
+            graph.es["memory_based"] = [True] * len(unique_edges)
+
+        logging.info(f"Created memory graph with {graph.vcount()} vertices and {graph.ecount()} memory-based edges")
+
+        return graph
+
+    except Exception as e:
+        raise GraphCreationError(f"Failed to create memory graph: {str(e)}")
+
+
+def update_memory_from_proximity(current_positions: Union[np.ndarray, Dict[str, Any]],
+                                 proximity_thresh: float,
+                                 memory_manager: MemoryManager,
+                                 metric: str = "euclidean",
+                                 aspect: str = "array") -> Dict[str, List[str]]:
+    """Update memory manager with current proximity connections
+
+    Args:
+        current_positions: Current positions
+        proximity_thresh: Distance threshold for proximity
+        memory_manager: MemoryManager instance to update
+        metric: Distance metric
+        aspect: Data format
+
+    Returns:
+        Current proximity connections dictionary
+    """
+    try:
+
+
+        # Extract position data and create ID mapping
+        if aspect == "array":
+            if not isinstance(current_positions, np.ndarray):
+                raise GraphCreationError("Expected numpy array for 'array' aspect")
+
+            object_ids = current_positions[:, 0].astype(str)  # Convert to string for consistency
+            positions_2d = current_positions[:, 1:3].astype(float)
+
+        elif aspect == "dict":
+            if isinstance(current_positions, np.ndarray):
+                data_interface = DataInterface([("id", int), ("x", int), ("y", int)])
+                current_positions = data_interface.convert(current_positions)
+
+            object_ids = [str(obj_id) for obj_id in current_positions["id"]]  # Convert to string
+            positions_2d = np.column_stack([current_positions["x"], current_positions["y"]])
+
+        else:
+            raise GraphCreationError("Aspect must be 'array' or 'dict'")
+
+        # Get proximity connections
+        proximity_indices = get_distance(positions_2d, proximity_thresh, metric)
+
+        # Convert indices to object IDs
+        current_connections = {}
+        for i, nearby_indices in enumerate(proximity_indices):
+            obj_id = object_ids[i]
+            connected_ids = [object_ids[j] for j in nearby_indices]
+            current_connections[obj_id] = connected_ids
+
+        # Ensure all objects are represented (even those with no connections)
+        for obj_id in object_ids:
+            if obj_id not in current_connections:
+                current_connections[obj_id] = []
+
+        # Update memory manager
+        memory_manager.add_connections(current_connections)
+
+        return current_connections
+
+    except Exception as e:
+        raise GraphCreationError(f"Failed to update memory from proximity: {str(e)}")
+
+
+# Add these methods to the main Graphing class (to be integrated)
+class MemoryGraphMixin:
+    """Mixin class to add memory graph functionality to the main Graphing class"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.memory_manager = None
+
+    def init_memory_manager(self, max_memory_size: int = 100, max_iterations: int = None) -> MemoryManager:
+        """Initialize memory manager for this graphing instance
+
+        Args:
+            max_memory_size: Maximum connections per object
+            max_iterations: Maximum iterations to keep (None = unlimited)
+
+        Returns:
+            MemoryManager instance
+        """
+        self.memory_manager = MemoryManager(max_memory_size, max_iterations)
+        return self.memory_manager
+
+    def make_memory_graph(self, data_points: Union[np.ndarray, Dict[str, Any]],
+                          memory_connections: Dict[str, List[str]] = None) -> Any:
+        """Create a memory-based graph
+
+        Args:
+            data_points: Current positions
+            memory_connections: Memory connections (if None, uses internal memory manager)
+
+        Returns:
+            igraph Graph object with memory-based edges
+        """
+        try:
+            if memory_connections is None:
+                if self.memory_manager is None:
+                    raise GraphCreationError("No memory manager initialized and no connections provided")
+                memory_connections = self.memory_manager.get_current_memory_graph()
+
+            return create_memory_graph(data_points, memory_connections, self.aspect)
+
+        except Exception as e:
+            raise GraphCreationError(f"Failed to create memory graph: {str(e)}")
+
+    def update_memory_with_proximity(self, data_points: Union[np.ndarray, Dict[str, Any]],
+                                     proximity_thresh: float = None) -> Dict[str, List[str]]:
+        """Update memory manager with current proximity connections
+
+        Args:
+            data_points: Current positions
+            proximity_thresh: Distance threshold (uses config default if None)
+
+        Returns:
+            Current proximity connections
+        """
+        try:
+            if self.memory_manager is None:
+                raise GraphCreationError("Memory manager not initialized. Call init_memory_manager() first")
+
+            if proximity_thresh is None:
+                proximity_thresh = self.config.graph.proximity_threshold
+
+            return update_memory_from_proximity(
+                data_points,
+                proximity_thresh,
+                self.memory_manager,
+                self.config.graph.distance_metric,
+                self.aspect
+            )
+
+        except Exception as e:
+            raise GraphCreationError(f"Failed to update memory with proximity: {str(e)}")
+
+    def get_memory_stats(self) -> Dict[str, Any]:
+        """Get memory statistics"""
+        if self.memory_manager is None:
+            return {"error": "Memory manager not initialized"}
+        return self.memory_manager.get_memory_stats()
+
+
+# Example usage function
+def example_memory_graph_usage():
+    """Example of how to use the memory graph functionality"""
+
+    # Example data - current positions
+    current_positions = np.array([
+        [1, 100, 100],  # Object A at (100, 100)
+        [2, 200, 150],  # Object B at (200, 150)
+        [3, 120, 300],  # Object C at (120, 300)
+        [4, 400, 100],  # Object D at (400, 100)
+    ])
+
+    # Example memory connections (historical proximities)
+    memory_connections = {
+        "1": ["3", "4"],  # A was connected to C and D
+        "2": [],  # B has no memory connections
+        "3": ["1"],  # C was connected to A
+        "4": ["1"],  # D was connected to A
+    }
+
+    # Create memory graph
+    graph = create_memory_graph(current_positions, memory_connections, aspect="array")
+
+    print(f"Memory graph: {graph.vcount()} vertices, {graph.ecount()} edges")
+
+    # Using with MemoryManager
+    memory_mgr = MemoryManager(max_memory_size=50, max_iterations=10)
+
+    # Simulate multiple iterations
+    for iteration in range(5):
+        # Simulate changing proximity connections each iteration
+        proximity_connections = {
+            "1": ["2"] if iteration % 2 == 0 else ["3"],
+            "2": ["1"] if iteration % 2 == 0 else [],
+            "3": ["1"] if iteration % 2 == 1 else ["4"],
+            "4": ["3"] if iteration % 2 == 1 else [],
+        }
+
+        memory_mgr.add_connections(proximity_connections)
+
+    # Get final memory state
+    final_memory = memory_mgr.get_current_memory_graph()
+    final_graph = create_memory_graph(current_positions, final_memory, aspect="array")
+
+    stats = memory_mgr.get_memory_stats()
+    print(f"Final memory stats: {stats}")
+
+    return final_graph
+
+if __name__ == "__main__":
+    # Run example
+    example_graph = example_memory_graph_usage()
