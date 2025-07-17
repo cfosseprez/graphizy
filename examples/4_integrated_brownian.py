@@ -1,34 +1,41 @@
 #!/usr/bin/env python3
 """
-Integrated Brownian Motion Example for Graphizy
+Interactive Brownian Motion Viewer for Graphizy
 
-This comprehensive example demonstrates a dynamic simulation where particles
-undergo Brownian motion, and their spatial relationships are continuously
-analyzed and visualized as evolving graphs.
+This modified version displays graphs in real-time using OpenCV imshow
+instead of saving files. Select graph type by number:
 
-It showcases:
-1.  A class-based structure for managing a complex simulation.
-2.  Real-time graph generation from dynamic data (Delaunay, proximity).
-3.  Integration of a memory graph to track connections over time.
-4.  Automated frame saving and movie creation from the simulation output.
-5.  A flexible command-line interface for customizing simulation parameters.
+Graph Types:
+    1 - Proximity Graph (Red)
+    2 - Delaunay Triangulation (Green)
+    3 - Memory Graph (Blue)
+    4 - Combined View (All graphs side-by-side)
+
+Usage:
+    python interactive_brownian.py [graph_type] [options]
+
+Controls:
+    ESC - Exit
+    SPACE - Pause/Resume
+    R - Reset simulation
+    1-4 - Switch graph type during simulation
 
 .. moduleauthor:: Charles Fosseprez
-.. contact:: charles.fosseprez.me@gmail.com
-.. license:: MIT
-.. copyright:: Copyright (C) 2023 Charles Fosseprez
+.. contact:: charles.fosseprez.pro@gmail.com
+.. license:: GPL-2.0-or-later
+.. copyright:: Copyright (C) 2025 Charles Fosseprez
 """
 
 import numpy as np
 import logging
-from pathlib import Path
 import sys
 import argparse
 import time
+import cv2
 from typing import Optional, Dict, List
 
 from graphizy import (
-    Graphing, GraphizyConfig, MemoryManager, generate_positions
+    Graphing, GraphizyConfig, generate_positions
 )
 
 # Setup logging for clear, informative output during the simulation.
@@ -36,10 +43,9 @@ logging.basicConfig(level=logging.INFO,
                     format='%(levelname)s: %(message)s')
 
 
-class BrownianSimulation:
+class InteractiveBrownianSimulation:
     """
-    Manages a Brownian motion simulation, including particle physics,
-    graph generation, and visualization.
+    Interactive Brownian motion simulation with real-time OpenCV display
     """
 
     def __init__(self, width: int = 800, height: int = 600, num_particles: int = 50,
@@ -51,22 +57,33 @@ class BrownianSimulation:
         self.use_memory = use_memory
 
         # --- Physics Parameters ---
-        # Controls the magnitude of random movements.
         self.diffusion_coefficient = 15.0
-        # A buffer from the edge of the canvas to prevent objects from overlapping the border.
         self.boundary_buffer = 20
 
         # --- Graphing Parameters ---
         self.proximity_threshold = 100.0
-        # Delaunay calculation can be more expensive, so we update it less frequently.
         self.delaunay_update_frequency = 3
 
-        print("Initializing Brownian simulation...")
+        # --- Display Parameters ---
+        self.window_name = "Graphizy - Interactive Brownian Motion"
+        self.paused = False
+        self.current_graph_type = 1  # Default to proximity
+
+        # Graph type mapping
+        self.graph_type_names = {
+            1: "Proximity Graph",
+            2: "Delaunay Triangulation",
+            3: "Memory Graph",
+            4: "Combined View"
+        }
+
+        print("Initializing Interactive Brownian simulation...")
+        print("Controls: ESC=Exit, SPACE=Pause/Resume, R=Reset, 1-4=Switch graph type")
 
         # Sequentially set up all components of the simulation.
         self._initialize_particles()
         self._setup_graphing(memory_size, memory_iterations)
-        self._setup_output_directory()
+        self._setup_opencv()
 
         self.iteration = 0
 
@@ -74,35 +91,31 @@ class BrownianSimulation:
         """Creates the initial set of particles with random positions."""
         positions = generate_positions(self.width, self.height, self.num_particles)
         particle_ids = np.arange(self.num_particles)
-        # The particle_stack holds the state (ID, x, y) for all particles.
         self.particle_stack = np.column_stack((particle_ids, positions))
-        # Velocities are used to add a momentum effect to the movement.
         self.velocities = np.zeros((self.num_particles, 2))
         print(f"Initialized {self.num_particles} particles.")
 
     def _setup_graphing(self, memory_size: int, memory_iterations: Optional[int]):
         """Sets up the Graphing instances, one for each visualization style."""
-        base_config = GraphizyConfig(
-            graph={'dimension': (self.width, self.height)},
-            drawing={'point_radius': 8, 'line_thickness': 2}
-        )
+        base_config = GraphizyConfig()
+        base_config.graph.dimension = (self.width, self.height)
+        base_config.drawing.point_radius = 8
+        base_config.drawing.line_thickness = 2
 
-        # We create separate `Graphing` objects to handle different visual styles
-        # for each type of graph, avoiding reconfiguration in the main loop.
+        # Create graphers with distinct colors
         self.graphers = {
-            'proximity': self._create_grapher(base_config, (255, 0, 0), (255, 255, 255)),  # Red lines
+            'proximity': self._create_grapher(base_config, (0, 0, 255), (255, 255, 255)),  # Red lines
             'delaunay': self._create_grapher(base_config, (0, 255, 0), (255, 255, 0)),  # Green lines
-            'memory': self._create_grapher(base_config, (0, 100, 255), (100, 255, 100))  # Blue lines
+            'memory': self._create_grapher(base_config, (255, 100, 0), (100, 255, 100))  # Blue lines
         }
 
         if self.use_memory:
-            self.memory_manager = MemoryManager(
+            # Initialize memory manager for the memory grapher
+            self.graphers['memory'].init_memory_manager(
                 max_memory_size=memory_size,
                 max_iterations=memory_iterations,
-                track_edge_ages=True  # Essential for age-based coloring.
+                track_edge_ages=True
             )
-            # Associate the memory manager with the 'memory' grapher.
-            self.graphers['memory'].memory_manager = self.memory_manager
             print("Memory manager initialized.")
 
     def _create_grapher(self, base_config: GraphizyConfig, line_color: tuple, point_color: tuple) -> Graphing:
@@ -112,33 +125,27 @@ class BrownianSimulation:
         config.drawing.point_color = point_color
         return Graphing(config=config)
 
-    def _setup_output_directory(self):
-        """Creates the necessary output directories for saving frames."""
-        self.output_dir = Path("examples/output/brownian_simulation")
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        # Create subdirectories to keep frames for each graph type organized.
-        for graph_type in ['proximity', 'delaunay', 'memory', 'combined']:
-            (self.output_dir / graph_type).mkdir(exist_ok=True)
-        print(f"Output directory set to: {self.output_dir}")
+    def _setup_opencv(self):
+        """Setup OpenCV window and display"""
+        cv2.namedWindow(self.window_name, cv2.WINDOW_AUTOSIZE)
+        print(f"OpenCV window '{self.window_name}' created")
 
     def update_positions(self, dt: float = 1.0):
         """Updates particle positions based on a simple Brownian motion model."""
-        # The core of Brownian motion: add a random vector to each particle's velocity.
         random_forces = np.random.normal(0, self.diffusion_coefficient, (self.num_particles, 2))
-        # A simple momentum model to smooth out the movement.
         momentum_factor = 0.1
         self.velocities = momentum_factor * self.velocities + (1 - momentum_factor) * random_forces
         self.particle_stack[:, 1:3] += self.velocities * dt
 
-        # Implement reflective boundary conditions to keep particles on screen.
-        # When a particle hits a wall, its velocity component perpendicular to the wall is inverted.
+        # Implement reflective boundary conditions
         for i in range(self.num_particles):
             x, y = self.particle_stack[i, 1:3]
             if not (self.boundary_buffer < x < self.width - self.boundary_buffer):
                 self.velocities[i, 0] *= -1
             if not (self.boundary_buffer < y < self.height - self.boundary_buffer):
                 self.velocities[i, 1] *= -1
-        # Clamp positions to ensure they stay within bounds.
+
+        # Clamp positions to bounds
         self.particle_stack[:, 1] = np.clip(self.particle_stack[:, 1], self.boundary_buffer,
                                             self.width - self.boundary_buffer)
         self.particle_stack[:, 2] = np.clip(self.particle_stack[:, 2], self.boundary_buffer,
@@ -147,157 +154,233 @@ class BrownianSimulation:
     def generate_graphs(self) -> Dict[str, any]:
         """Generates all relevant graphs for the current particle positions."""
         graphs = {}
-        # Proximity graph is generated every frame.
-        graphs['proximity'] = self.graphers['proximity'].make_proximity(self.particle_stack)
 
-        # Delaunay graph is updated periodically to save computation time.
+        # Proximity graph - generated every frame
+        graphs['proximity'] = self.graphers['proximity'].make_proximity(self.particle_stack,
+                                                                        proximity_thresh=self.proximity_threshold)
+
+        # Delaunay graph - updated periodically to save computation
         if self.iteration % self.delaunay_update_frequency == 0:
             graphs['delaunay'] = self.graphers['delaunay'].make_delaunay(self.particle_stack)
-            self._last_delaunay = graphs['delaunay']  # Cache the last computed graph.
+            self._last_delaunay = graphs['delaunay']
         else:
             graphs['delaunay'] = getattr(self, '_last_delaunay', None)
 
+        # Memory graph
         if self.use_memory:
-            # First, update the memory with the current proximity connections.
             self.graphers['memory'].update_memory_with_proximity(self.particle_stack)
-            # Then, create a graph object representing the entire memory state.
             graphs['memory'] = self.graphers['memory'].make_memory_graph(self.particle_stack)
 
         return graphs
 
-    def create_visualizations(self, graphs: Dict[str, any], save_frames: bool) -> Dict[str, np.ndarray]:
-        """Draws all generated graphs and saves them as image frames."""
-        images = {}
-        for name, graph in graphs.items():
-            if graph:
-                grapher = self.graphers[name]
-                # Memory graphs can be drawn with special age-based coloring.
-                if name == 'memory' and self.use_memory:
-                    image = grapher.draw_memory_graph(graph, use_age_colors=True, alpha_range=(0.4, 1.0))
-                else:
-                    image = grapher.draw_graph(graph)
+    def create_single_visualization(self, graphs: Dict[str, any], graph_type: int) -> Optional[np.ndarray]:
+        """Creates visualization for a single graph type"""
+        graph_map = {
+            1: 'proximity',
+            2: 'delaunay',
+            3: 'memory'
+        }
 
-                images[name] = image
-                if save_frames:
-                    filepath = self.output_dir / name / f"frame_{self.iteration:04d}.jpg"
-                    grapher.save_graph(image, str(filepath))
-        return images
+        if graph_type not in graph_map:
+            return None
 
-    def create_combined_visualization(self, images: Dict[str, np.ndarray], save_frame: bool) -> Optional[np.ndarray]:
-        """Stitches individual graph visualizations into a single dashboard image."""
-        valid_images = [v for v in images.values() if v is not None]
-        if not valid_images: return None
+        graph_name = graph_map[graph_type]
+        graph = graphs.get(graph_name)
 
-        # Arrange images in a 2x2 grid for a comprehensive view.
-        while len(valid_images) < 4:
-            valid_images.append(np.zeros_like(valid_images[0]))
+        if not graph:
+            return None
 
-        top_row = np.hstack([valid_images[0], valid_images[1]])
-        bottom_row = np.hstack([valid_images[2], valid_images[3]])
+        grapher = self.graphers[graph_name]
+
+        # Special handling for memory graphs
+        if graph_name == 'memory' and self.use_memory:
+            try:
+                image = grapher.draw_memory_graph(graph, use_age_colors=True, alpha_range=(0.4, 1.0))
+            except:
+                # Fallback to regular drawing if memory drawing fails
+                image = grapher.draw_graph(graph)
+        else:
+            image = grapher.draw_graph(graph)
+
+        return image
+
+    def create_combined_visualization(self, graphs: Dict[str, any]) -> Optional[np.ndarray]:
+        """Creates a combined view showing all graph types"""
+        images = []
+
+        for graph_type in [1, 2, 3]:  # proximity, delaunay, memory
+            img = self.create_single_visualization(graphs, graph_type)
+            if img is not None:
+                images.append(img)
+            else:
+                # Create blank image as placeholder
+                blank = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+                images.append(blank)
+
+        if not images:
+            return None
+
+        # Ensure we have exactly 3 images
+        while len(images) < 3:
+            blank = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+            images.append(blank)
+
+        # Create a 2x2 grid (with one empty slot)
+        top_row = np.hstack([images[0], images[1]])
+        bottom_left = images[2]
+        bottom_right = np.zeros_like(images[2])  # Empty slot
+        bottom_row = np.hstack([bottom_left, bottom_right])
         combined = np.vstack([top_row, bottom_row])
 
-        if save_frame:
-            filepath = self.output_dir / "combined" / f"combined_frame_{self.iteration:04d}.jpg"
-            self.graphers['proximity'].save_graph(combined, str(filepath))
         return combined
 
-    def run_simulation(self, num_iterations: int, save_frequency: int, dt: float, verbose: bool):
-        """The main simulation loop."""
-        print(f"Starting simulation for {num_iterations} iterations...")
-        start_time = time.time()
+    def add_info_overlay(self, image: np.ndarray, graph_type: int) -> np.ndarray:
+        """Add information overlay to the image"""
+        if image is None:
+            return image
 
-        for i in range(num_iterations):
-            self.iteration = i
+        # Create a copy to avoid modifying original
+        img_with_overlay = image.copy()
 
-            # --- The core sequence for each time step ---
-            # 1. Update particle physics.
-            self.update_positions(dt)
-            # 2. Generate graphs from the new positions.
-            graphs = self.generate_graphs()
+        # Add title
+        title = self.graph_type_names.get(graph_type, f"Graph Type {graph_type}")
+        cv2.putText(img_with_overlay, title, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
-            # (Optional) Collect statistics for later analysis.
-            # stats = self._analyze_graphs(graphs)
+        # Add iteration counter
+        iter_text = f"Iteration: {self.iteration}"
+        cv2.putText(img_with_overlay, iter_text, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-            # 3. Create and save visualizations.
-            if i % save_frequency == 0:
-                images = self.create_visualizations(graphs, save_frames=True)
-                self.create_combined_visualization(images, save_frame=True)
+        # Add particle count
+        particle_text = f"Particles: {self.num_particles}"
+        cv2.putText(img_with_overlay, particle_text, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-            if verbose and (i % 10 == 0 or i < 10):
-                print(f"Completed Iteration {i + 1}/{num_iterations}")
+        # Add pause indicator
+        if self.paused:
+            cv2.putText(img_with_overlay, "PAUSED", (10, self.height - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255),
+                        2)
 
-        print(f"\nSimulation finished in {time.time() - start_time:.2f} seconds.")
+        return img_with_overlay
 
-    def create_movie(self, graph_type: str, fps: int):
-        """Creates an MP4 movie from the saved frames using OpenCV."""
-        try:
-            import cv2
-        except ImportError:
-            print("OpenCV (cv2) is required to create movies. Please install it (`pip install opencv-python`).")
-            return
+    def handle_keyboard_input(self, key: int) -> bool:
+        """Handle keyboard input. Returns False if should exit."""
+        if key == 27:  # ESC key
+            return False
+        elif key == ord(' '):  # Space key
+            self.paused = not self.paused
+            print(f"Simulation {'paused' if self.paused else 'resumed'}")
+        elif key == ord('r') or key == ord('R'):  # Reset
+            self._initialize_particles()
+            self.iteration = 0
+            print("Simulation reset")
+        elif key in [ord('1'), ord('2'), ord('3'), ord('4')]:  # Graph type selection
+            self.current_graph_type = int(chr(key))
+            print(f"Switched to: {self.graph_type_names.get(self.current_graph_type, 'Unknown')}")
 
-        frame_dir = self.output_dir / graph_type
-        frame_files = sorted(list(frame_dir.glob("*.jpg")))
-        if not frame_files:
-            print(f"No frames found in '{frame_dir}' to create a movie.")
-            return
+        return True
 
-        print(f"Creating '{graph_type}' movie from {len(frame_files)} frames at {fps} FPS...")
-        first_frame = cv2.imread(str(frame_files[0]))
-        height, width, _ = first_frame.shape
+    def run_simulation(self, graph_type: int = 1, max_iterations: int = 1000, dt: float = 1.0, fps: int = 30):
+        """The main interactive simulation loop."""
+        self.current_graph_type = graph_type
+        print(f"Starting interactive simulation...")
+        print(f"Initial graph type: {self.graph_type_names.get(graph_type, 'Unknown')}")
 
-        output_path = self.output_dir / f"brownian_simulation_{graph_type}.mp4"
-        video_writer = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+        frame_delay = int(1000 / fps)  # Delay in milliseconds
 
-        for frame_file in frame_files:
-            video_writer.write(cv2.imread(str(frame_file)))
-        video_writer.release()
+        while self.iteration < max_iterations:
+            if not self.paused:
+                # Update physics
+                self.update_positions(dt)
 
-        print(f"Movie saved to: {output_path}")
+                # Generate graphs
+                graphs = self.generate_graphs()
+
+                # Create visualization based on current graph type
+                if self.current_graph_type == 4:  # Combined view
+                    image = self.create_combined_visualization(graphs)
+                else:
+                    image = self.create_single_visualization(graphs, self.current_graph_type)
+
+                if image is not None:
+                    # Add info overlay
+                    display_image = self.add_info_overlay(image, self.current_graph_type)
+
+                    # Display the image
+                    cv2.imshow(self.window_name, display_image)
+
+                self.iteration += 1
+            else:
+                # Still show the last frame when paused
+                cv2.imshow(self.window_name,
+                           display_image if 'display_image' in locals() else np.zeros((self.height, self.width, 3),
+                                                                                      dtype=np.uint8))
+
+            # Handle keyboard input
+            key = cv2.waitKey(frame_delay) & 0xFF
+            if not self.handle_keyboard_input(key):
+                break
+
+        print(f"\nSimulation finished after {self.iteration} iterations.")
+        cv2.destroyAllWindows()
+
+    def reset_simulation(self):
+        """Reset the simulation to initial state"""
+        self._initialize_particles()
+        self.iteration = 0
 
 
 def main():
-    """Parses command-line arguments and runs the simulation."""
-    parser = argparse.ArgumentParser(description="Graphizy: Integrated Brownian Motion Simulation")
+    """Parses command-line arguments and runs the interactive simulation."""
+    parser = argparse.ArgumentParser(description="Graphizy: Interactive Brownian Motion Viewer")
+
+    # Graph type selection
+    parser.add_argument('graph_type', type=int, nargs='?', default=1,
+                        help='Graph type to display (1=Proximity, 2=Delaunay, 3=Memory, 4=Combined)')
+
     # Simulation parameters
-    parser.add_argument('--iterations', '-i', type=int, default=100)
-    parser.add_argument('--particles', '-p', type=int, default=50)
-    parser.add_argument('--size', nargs=2, type=int, default=[800, 600])
+    parser.add_argument('--iterations', '-i', type=int, default=1000,
+                        help='Maximum number of iterations (default: 1000)')
+    parser.add_argument('--particles', '-p', type=int, default=50,
+                        help='Number of particles (default: 50)')
+    parser.add_argument('--size', nargs=2, type=int, default=[800, 600],
+                        help='Canvas size [width height] (default: 800 600)')
+    parser.add_argument('--fps', type=int, default=30,
+                        help='Display FPS (default: 30)')
+
     # Memory parameters
-    parser.add_argument('--no-memory', action='store_false', dest='memory')
-    parser.add_argument('--memory-size', type=int, default=25)
-    # Output parameters
-    parser.add_argument('--fps', type=int, default=10)
-    parser.add_argument('--no-movie', action='store_true')
-    parser.add_argument('--quiet', '-q', action='store_true')
+    parser.add_argument('--no-memory', action='store_false', dest='memory',
+                        help='Disable memory graph functionality')
+    parser.add_argument('--memory-size', type=int, default=25,
+                        help='Memory buffer size (default: 25)')
 
     args = parser.parse_args()
 
+    # Validate graph type
+    if args.graph_type not in [1, 2, 3, 4]:
+        print("Error: Graph type must be 1 (Proximity), 2 (Delaunay), 3 (Memory), or 4 (Combined)")
+        sys.exit(1)
+
     try:
-        simulation = BrownianSimulation(
+        simulation = InteractiveBrownianSimulation(
             width=args.size[0], height=args.size[1],
             num_particles=args.particles, use_memory=args.memory,
             memory_size=args.memory_size
         )
 
         simulation.run_simulation(
-            num_iterations=args.iterations, save_frequency=1,
-            dt=1.0, verbose=not args.quiet
+            graph_type=args.graph_type,
+            max_iterations=args.iterations,
+            dt=1.0,
+            fps=args.fps
         )
 
-        if not args.no_movie:
-            simulation.create_movie(graph_type='combined', fps=args.fps)
-            if args.memory:
-                simulation.create_movie(graph_type='memory', fps=args.fps)
-
         print("\nSimulation completed successfully!")
-        print(f"Output files are in: {simulation.output_dir}")
 
     except Exception as e:
         print(f"\nAn error occurred during the simulation: {e}")
         import traceback
         traceback.print_exc()
+        cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

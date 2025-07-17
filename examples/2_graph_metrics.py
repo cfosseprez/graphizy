@@ -51,7 +51,8 @@ def create_sample_graphs() -> (Dict[str, Any], Graphing, np.ndarray):
     particle_stack = np.column_stack((particle_ids, positions))
 
     # Initialize a Graphing instance to create graphs.
-    config = GraphizyConfig(graph={'dimension': (WIDTH, HEIGHT)})
+    config = GraphizyConfig()
+    config.graph.dimension = (WIDTH, HEIGHT)
     grapher = Graphing(config=config)
 
     # Create a dictionary to hold different graph types.
