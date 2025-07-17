@@ -679,17 +679,19 @@ def call_igraph_method(graph: Any, method_name: str, *args, **kwargs) -> Any:
 
 
 class MemoryManager:
-    """Manages memory connections between objects"""
+    """Manages memory connections between objects with optional edge aging support"""
 
-    def __init__(self, max_memory_size: int = 100, max_iterations: int = None):
+    def __init__(self, max_memory_size: int = 100, max_iterations: int = None, track_edge_ages: bool = True):
         """Initialize memory manager
 
         Args:
             max_memory_size: Maximum number of connections to keep per object
             max_iterations: Maximum number of iterations to keep connections (None = unlimited)
+            track_edge_ages: Whether to track edge ages for visualization
         """
         self.max_memory_size = max_memory_size
         self.max_iterations = max_iterations
+        self.track_edge_ages = track_edge_ages
         self.current_iteration = 0
 
         # Memory structure: {object_id: deque([(connected_id, iteration), ...])}
@@ -697,6 +699,10 @@ class MemoryManager:
 
         # Track all unique object IDs that have been seen
         self.all_objects = set()
+        
+        # Track edge ages (only if enabled)
+        if self.track_edge_ages:
+            self.edge_ages = {}  # {(obj1, obj2): {"first_seen": iter, "last_seen": iter}}
 
     def add_connections(self, connections: Dict[str, List[str]]) -> None:
         """Add new connections to memory
@@ -706,12 +712,29 @@ class MemoryManager:
         """
         self.current_iteration += 1
 
+        # Track current edges for age updates (if enabled)
+        if self.track_edge_ages:
+            current_edges = set()
+
         for obj_id, connected_ids in connections.items():
             self.all_objects.add(obj_id)
 
             # Add each connection with current iteration timestamp
             for connected_id in connected_ids:
                 self.all_objects.add(connected_id)
+
+                # Track edge age (if enabled)
+                if self.track_edge_ages:
+                    edge_key = tuple(sorted([obj_id, connected_id]))
+                    current_edges.add(edge_key)
+                    
+                    if edge_key not in self.edge_ages:
+                        self.edge_ages[edge_key] = {
+                            "first_seen": self.current_iteration,
+                            "last_seen": self.current_iteration
+                        }
+                    else:
+                        self.edge_ages[edge_key]["last_seen"] = self.current_iteration
 
                 # Add bidirectional connections
                 self.memory[obj_id].append((connected_id, self.current_iteration))
@@ -732,6 +755,14 @@ class MemoryManager:
                  if iteration > cutoff_iteration],
                 maxlen=self.max_memory_size
             )
+        
+        # Clean old edge ages (if tracking enabled)
+        if self.track_edge_ages and hasattr(self, 'edge_ages'):
+            self.edge_ages = {
+                edge_key: age_info 
+                for edge_key, age_info in self.edge_ages.items()
+                if age_info["last_seen"] > cutoff_iteration
+            }
 
     def get_current_memory_graph(self) -> Dict[str, List[str]]:
         """Get current memory as a graph dictionary
@@ -760,14 +791,63 @@ class MemoryManager:
         """Get statistics about current memory state"""
         total_connections = sum(len(connections) for connections in self.memory.values())
 
-        return {
+        stats = {
             "total_objects": len(self.all_objects),
             "total_connections": total_connections // 2,  # Divide by 2 because connections are bidirectional
             "current_iteration": self.current_iteration,
             "objects_with_memory": len([obj for obj in self.all_objects if obj in self.memory and self.memory[obj]]),
             "max_memory_size": self.max_memory_size,
-            "max_iterations": self.max_iterations
+            "max_iterations": self.max_iterations,
+            "edge_aging_enabled": self.track_edge_ages
         }
+        
+        # Add edge age statistics if tracking is enabled
+        if self.track_edge_ages and hasattr(self, 'edge_ages') and self.edge_ages:
+            current_iter = self.current_iteration
+            ages = [current_iter - info["first_seen"] for info in self.edge_ages.values()]
+            
+            stats["edge_age_stats"] = {
+                "min_age": min(ages),
+                "max_age": max(ages), 
+                "avg_age": sum(ages) / len(ages),
+                "total_aged_edges": len(ages)
+            }
+
+        return stats
+    
+    def get_edge_ages(self) -> Dict[Tuple[str, str], Dict[str, int]]:
+        """Get age information for all edges (if tracking enabled)"""
+        if not self.track_edge_ages or not hasattr(self, 'edge_ages'):
+            return {}
+        return self.edge_ages.copy()
+    
+    def get_edge_age_normalized(self, max_age: int = None) -> Dict[Tuple[str, str], float]:
+        """Get normalized edge ages (0.0 = newest, 1.0 = oldest)
+        
+        Args:
+            max_age: Maximum age to consider (uses current max if None)
+            
+        Returns:
+            Dictionary mapping edge to normalized age (0.0-1.0)
+        """
+        if not self.track_edge_ages or not hasattr(self, 'edge_ages') or not self.edge_ages:
+            return {}
+        
+        if max_age is None:
+            ages = [self.current_iteration - info["first_seen"] for info in self.edge_ages.values()]
+            max_age = max(ages) if ages else 1
+        
+        if max_age == 0:
+            return {edge: 0.0 for edge in self.edge_ages.keys()}
+        
+        normalized_ages = {}
+        for edge_key, age_info in self.edge_ages.items():
+            age = self.current_iteration - age_info["first_seen"]
+            normalized_age = min(age / max_age, 1.0)
+            normalized_ages[edge_key] = normalized_age
+        
+        return normalized_ages
+
 
 
 def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
@@ -787,8 +867,6 @@ def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
         GraphCreationError: If graph creation fails
     """
     try:
-        from .algorithms import create_graph_array, create_graph_dict
-
         # Create basic graph with positions
         if aspect == "array":
             if not isinstance(current_positions, np.ndarray):
@@ -810,23 +888,28 @@ def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
         # Create mapping from object ID to vertex index
         id_to_vertex = {}
         for i, obj_id in enumerate(graph.vs["id"]):
-            id_to_vertex[obj_id] = i
+            # Convert both to string for consistent comparison
+            id_to_vertex[str(obj_id)] = i
 
         # Add memory-based edges
         edges_to_add = []
         for obj_id, connected_ids in memory_connections.items():
-            if obj_id not in id_to_vertex:
+            # Convert obj_id to string for consistent comparison
+            obj_id_str = str(obj_id)
+            if obj_id_str not in id_to_vertex:
                 logging.warning(f"Object {obj_id} in memory but not in current positions")
                 continue
 
-            vertex_from = id_to_vertex[obj_id]
+            vertex_from = id_to_vertex[obj_id_str]
 
             for connected_id in connected_ids:
-                if connected_id not in id_to_vertex:
+                # Convert connected_id to string for consistent comparison
+                connected_id_str = str(connected_id)
+                if connected_id_str not in id_to_vertex:
                     logging.warning(f"Connected object {connected_id} in memory but not in current positions")
                     continue
 
-                vertex_to = id_to_vertex[connected_id]
+                vertex_to = id_to_vertex[connected_id_str]
 
                 # Avoid self-loops and ensure consistent edge ordering
                 if vertex_from != vertex_to:
@@ -912,84 +995,117 @@ def update_memory_from_proximity(current_positions: Union[np.ndarray, Dict[str, 
         raise GraphCreationError(f"Failed to update memory from proximity: {str(e)}")
 
 
-# Add these methods to the main Graphing class (to be integrated)
-class MemoryGraphMixin:
-    """Mixin class to add memory graph functionality to the main Graphing class"""
+def update_memory_from_graph(graph: Any, memory_manager: MemoryManager) -> Dict[str, List[str]]:
+    """Update memory manager from any igraph Graph object
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.memory_manager = None
+    Args:
+        graph: Any igraph Graph object (Delaunay, proximity, custom, etc.)
+        memory_manager: MemoryManager instance to update
 
-    def init_memory_manager(self, max_memory_size: int = 100, max_iterations: int = None) -> MemoryManager:
-        """Initialize memory manager for this graphing instance
+    Returns:
+        Current connections dictionary
+    """
+    try:
+        if graph is None:
+            raise GraphCreationError("Graph cannot be None")
+        if memory_manager is None:
+            raise GraphCreationError("Memory manager cannot be None")
 
-        Args:
-            max_memory_size: Maximum connections per object
-            max_iterations: Maximum iterations to keep (None = unlimited)
+        # Extract connections from the graph
+        current_connections = {}
 
-        Returns:
-            MemoryManager instance
-        """
-        self.memory_manager = MemoryManager(max_memory_size, max_iterations)
-        return self.memory_manager
+        # Initialize all vertices with empty connections
+        for vertex in graph.vs:
+            obj_id = str(vertex["id"])
+            current_connections[obj_id] = []
 
-    def make_memory_graph(self, data_points: Union[np.ndarray, Dict[str, Any]],
-                          memory_connections: Dict[str, List[str]] = None) -> Any:
-        """Create a memory-based graph
+        # Add edges as bidirectional connections
+        for edge in graph.es:
+            vertex1_id = str(graph.vs[edge.tuple[0]]["id"])
+            vertex2_id = str(graph.vs[edge.tuple[1]]["id"])
 
-        Args:
-            data_points: Current positions
-            memory_connections: Memory connections (if None, uses internal memory manager)
+            current_connections[vertex1_id].append(vertex2_id)
+            current_connections[vertex2_id].append(vertex1_id)
 
-        Returns:
-            igraph Graph object with memory-based edges
-        """
-        try:
-            if memory_connections is None:
-                if self.memory_manager is None:
-                    raise GraphCreationError("No memory manager initialized and no connections provided")
-                memory_connections = self.memory_manager.get_current_memory_graph()
+        # Update memory manager
+        memory_manager.add_connections(current_connections)
 
-            return create_memory_graph(data_points, memory_connections, self.aspect)
+        return current_connections
 
-        except Exception as e:
-            raise GraphCreationError(f"Failed to create memory graph: {str(e)}")
+    except Exception as e:
+        raise GraphCreationError(f"Failed to update memory from graph: {str(e)}")
 
-    def update_memory_with_proximity(self, data_points: Union[np.ndarray, Dict[str, Any]],
-                                     proximity_thresh: float = None) -> Dict[str, List[str]]:
-        """Update memory manager with current proximity connections
 
-        Args:
-            data_points: Current positions
-            proximity_thresh: Distance threshold (uses config default if None)
+def update_memory_from_delaunay(current_positions: Union[np.ndarray, Dict[str, Any]],
+                                memory_manager: MemoryManager,
+                                aspect: str = "array",
+                                dimension: Tuple[int, int] = (1200, 1200)) -> Dict[str, List[str]]:
+    """Update memory manager with Delaunay triangulation connections
 
-        Returns:
-            Current proximity connections
-        """
-        try:
-            if self.memory_manager is None:
-                raise GraphCreationError("Memory manager not initialized. Call init_memory_manager() first")
+    Args:
+        current_positions: Current positions
+        memory_manager: MemoryManager instance to update
+        aspect: Data format
+        dimension: Canvas dimensions for triangulation
 
-            if proximity_thresh is None:
-                proximity_thresh = self.config.graph.proximity_threshold
+    Returns:
+        Current Delaunay connections dictionary
+    """
+    try:
+        # Create temporary graph for Delaunay triangulation
+        if aspect == "array":
+            temp_graph = create_graph_array(current_positions)
+            pos_array = np.stack((
+                current_positions[:, 1],  # x positions
+                current_positions[:, 2]  # y positions
+            ), axis=1)
+        elif aspect == "dict":
+            if isinstance(current_positions, np.ndarray):
+                data_interface = DataInterface([("id", int), ("x", int), ("y", int)])
+                current_positions = data_interface.convert(current_positions)
+            temp_graph = create_graph_dict(current_positions)
+            pos_array = np.column_stack([current_positions["x"], current_positions["y"]])
+        else:
+            raise GraphCreationError("Aspect must be 'array' or 'dict'")
 
-            return update_memory_from_proximity(
-                data_points,
-                proximity_thresh,
-                self.memory_manager,
-                self.config.graph.distance_metric,
-                self.aspect
-            )
+        # Create Delaunay triangulation
+        subdiv = make_subdiv(pos_array, dimension)
+        tri_list = subdiv.getTriangleList()
+        delaunay_graph = graph_delaunay(temp_graph, subdiv, tri_list)
 
-        except Exception as e:
-            raise GraphCreationError(f"Failed to update memory with proximity: {str(e)}")
+        # Update memory from the Delaunay graph
+        return update_memory_from_graph(delaunay_graph, memory_manager)
 
-    def get_memory_stats(self) -> Dict[str, Any]:
-        """Get memory statistics"""
-        if self.memory_manager is None:
-            return {"error": "Memory manager not initialized"}
-        return self.memory_manager.get_memory_stats()
+    except Exception as e:
+        raise GraphCreationError(f"Failed to update memory from Delaunay: {str(e)}")
 
+
+def update_memory_from_custom_function(current_positions: Union[np.ndarray, Dict[str, Any]],
+                                       memory_manager: MemoryManager,
+                                       connection_function: callable,
+                                       aspect: str = "array",
+                                       **kwargs) -> Dict[str, List[str]]:
+    """Update memory using a custom connection function
+
+    Args:
+        current_positions: Current positions
+        memory_manager: MemoryManager instance to update
+        connection_function: Function that takes positions and returns graph
+        aspect: Data format
+        **kwargs: Additional arguments for the connection function
+
+    Returns:
+        Current connections dictionary
+    """
+    try:
+        # Call the custom function to create a graph
+        custom_graph = connection_function(current_positions, aspect=aspect, **kwargs)
+
+        # Update memory from the custom graph
+        return update_memory_from_graph(custom_graph, memory_manager)
+
+    except Exception as e:
+        raise GraphCreationError(f"Failed to update memory from custom function: {str(e)}")
 
 # Example usage function
 def example_memory_graph_usage():
@@ -1039,6 +1155,78 @@ def example_memory_graph_usage():
     print(f"Final memory stats: {stats}")
 
     return final_graph
+
+
+# Example custom connection functions
+def create_k_nearest_graph(positions: np.ndarray, k: int = 3, aspect: str = "array") -> Any:
+    """Create graph connecting each point to its k nearest neighbors"""
+    try:
+        from scipy.spatial.distance import cdist
+
+        if aspect == "array":
+            graph = create_graph_array(positions)
+            pos_2d = positions[:, 1:3]
+        else:
+            raise NotImplementedError("Dict aspect not implemented for k-nearest")
+
+        # Calculate distances
+        distances = cdist(pos_2d, pos_2d)
+
+        # Find k nearest neighbors for each point
+        edges_to_add = []
+        for i, row in enumerate(distances):
+            # Get indices of k+1 nearest (including self), then exclude self
+            nearest_indices = np.argsort(row)[:k + 1]
+            nearest_indices = nearest_indices[nearest_indices != i][:k]
+
+            for j in nearest_indices:
+                edge = tuple(sorted([i, j]))
+                edges_to_add.append(edge)
+
+        # Remove duplicates and add edges
+        unique_edges = list(set(edges_to_add))
+        if unique_edges:
+            graph.add_edges(unique_edges)
+
+        return graph
+
+    except Exception as e:
+        raise GraphCreationError(f"Failed to create k-nearest graph: {str(e)}")
+
+
+def create_minimum_spanning_tree(positions: np.ndarray, aspect: str = "array") -> Any:
+    """Create minimum spanning tree graph"""
+    try:
+        if aspect == "array":
+            graph = create_graph_array(positions)
+            pos_2d = positions[:, 1:3]
+        else:
+            raise NotImplementedError("Dict aspect not implemented for MST")
+
+        # Create complete graph first
+        from scipy.spatial.distance import pdist, squareform
+        distances = squareform(pdist(pos_2d))
+
+        # Add all edges with weights
+        edges_to_add = []
+        weights = []
+
+        n = len(positions)
+        for i in range(n):
+            for j in range(i + 1, n):
+                edges_to_add.append((i, j))
+                weights.append(distances[i, j])
+
+        graph.add_edges(edges_to_add)
+        graph.es["weight"] = weights
+
+        # Get minimum spanning tree
+        mst = graph.spanning_tree(weights="weight")
+
+        return mst
+
+    except Exception as e:
+        raise GraphCreationError(f"Failed to create MST: {str(e)}")
 
 if __name__ == "__main__":
     # Run example

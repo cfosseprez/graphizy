@@ -27,7 +27,7 @@ def trace_error_source():
 
     # Setup that works
     config = GraphizyConfig()
-    config.graph.dimension = (900, 600)  # width=900, height=600
+    config.graph.dimension = (600, 900)  # width=600, height=900
     config.graph.proximity_threshold = 80.0
 
     print(f"🔍 Generating positions for: width={900}, height={600}")

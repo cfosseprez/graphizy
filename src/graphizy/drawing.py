@@ -233,3 +233,127 @@ def save_graph(image_graph: np.ndarray, filename: str) -> None:
 
     except Exception as e:
         raise DrawingError(f"Failed to save graph: {str(e)}")
+
+
+def draw_memory_graph_with_aging(img: np.ndarray, graph: Any, memory_manager: Any,
+                                 point_color: Tuple[int, int, int], line_color: Tuple[int, int, int],
+                                 point_radius: int = 8, point_thickness: int = 3,
+                                 line_thickness: int = 1, use_age_colors: bool = True,
+                                 alpha_range: Tuple[float, float] = (0.3, 1.0)) -> None:
+    """Draw memory graph with optional edge aging visualization
+
+    Args:
+        img: Image array to draw on
+        graph: igraph Graph object
+        memory_manager: MemoryManager instance (for edge ages)
+        point_color: Color for points (B, G, R)
+        line_color: Base color for lines (B, G, R)
+        point_radius: Point radius
+        point_thickness: Point thickness
+        line_thickness: Line thickness
+        use_age_colors: Whether to use age-based edge coloring
+        alpha_range: (min_alpha, max_alpha) for age-based transparency
+
+    Raises:
+        DrawingError: If drawing operation fails
+    """
+    try:
+        if img is None:
+            raise DrawingError("Image cannot be None")
+        if graph is None:
+            raise DrawingError("Graph cannot be None")
+
+        # Draw points first
+        for point in graph.vs:
+            draw_point(img, (point["x"], point["y"]), point_color,
+                       radius=point_radius, thickness=point_thickness)
+
+        # Draw edges with optional age-based styling
+        if (use_age_colors and memory_manager and
+                hasattr(memory_manager, 'track_edge_ages') and memory_manager.track_edge_ages and
+                hasattr(memory_manager, 'get_edge_age_normalized')):
+
+            edge_ages = memory_manager.get_edge_age_normalized()
+
+            for edge in graph.es:
+                x0, y0 = int(graph.vs["x"][edge.tuple[0]]), int(graph.vs["y"][edge.tuple[0]])
+                x1, y1 = int(graph.vs["x"][edge.tuple[1]]), int(graph.vs["y"][edge.tuple[1]])
+
+                # Get edge age for color/alpha calculation
+                vertex1_id = str(graph.vs[edge.tuple[0]]["id"])
+                vertex2_id = str(graph.vs[edge.tuple[1]]["id"])
+                edge_key = tuple(sorted([vertex1_id, vertex2_id]))
+
+                if edge_key in edge_ages:
+                    age_normalized = edge_ages[edge_key]
+                    # Older edges are more transparent (higher age = lower alpha)
+                    alpha = alpha_range[1] - (age_normalized * (alpha_range[1] - alpha_range[0]))
+
+                    # Apply alpha to color (simple blend with background)
+                    aged_color = tuple(int(c * alpha) for c in line_color)
+                else:
+                    aged_color = line_color
+
+                draw_line(img, x0, y0, x1, y1, aged_color, thickness=line_thickness)
+        else:
+            # Standard edge drawing
+            for edge in graph.es:
+                x0, y0 = int(graph.vs["x"][edge.tuple[0]]), int(graph.vs["y"][edge.tuple[0]])
+                x1, y1 = int(graph.vs["x"][edge.tuple[1]]), int(graph.vs["y"][edge.tuple[1]])
+                draw_line(img, x0, y0, x1, y1, line_color, thickness=line_thickness)
+
+        logging.debug(f"Successfully drew memory graph with aging (use_age_colors={use_age_colors})")
+
+    except Exception as e:
+        raise DrawingError(f"Failed to draw memory graph with aging: {str(e)}")
+
+
+def create_memory_graph_image(graph: Any, memory_manager: Any, dimension: Tuple[int, int],
+                              point_color: Tuple[int, int, int] = (0, 0, 255),
+                              line_color: Tuple[int, int, int] = (0, 255, 0),
+                              point_radius: int = 8, point_thickness: int = 3,
+                              line_thickness: int = 1, use_age_colors: bool = True,
+                              alpha_range: Tuple[float, float] = (0.3, 1.0)) -> np.ndarray:
+    """Create a complete memory graph image
+
+    Args:
+        graph: igraph Graph object
+        memory_manager: MemoryManager instance
+        dimension: Image dimensions (width, height)
+        point_color: Color for points (B, G, R)
+        line_color: Base color for lines (B, G, R)
+        point_radius: Point radius
+        point_thickness: Point thickness
+        line_thickness: Line thickness
+        use_age_colors: Whether to use age-based edge coloring
+        alpha_range: (min_alpha, max_alpha) for age-based transparency
+
+    Returns:
+        Image array
+
+    Raises:
+        DrawingError: If image creation fails
+    """
+    try:
+        if graph is None:
+            raise DrawingError("Graph cannot be None")
+        if len(dimension) != 2:
+            raise DrawingError("Dimension must be a tuple of (width, height)")
+
+        width, height = dimension
+        # Create image (height, width, 3) for OpenCV
+        image = np.zeros((height, width, 3), dtype=np.uint8)
+
+        # Draw the memory graph
+        draw_memory_graph_with_aging(
+            image, graph, memory_manager, point_color, line_color,
+            point_radius, point_thickness, line_thickness,
+            use_age_colors, alpha_range
+        )
+
+        return image
+
+    except Exception as e:
+        raise DrawingError(f"Failed to create memory graph image: {str(e)}")
+
+

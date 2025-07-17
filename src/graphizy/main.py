@@ -254,10 +254,10 @@ class Graphing:
         except Exception as e:
             raise GraphCreationError(f"Failed to create proximity graph: {str(e)}")
 
-    def init_memory_manager(self, max_memory_size: int = 100, max_iterations: int = None):
+    def init_memory_manager(self, max_memory_size: int = 100, max_iterations: int = None, track_edge_ages: bool = True):
         """Initialize memory manager for this graphing instance"""
         from .algorithms import MemoryManager
-        self.memory_manager = MemoryManager(max_memory_size, max_iterations)
+        self.memory_manager = MemoryManager(max_memory_size, max_iterations, track_edge_ages)
         return self.memory_manager
 
     def make_memory_graph(self, data_points, memory_connections=None):
@@ -294,6 +294,108 @@ class Graphing:
         if self.memory_manager is None:
             return {"error": "Memory manager not initialized"}
         return self.memory_manager.get_memory_stats()
+    def update_memory_with_delaunay(self, data_points):
+        """Update memory manager with Delaunay triangulation connections"""
+        try:
+            if self.memory_manager is None:
+                raise GraphCreationError("Memory manager not initialized")
+            
+            from .algorithms import update_memory_from_delaunay
+            return update_memory_from_delaunay(
+                data_points, 
+                self.memory_manager,
+                self.aspect,
+                self.dimension
+            )
+        except Exception as e:
+            raise GraphCreationError(f"Failed to update memory with Delaunay: {str(e)}")
+    
+    def update_memory_with_graph(self, graph):
+        """Update memory manager from any graph object"""
+        try:
+            if self.memory_manager is None:
+                raise GraphCreationError("Memory manager not initialized")
+            
+            from .algorithms import update_memory_from_graph
+            return update_memory_from_graph(graph, self.memory_manager)
+        except Exception as e:
+            raise GraphCreationError(f"Failed to update memory with graph: {str(e)}")
+    
+    def update_memory_with_custom(self, data_points, connection_function, **kwargs):
+        """Update memory using custom connection function"""
+        try:
+            if self.memory_manager is None:
+                raise GraphCreationError("Memory manager not initialized")
+            
+            from .algorithms import update_memory_from_custom_function
+            return update_memory_from_custom_function(
+                data_points,
+                self.memory_manager, 
+                connection_function,
+                self.aspect,
+                **kwargs
+            )
+        except Exception as e:
+            raise GraphCreationError(f"Failed to update memory with custom function: {str(e)}")
+    
+    def get_memory_analysis(self):
+        """Get comprehensive memory analysis including age statistics"""
+        try:
+            if self.memory_manager is None:
+                return {"error": "Memory manager not initialized"}
+            
+            return self.memory_manager.get_memory_stats()
+            
+        except Exception as e:
+            return {"error": f"Failed to get memory analysis: {str(e)}"}
+
+    def draw_memory_graph(self, graph: Any, radius: int = None, thickness: int = None,
+                         use_age_colors: bool = True, alpha_range: Tuple[float, float] = (0.3, 1.0)) -> np.ndarray:
+        """Draw memory graph with optional age-based edge coloring
+        
+        Args:
+            graph: igraph Graph object
+            radius: Point radius (uses config default if None)
+            thickness: Point thickness (uses config default if None)
+            use_age_colors: Whether to use age-based edge coloring
+            alpha_range: (min_alpha, max_alpha) for age-based transparency
+            
+        Returns:
+            Image array
+            
+        Raises:
+            DrawingError: If drawing fails
+        """
+        try:
+            from .drawing import create_memory_graph_image
+            
+            if graph is None:
+                raise DrawingError("Graph cannot be None")
+            
+            # Use config defaults if not provided
+            if radius is None:
+                radius = self.point_radius
+            if thickness is None:
+                thickness = self.point_thickness
+            
+            # Create the image using the drawing module
+            image = create_memory_graph_image(
+                graph=graph,
+                memory_manager=self.memory_manager,
+                dimension=self.dimension,
+                point_color=self.point_color,
+                line_color=self.line_color,
+                point_radius=radius,
+                point_thickness=thickness,
+                line_thickness=self.line_thickness,
+                use_age_colors=use_age_colors,
+                alpha_range=alpha_range
+            )
+            
+            return image
+            
+        except Exception as e:
+            raise DrawingError(f"Failed to draw memory graph: {str(e)}")
 
     def draw_graph(self, graph: Any, radius: int = None, thickness: int = None) -> np.ndarray:
         """Draw the graph from igraph

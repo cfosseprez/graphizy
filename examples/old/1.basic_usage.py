@@ -58,7 +58,7 @@ def example_basic_delaunay():
 
         # Draw and save
         image = grapher.draw_graph(delaunay_graph)
-        output_path = Path("output") / "basic_delaunay.jpg"
+        output_path = Path("") / "basic_delaunay.jpg"
         output_path.parent.mkdir(exist_ok=True)
         grapher.save_graph(image, str(output_path))
         print(f"Saved to {output_path}")
@@ -99,7 +99,7 @@ def example_proximity_graph():
 
         # Draw and save
         image = grapher.draw_graph(proximity_graph)
-        output_path = Path("output") / "proximity_graph.jpg"
+        output_path = Path("") / "proximity_graph.jpg"
         grapher.save_graph(image, str(output_path))
         print(f"Saved to {output_path}")
 
@@ -164,7 +164,7 @@ def example_custom_configuration():
         proximity_image = grapher.draw_graph(proximity_graph)
 
         # Save both
-        output_dir = Path("output")
+        output_dir = Path("")
         output_dir.mkdir(exist_ok=True)
 
         grapher.save_graph(delaunay_image, str(output_dir / "custom_delaunay.jpg"))
@@ -210,7 +210,7 @@ def example_runtime_config_updates():
         updated_image = grapher.draw_graph(graph)
 
         # Save both versions
-        output_dir = Path("output")
+        output_dir = Path("")
         output_dir.mkdir(exist_ok=True)
 
         grapher.save_graph(default_image, str(output_dir / "default_style.jpg"))
@@ -312,7 +312,7 @@ def example_custom_data_structure():
 
         # Draw and save
         image = grapher.draw_graph(graph)
-        output_path = Path("output") / "custom_data_structure.jpg"
+        output_path = Path("") / "custom_data_structure.jpg"
         grapher.save_graph(image, str(output_path))
         print(f"Saved to {output_path}")
 
@@ -374,7 +374,7 @@ def example_comparison_analysis():
         prox_image = grapher.draw_graph(proximity_graph)
 
         # Save both
-        output_dir = Path("output")
+        output_dir = Path("")
         output_dir.mkdir(exist_ok=True)
 
         grapher.save_graph(del_image, str(output_dir / "comparison_delaunay.jpg"))
@@ -431,7 +431,7 @@ def main():
     logging.basicConfig(level=logging.INFO)
 
     # Create output directory
-    output_dir = Path("output")
+    output_dir = Path("")
     output_dir.mkdir(exist_ok=True)
 
     try:

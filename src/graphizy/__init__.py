@@ -12,10 +12,12 @@ from graphizy.config import GraphizyConfig, DrawingConfig, GraphConfig, Generati
 from graphizy.algorithms import (
     generate_positions, make_subdiv, make_delaunay, get_delaunay,
     get_distance, graph_distance, create_graph_array, create_graph_dict, DataInterface,
-    call_igraph_method, MemoryManager, create_memory_graph, update_memory_from_proximity
+    call_igraph_method, MemoryManager, create_memory_graph, update_memory_from_proximity,
+    update_memory_from_graph, update_memory_from_delaunay, update_memory_from_custom_function
 )
 from graphizy.drawing import (
-    draw_point, draw_line, draw_delaunay, show_graph, save_graph
+    draw_point, draw_line, draw_delaunay, show_graph, save_graph,
+    draw_memory_graph_with_aging, create_memory_graph_image
 )
 from graphizy.exceptions import (
     GraphizyError, InvalidDimensionError, InvalidDataShapeError,
@@ -25,7 +27,6 @@ from graphizy.exceptions import (
     DependencyError
 )
 
-__version__ = "0.1.0"
 __author__ = "Charles Fosseprez"
 __email__ = "charles.fosseprez.me@gmail.com"
 __license__ = "MIT"
@@ -40,6 +41,7 @@ __all__ = [
     "GraphConfig",
     "GenerationConfig",
     "LoggingConfig",
+    "MemoryConfig",
 
     # Algorithm functions
     "generate_positions",
@@ -53,11 +55,13 @@ __all__ = [
     "DataInterface",
     "call_igraph_method",
 
-    # Memory function
+    # Memory functions
     "MemoryManager",
     "create_memory_graph",
     "update_memory_from_proximity",
-    "MemoryConfig",
+    "update_memory_from_graph",
+    "update_memory_from_delaunay",
+    "update_memory_from_custom_function",
 
     # Drawing functions
     "draw_point",
@@ -65,6 +69,8 @@ __all__ = [
     "draw_delaunay",
     "show_graph",
     "save_graph",
+    "draw_memory_graph_with_aging",
+    "create_memory_graph_image",
 
     # Exceptions
     "GraphizyError",

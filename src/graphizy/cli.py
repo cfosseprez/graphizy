@@ -167,6 +167,12 @@ def create_config_from_args(args) -> GraphizyConfig:
     if hasattr(args, 'metric'):
         config.graph.distance_metric = args.metric
 
+    # Memory configuration (if this is a memory command)
+    if hasattr(args, 'memory_size'):
+        config.memory.max_memory_size = args.memory_size
+    if hasattr(args, 'memory_iterations'):
+        config.memory.max_iterations = args.memory_iterations
+
     # Logging configuration
     config.logging.level = 'DEBUG' if args.verbose else 'INFO'
 
@@ -278,9 +284,6 @@ def cmd_proximity(args) -> None:
 def cmd_memory(args):
     """Handle memory command"""
     config = create_config_from_args(args)
-    config.memory.max_memory_size = args.memory_size
-    config.memory.max_iterations = args.memory_iterations
-
     setup_logging(args.verbose)
 
     try:
@@ -475,6 +478,8 @@ def main() -> None:
             cmd_delaunay(args)
         elif args.command == 'proximity':
             cmd_proximity(args)
+        elif args.command == 'memory':
+            cmd_memory(args)
         elif args.command == 'both':
             cmd_both(args)
         elif args.command == 'info':
