@@ -33,16 +33,14 @@ dependencies = [
     "scipy>=1.7.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=6.0",
-    "pytest-cov>=2.0",
-    "black>=22.0",
-    "flake8>=4.0",
-    "mypy>=0.910",
-    "sphinx<8.0",           # pinned to avoid Python 3.11+ only versions
-    "furo<2024",            # optional, nice Sphinx theme compatible with Python 3.8+
-]
+[tool.poetry.group.dev.dependencies]
+pytest = "^6.0"
+pytest-cov = "^2.0"
+black = "^22.0"
+flake8 = "^4.0"
+mypy = "^0.910"
+sphinx = ">=4.0,<10.0"
+furo = "<2024"
 
 [project.urls]
 Homepage = "https://github.com/lesptizami/graphizy"
