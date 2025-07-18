@@ -22,11 +22,11 @@ You can find the full documentation [here](https://graphizy.readthedocs.io/en/la
 ## Key Features
 
 ### Graph Construction Types
-- ** Delaunay Triangulation**: Optimal triangular meshes from point sets
-- ** Proximity Graphs**: Connect nearby points based on distance thresholds  
-- ** K-Nearest Neighbors**: Connect each point to its k closest neighbors
-- ** Minimum Spanning Tree**: Minimal connected graph with shortest total edge length
-- ** Gabriel Graph**: Geometric proximity graph (subset of Delaunay triangulation)
+- **Delaunay Triangulation**: Optimal triangular meshes from point sets
+- **Proximity Graphs**: Connect nearby points based on distance thresholds  
+- **K-Nearest Neighbors**: Connect each point to its k closest neighbors
+- **Minimum Spanning Tree**: Minimal connected graph with shortest total edge length
+- **Gabriel Graph**: Geometric proximity graph (subset of Delaunay triangulation)
 
 
 ### Memory-Enhanced Graphs
