@@ -30,7 +30,7 @@ You can find the full documentation [here](https://graphizy.readthedocs.io/en/la
 
 
 ### Memory-Enhanced Graphs
-- ** Connection tracking **: Any graph can keep edges in memory for some times
+- **Connection tracking **: Any graph can keep edges in memory for some times
 
 ###  Graph Analysis
 - **igraph Integration**: Full access to [igraph's powerful analytics](https://igraph.org/python/tutorial/0.9.7/analysis.html)
