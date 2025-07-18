@@ -40,6 +40,8 @@ dev = [
     "black>=22.0",
     "flake8>=4.0",
     "mypy>=0.910",
+    "sphinx<8.0",           # pinned to avoid Python 3.11+ only versions
+    "furo<2024",            # optional, nice Sphinx theme compatible with Python 3.8+
 ]
 
 [project.urls]
