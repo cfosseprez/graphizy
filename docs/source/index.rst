@@ -71,37 +71,36 @@ Quick Start
 Key Features
 ------------
 
- **Graph Types**
+🎯 **Graph Types**
    - **Delaunay Triangulation**: Optimal triangular meshes
    - **Proximity Graphs**: Distance-based connections  
    - **K-Nearest Neighbors**: Fixed-degree networks
    - **Minimum Spanning Tree**: Minimal connectivity
    - **Gabriel Graph**: Geometric proximity (subset of Delaunay)
 
- **Temporal memory**
+🧠 **Temporal memory**
    - **Memory-Enhanced**: Any graph type can have a memory in number of past interaction (edges) or in number of past frames
 
- **Analysis**
+🧮 **Analysis**
    - Full igraph integration with 200+ graph analysis algorithms
    - Real-time statistics and centrality measures
    - Memory system for temporal pattern analysis
 
- **Visualization**
+🎨 **Visualization**
    - Interactive OpenCV display
    - Age-based edge coloring for memory graphs
    - Configurable styling and output formats
 
- **Architecture**
+🔧 **Architecture**
    - Type-safe dataclass configuration
    - Robust error handling with detailed exceptions
    - Performance monitoring and optimization
 
-Table of Contents
-=================
+User Guide
+==========
 
 .. toctree::
    :maxdepth: 2
-   :caption: User Guide
 
    user_guide/installation
    user_guide/graph_types
@@ -109,34 +108,14 @@ Table of Contents
    user_guide/memory_system
    user_guide/configuration
    user_guide/examples
-   user_guide/cite
+
+API Reference
+=============
 
 .. toctree::
    :maxdepth: 2
-   :caption: API Reference
 
-   api/main
-   api/config
-   api/algorithms
-   api/drawing
-   api/exceptions
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Advanced Topics
-
-   advanced/performance
-   advanced/extending
-   advanced/memory_internals
-   advanced/interactive_demo
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Development
-
-   development/contributing
-   development/testing
-   development/changelog
+   modules
 
 Indices and Tables
 ==================
