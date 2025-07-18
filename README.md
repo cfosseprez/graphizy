@@ -1,30 +1,41 @@
 # Graphizy
 
-A powerful graph maker for computational geometry and network visualization, specializing in Delaunay triangulation and proximity graphs.
-
+A powerful graph maker for computational geometry and network visualization, specializing in multiple graph types and memory-enhanced analysis.
 
 ![Detection to Graph](https://raw.githubusercontent.com/lesptizami/graphizy/main/images/detection_to_graph.png)
 
-*Figure: Positions are converted to a graph in just a few milliseconds for hundreds of individuals using OpenCV.  
-Graph analytics are accessible in real time as well, by interfacing with igraph.*
+*Figure: Positions are converted to graphs in just a few milliseconds for hundreds of individuals using OpenCV.  
+Graph analytics are accessible in real time by interfacing with igraph.*
 
-## Features
+## 🎯 Key Features
 
-### Graph construction
-- **Delaunay Triangulation**: Create optimal triangular meshes from point sets
-- **Proximity Graphs**: Connect nearby points based on distance thresholds  
-- **Collision Graphs**: Connect points based on history of collisions
-### Graph Analysis
-- **Igraph based**: https://igraph.org/python/tutorial/0.9.7/analysis.html
-- **Comprehensive API**: Call any igraph method safely with error handling
-### Design
+### 📊 Graph Construction Types
+- **🔺 Delaunay Triangulation**: Optimal triangular meshes from point sets
+- **📡 Proximity Graphs**: Connect nearby points based on distance thresholds  
+- **🔗 K-Nearest Neighbors**: Connect each point to its k closest neighbors
+- **🌲 Minimum Spanning Tree**: Minimal connected graph with shortest total edge length
+- **🔵 Gabriel Graph**: Geometric proximity graph (subset of Delaunay triangulation)
+- **🧠 Memory-Enhanced Graphs**: Any graph type + historical connection tracking
+
+### 🧮 Graph Analysis
+- **igraph Integration**: Full access to [igraph's powerful analytics](https://igraph.org/python/tutorial/0.9.7/analysis.html)
+- **Comprehensive API**: Call any igraph method with error handling
+- **Real-time Statistics**: Vertex count, edge count, connectivity, clustering, centrality
+
+### 🎨 Visualization & Design  
 - **Flexible Configuration**: Runtime-configurable parameters using dataclasses
-- **Multiple Output Formats**: Save graphs as images or display interactively
+- **Multiple Output Formats**: Save as images or display interactively with OpenCV
+- **Memory Visualization**: Age-based edge coloring for temporal analysis
 - **Command Line Interface**: Easy-to-use CLI for common operations
+- **Interactive Demos**: Real-time Brownian motion simulation with graph evolution
+
+### 🔧 Technical Excellence
 - **Robust Error Handling**: Detailed exceptions and validation
 - **Performance Monitoring**: Built-in timing and optimization tracking
+- **Memory Management**: Configurable connection history with aging
+- **Type Safety**: Full type hints and dataclass configuration
 
-## Installation
+## 🚀 Installation
 
 ```bash
 pip install graphizy
@@ -38,291 +49,376 @@ cd graphizy
 pip install -e .
 ```
 
-## Quick Start
+## ⚡ Quick Start
 
-### Python API
+### Basic Graph Creation
 
 ```python
 import numpy as np
-from graphizy import Graphing, generate_positions
+from graphizy import Graphing, GraphizyConfig, generate_positions
 
 # Generate random points
 positions = generate_positions(800, 800, 100)
 particle_ids = np.arange(len(positions))
 data = np.column_stack((particle_ids, positions))
 
-# Create grapher
-grapher = Graphing(dimension=(800, 800))
-
-# Create Delaunay triangulation
-delaunay_graph = grapher.make_delaunay(data)
-
-# Create proximity graph
-proximity_graph = grapher.make_proximity(data, proximity_thresh=50.0)
-
-# Draw and save
-delaunay_image = grapher.draw_graph(delaunay_graph)
-grapher.save_graph(delaunay_image, "delaunay.jpg")
-
-# Get graph statistics
-info = grapher.get_graph_info(delaunay_graph)
-print(f"Vertices: {info['vertex_count']}, Edges: {info['edge_count']}")
-```
-
-### Command Line Interface
-
-```bash
-# Create Delaunay triangulation
-graphizy delaunay --size 800 --particles 100 --output delaunay.jpg --show
-
-# Create proximity graph  
-graphizy proximity --size 800 --particles 100 --threshold 50 --output proximity.jpg
-
-# Create both and compare
-graphizy both --size 1000 --particles 150 --threshold 40 --show
-
-# Get detailed statistics
-graphizy info --size 800 --particles 100 --output stats.json
-```
-
-## Configuration
-
-Graphizy uses dataclasses for configuration that can be modified at runtime:
-
-```python
-from graphizy import GraphizyConfig, Graphing
-
-# Create custom configuration
+# Create grapher with configuration
 config = GraphizyConfig()
-config.drawing.line_color = (255, 0, 0)  # Red lines
-config.drawing.point_radius = 12
-config.graph.proximity_threshold = 75.0
-
-# Create grapher with config
+config.graph.dimension = (800, 800)
 grapher = Graphing(config=config)
 
-# Update configuration at runtime
+# Create different graph types
+delaunay_graph = grapher.make_delaunay(data)
+proximity_graph = grapher.make_proximity(data, proximity_thresh=50.0)
+knn_graph = grapher.make_knn(data, k=4)  # Connect to 4 nearest neighbors
+mst_graph = grapher.make_mst(data)       # Minimum spanning tree
+gabriel_graph = grapher.make_gabriel(data)  # Gabriel graph
+
+# Visualize and save
+delaunay_image = grapher.draw_graph(delaunay_graph)
+grapher.save_graph(delaunay_image, "delaunay.jpg")
+# Or display interactively
+grapher.show_graph(delaunay_image, "Delaunay Triangulation")
+
+# Get comprehensive statistics
+info = grapher.get_graph_info(delaunay_graph)
+print(f"Graph: {info['vertex_count']} vertices, {info['edge_count']} edges")
+print(f"Density: {info['density']:.3f}, Connected: {info['is_connected']}")
+```
+
+### 🧠 Memory-Enhanced Graphs
+
+Memory graphs track connections over time, allowing analysis of temporal patterns:
+
+```python
+# Initialize memory manager
+grapher.init_memory_manager(max_memory_size=50, track_edge_ages=True)
+
+# Simulate evolution over time
+for iteration in range(100):
+    # Update positions (e.g., particle movement)
+    data[:, 1:3] += np.random.normal(0, 2, (len(data), 2))
+    
+    # Create current graph and update memory
+    current_graph = grapher.make_proximity(data, proximity_thresh=60.0)
+    grapher.update_memory_with_graph(current_graph)
+    
+    # Create memory-enhanced graph (current + historical connections)
+    memory_graph = grapher.make_memory_graph(data)
+    
+    # Visualize with age-based coloring
+    if iteration % 10 == 0:
+        memory_image = grapher.draw_memory_graph(
+            memory_graph, 
+            use_age_colors=True,  # Older connections fade out
+            alpha_range=(0.3, 1.0)
+        )
+        grapher.save_graph(memory_image, f"memory_frame_{iteration:03d}.jpg")
+
+# Get memory statistics
+stats = grapher.get_memory_stats()
+print(f"Memory contains {stats['total_connections']} historical connections")
+print(f"Average edge age: {stats['edge_age_stats']['avg_age']:.1f} iterations")
+```
+
+## 📊 Graph Types Comparison
+
+| Graph Type | Connectivity | Edge Count | Use Case | Memory Compatible |
+|------------|--------------|------------|----------|-------------------|
+| **Proximity** | Variable | ~distance² | Local neighborhoods | ✅ |
+| **Delaunay** | Always | ~3n | Natural triangulation | ✅ |
+| **K-NN** | Variable | k×n | Fixed degree networks | ✅ |
+| **MST** | Always | n-1 | Minimal connectivity | ✅ |
+| **Gabriel** | Variable | Subset of Delaunay | Geometric proximity | ✅ |
+| **Memory** | Variable | Historical | Temporal analysis | - |
+
+## 🎮 Interactive Demo
+
+Experience real-time graph evolution with the interactive Brownian motion simulator:
+
+```bash
+# Basic proximity graph simulation
+python examples/improved_brownian.py 1
+
+# Delaunay triangulation with memory tracking
+python examples/improved_brownian.py 2 --memory
+
+# Minimum spanning tree evolution
+python examples/improved_brownian.py 4 --memory --particles 100
+
+# Compare all graph types side-by-side
+python examples/improved_brownian.py 5 --memory
+
+# Interactive controls:
+# ESC - Exit, SPACE - Pause, R - Reset, M - Toggle memory
+# 1-5 - Switch graph types, +/- - Adjust memory size
+```
+
+## ⚙️ Configuration
+
+Graphizy uses dataclasses for type-safe, runtime-configurable parameters:
+
+```python
+from graphizy import GraphizyConfig
+
+# Create and customize configuration
+config = GraphizyConfig()
+
+# Drawing configuration
+config.drawing.line_color = (255, 0, 0)  # Red lines (B, G, R)
+config.drawing.point_color = (0, 255, 255)  # Yellow points  
+config.drawing.line_thickness = 3
+config.drawing.point_radius = 12
+
+# Graph configuration
+config.graph.dimension = (1200, 800)
+config.graph.proximity_threshold = 75.0
+config.graph.distance_metric = "euclidean"  # or "manhattan", "chebyshev"
+
+# Memory configuration
+config.memory.max_memory_size = 100
+config.memory.auto_update_from_proximity = True
+
+# Create grapher with custom config
+grapher = Graphing(config=config)
+
+# Runtime configuration updates
 grapher.update_config(
-    drawing={"line_thickness": 3},
-    graph={"dimension": (1200, 1200)}
+    drawing={"line_thickness": 5},
+    graph={"proximity_threshold": 100.0}
 )
 ```
 
-### Configuration Options
+## 🔬 Advanced Analysis
 
-#### Drawing Configuration
-- `line_color`: Line color as (B, G, R) tuple
-- `line_thickness`: Line thickness in pixels
-- `point_color`: Point color as (B, G, R) tuple  
-- `point_thickness`: Point outline thickness
-- `point_radius`: Point radius in pixels
-
-#### Graph Configuration  
-- `dimension`: Canvas size as (width, height)
-- `data_shape`: Data structure definition
-- `aspect`: Data format ("array" or "dict")
-- `proximity_threshold`: Distance threshold for proximity graphs
-- `distance_metric`: Distance metric ("euclidean", "manhattan", etc.)
-
-## Advanced Usage
-
-### Custom Data Structures
+### Graph Metrics and Centrality
 
 ```python
-from graphizy import Graphing, DataInterface
-
-# Define custom data structure
-data_shape = [
-    ("particle_id", int),
-    ("position_x", float), 
-    ("position_y", float),
-    ("velocity", float),
-    ("mass", float)
-]
-
-grapher = Graphing(data_shape=data_shape)
-```
-
-### Calling Any igraph Method
-
-```python
-# Call any igraph method safely
-vertex_count = grapher.call_method(graph, 'vcount')
-degree_sequence = grapher.call_method(graph, 'degree')
-clustering = grapher.call_method(graph, 'transitivity_undirected')
-
-# Get comprehensive graph information  
+# Basic graph properties
 info = grapher.get_graph_info(graph)
-print(info)
+print(f"Density: {info['density']:.3f}")
+print(f"Average path length: {info['average_path_length']:.2f}")
+print(f"Clustering coefficient: {info['transitivity']:.3f}")
+
+# Node centrality measures
+degree_centrality = grapher.call_method(graph, 'degree')
+betweenness = grapher.call_method(graph, 'betweenness')
+closeness = grapher.call_method(graph, 'closeness')
+
+# Find most central nodes
+central_nodes = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:5]
+print(f"Top 5 central nodes: {central_nodes}")
+
+# Direct igraph access for advanced analysis
+components = grapher.call_method_raw(graph, 'connected_components')
+diameter = grapher.call_method_raw(graph, 'diameter')
 ```
 
-### Error Handling
+### Custom Graph Types
 
 ```python
-from graphizy import GraphizyError, SubdivisionError
-
-try:
-    graph = grapher.make_delaunay(invalid_data)
-except SubdivisionError as e:
-    print(f"Triangulation failed: {e}")
-except GraphizyError as e:
-    print(f"Graph creation error: {e}")
-```
-
-## CLI Reference
-
-### Commands
-
-- `delaunay`: Create Delaunay triangulation
-- `proximity`: Create proximity graph
-- `both`: Create both graph types
-- `info`: Generate statistics and analysis
-
-### Common Options
-
-- `--size SIZE`: Canvas size (default: 1200)
-- `--particles N`: Number of points (default: 200)  
-- `--output FILE`: Save image to file
-- `--show`: Display graph interactively
-- `--verbose`: Enable detailed logging
-- `--config FILE`: Load configuration from JSON file
-
-### Proximity Options
-
-- `--threshold DIST`: Distance threshold (default: 50.0)
-- `--metric METRIC`: Distance metric (default: euclidean)
-
-### Styling Options
-
-- `--line-color R,G,B`: Line color (default: 0,255,0)
-- `--point-color R,G,B`: Point color (default: 0,0,255)
-- `--line-thickness N`: Line thickness (default: 1)
-- `--point-radius N`: Point radius (default: 8)
-
-## Examples
-
-### Configuration File
-
-Create a JSON configuration file:
-
-```json
-{
-  "drawing": {
-    "line_color": [255, 0, 0],
-    "line_thickness": 2,
-    "point_radius": 10
-  },
-  "graph": {
-    "dimension": [1024, 768],
-    "proximity_threshold": 60.0
-  },
-  "generation": {
-    "num_particles": 250
-  }
-}
-```
-
-Use with CLI:
-```bash
-graphizy both --config my_config.json --show
-```
-
-### Batch Processing
-
-```python
-import numpy as np
-from graphizy import Graphing, generate_positions
-
-grapher = Graphing(dimension=(600, 600))
-
-for i in range(10):
-    # Generate different datasets
-    positions = generate_positions(600, 600, 50 + i*10)
-    data = np.column_stack((np.arange(len(positions)), positions))
+# Create custom connection function
+def create_distance_band_graph(positions, inner_radius=30, outer_radius=80):
+    """Connect points within a distance band (ring)"""
+    from scipy.spatial.distance import pdist, squareform
     
-    # Create graphs
-    delaunay_graph = grapher.make_delaunay(data)
-    proximity_graph = grapher.make_proximity(data, proximity_thresh=30.0)
+    graph = grapher.make_proximity(positions, proximity_thresh=float('inf'))
+    graph.delete_edges(graph.es)  # Start empty
     
-    # Save results
-    del_image = grapher.draw_graph(delaunay_graph)
-    prox_image = grapher.draw_graph(proximity_graph)
+    distances = squareform(pdist(positions[:, 1:3]))
+    edges = []
     
-    grapher.save_graph(del_image, f"delaunay_{i:02d}.jpg")
-    grapher.save_graph(prox_image, f"proximity_{i:02d}.jpg")
+    for i in range(len(positions)):
+        for j in range(i+1, len(positions)):
+            dist = distances[i, j]
+            if inner_radius <= dist <= outer_radius:
+                edges.append((i, j))
+    
+    if edges:
+        graph.add_edges(edges)
+    return graph
+
+# Use with memory system
+custom_graph = create_distance_band_graph(data, 40, 100)
+grapher.update_memory_with_graph(custom_graph)
 ```
 
-## API Reference
+## 📚 API Reference
 
 ### Main Classes
 
-- `Graphing`: Main class for graph creation and visualization
-- `GraphizyConfig`: Configuration management
-- `DataInterface`: Data format handling
+- **`Graphing`**: Primary interface for graph creation and analysis
+- **`GraphizyConfig`**: Type-safe configuration management  
+- **`MemoryManager`**: Historical connection tracking
+- **`DataInterface`**: Flexible data format handling
 
-### Key Functions
+### Graph Creation Methods
 
-- `generate_positions()`: Generate random point distributions
-- `make_subdiv()`: Create OpenCV subdivisions
-- `get_distance()`: Calculate distance-based connections
-- `call_igraph_method()`: Safe igraph method calling
+- **`make_delaunay(data)`**: Delaunay triangulation
+- **`make_proximity(data, proximity_thresh, metric)`**: Distance-based connections
+- **`make_knn(data, k)`**: K-nearest neighbors (requires scipy)
+- **`make_mst(data, metric)`**: Minimum spanning tree
+- **`make_gabriel(data)`**: Gabriel graph
+- **`make_memory_graph(data)`**: Memory-enhanced graph
 
-### Drawing Functions
+### Memory Management
 
-- `draw_point()`: Draw individual points
-- `draw_line()`: Draw lines between points
-- `show_graph()`: Display graphs interactively
-- `save_graph()`: Save graphs to files
+- **`init_memory_manager(max_size, max_iterations, track_ages)`**: Initialize memory
+- **`update_memory_with_graph(graph)`**: Add graph connections to memory
+- **`update_memory_with_proximity(data, threshold)`**: Add proximity connections
+- **`get_memory_stats()`**: Memory usage statistics
 
-## Requirements
+### Visualization
+
+- **`draw_graph(graph, radius, thickness)`**: Standard graph drawing
+- **`draw_memory_graph(graph, use_age_colors, alpha_range)`**: Memory visualization
+- **`show_graph(image, title)`**: Interactive display
+- **`save_graph(image, filename)`**: Save to file
+
+## 🧪 Examples
+
+### Batch Analysis
+
+```python
+# Analyze multiple datasets
+results = []
+for size in [50, 100, 200, 500]:
+    positions = generate_positions(800, 800, size)
+    data = np.column_stack((np.arange(size), positions))
+    
+    # Compare graph types
+    for graph_type, create_func in [
+        ('delaunay', lambda d: grapher.make_delaunay(d)),
+        ('proximity', lambda d: grapher.make_proximity(d, 60)),
+        ('mst', lambda d: grapher.make_mst(d)),
+        ('gabriel', lambda d: grapher.make_gabriel(d))
+    ]:
+        graph = create_func(data)
+        info = grapher.get_graph_info(graph)
+        results.append({
+            'size': size,
+            'type': graph_type,
+            'density': info['density'],
+            'avg_path_length': info['average_path_length']
+        })
+
+# Analyze results
+import pandas as pd
+df = pd.DataFrame(results)
+print(df.groupby('type')['density'].mean())
+```
+
+### Time Series Analysis
+
+```python
+# Track graph evolution over time
+time_series = []
+grapher.init_memory_manager(max_memory_size=200)
+
+for t in range(500):
+    # Simulate system evolution  
+    data[:, 1:3] += np.random.normal(0, 1, (len(data), 2))
+    
+    # Create snapshot
+    current_graph = grapher.make_delaunay(data)
+    grapher.update_memory_with_graph(current_graph)
+    
+    # Record metrics
+    info = grapher.get_graph_info(current_graph)
+    memory_stats = grapher.get_memory_stats()
+    
+    time_series.append({
+        'time': t,
+        'current_edges': info['edge_count'],
+        'memory_edges': memory_stats['total_connections'],
+        'clustering': info['transitivity']
+    })
+
+# Visualize time series
+import matplotlib.pyplot as plt
+ts_df = pd.DataFrame(time_series)
+ts_df.plot(x='time', y=['current_edges', 'memory_edges'])
+plt.title('Graph Evolution Over Time')
+plt.show()
+```
+
+## 🔧 Development
+
+### Requirements
 
 - Python >= 3.8
 - NumPy >= 1.20.0
 - OpenCV >= 4.5.0  
 - python-igraph >= 0.9.0
-- SciPy >= 1.7.0
-
-## Development
+- SciPy >= 1.7.0 (for KNN and MST)
 
 ### Running Tests
 
 ```bash
-pip install pytest pytest-cov
-pytest tests/ --cov=graphizy
+# Install development dependencies
+pip install pytest pytest-cov black flake8
+
+# Run tests with coverage
+pytest tests/ --cov=graphizy --cov-report=html
+
+# Test specific functionality
+python test_mst.py          # Test MST functionality
+python test_fixes.py        # Test configuration fixes
 ```
 
-### Code Style
+### Code Quality
 
 ```bash
-pip install black flake8
+# Format code
 black src/
+
+# Lint code  
 flake8 src/
+
+# Type checking (if mypy installed)
+mypy src/graphizy/
 ```
 
-## License
+## 📄 License
 
-MIT License - see LICENSE file for details.
+GPL-2.0-or-later License - see [LICENSE](LICENSE) file for details.
 
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Add tests for new functionality  
-4. Ensure all tests pass
-5. Submit a pull request
+4. Ensure all tests pass (`pytest tests/`)
+5. Commit changes (`git commit -m 'Add amazing feature'`)
+6. Push to branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
-## Author
+## 👨‍💻 Author
 
 **Charles Fosseprez**  
-Email: charles.fosseprez.me@gmail.com
+📧 Email: charles.fosseprez.pro@gmail.com  
+🐙 GitHub: [@cfosseprez](https://github.com/cfosseprez)
 
-## Changelog
+## 📈 Changelog
+
+### v0.1.4 (Current)
+- ✨ Added Minimum Spanning Tree (MST) graph type
+- ✨ Added K-Nearest Neighbors (KNN) graph type  
+- 🧠 Enhanced memory system with age-based visualization
+- 🎮 Interactive Brownian motion simulator
+- 🐛 Fixed configuration initialization issues
+- 📚 Comprehensive documentation improvements
+- ✅ Added MST and memory functionality tests
 
 ### v0.1.0
-- Initial release
-- Delaunay triangulation support
-- Proximity graph creation
-- Configurable drawing parameters
-- Command line interface
-- Comprehensive test suite
-- Error handling and validation
+- 🎉 Initial release
+- 🔺 Delaunay triangulation support
+- 📡 Proximity graph creation  
+- ⚙️ Configurable drawing parameters
+- 🖥️ Command line interface
+- ✅ Comprehensive test suite
+- 🛡️ Error handling and validation
+
+---
+
+*Built with ❤️ for computational geometry and network analysis*

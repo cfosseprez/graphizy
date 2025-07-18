@@ -2,9 +2,9 @@
 Graph algorithms for graphizy
 
 .. moduleauthor:: Charles Fosseprez
-.. contact:: charles.fosseprez.me@gmail.com
-.. license:: MIT
-.. copyright:: Copyright (C) 2023 Charles Fosseprez
+.. contact:: charles.fosseprez.pro@gmail.com
+.. license:: GPL2 or later
+.. copyright:: Copyright (C) 2025 Charles Fosseprez
 """
 
 import logging
@@ -34,6 +34,35 @@ try:
     from scipy.spatial.distance import pdist, squareform
 except ImportError:
     raise DependencyError("scipy is required but not installed. Install with: pip install scipy")
+
+
+def normalize_id(obj_id: Any) -> str:
+    """
+    Normalize object ID to consistent string format for real-time applications.
+    
+    Optimized for performance:
+    - Handles int, float, str inputs
+    - Converts float IDs like 1.0, 2.0 to "1", "2"  
+    - Preserves non-integer floats as-is
+    
+    Args:
+        obj_id: Object ID of any type
+        
+    Returns:
+        Normalized string ID
+    """
+    if isinstance(obj_id, str):
+        return obj_id
+    elif isinstance(obj_id, (int, np.integer)):
+        return str(int(obj_id))
+    elif isinstance(obj_id, (float, np.floating)):
+        # Check if it's an integer float (e.g., 1.0, 2.0)
+        if obj_id.is_integer():
+            return str(int(obj_id))
+        else:
+            return str(obj_id)
+    else:
+        return str(obj_id)
 
 
 def generate_positions(size_x: int, size_y: int, num_particles: int,
@@ -885,31 +914,31 @@ def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
         else:
             raise GraphCreationError("Aspect must be 'array' or 'dict'")
 
-        # Create mapping from object ID to vertex index
+        # Create mapping from normalized object ID to vertex index
         id_to_vertex = {}
         for i, obj_id in enumerate(graph.vs["id"]):
-            # Convert both to string for consistent comparison
-            id_to_vertex[str(obj_id)] = i
+            normalized_id = normalize_id(obj_id)
+            id_to_vertex[normalized_id] = i
 
-        # Add memory-based edges
+        # Add memory-based edges  
         edges_to_add = []
         for obj_id, connected_ids in memory_connections.items():
-            # Convert obj_id to string for consistent comparison
-            obj_id_str = str(obj_id)
-            if obj_id_str not in id_to_vertex:
-                logging.warning(f"Object {obj_id} in memory but not in current positions")
+            # Normalize the source ID
+            obj_id_norm = normalize_id(obj_id)
+            if obj_id_norm not in id_to_vertex:
+                logging.warning(f"Object {obj_id} (normalized: {obj_id_norm}) in memory but not in current positions")
                 continue
 
-            vertex_from = id_to_vertex[obj_id_str]
+            vertex_from = id_to_vertex[obj_id_norm]
 
             for connected_id in connected_ids:
-                # Convert connected_id to string for consistent comparison
-                connected_id_str = str(connected_id)
-                if connected_id_str not in id_to_vertex:
-                    logging.warning(f"Connected object {connected_id} in memory but not in current positions")
+                # Normalize the target ID
+                connected_id_norm = normalize_id(connected_id)
+                if connected_id_norm not in id_to_vertex:
+                    logging.warning(f"Connected object {connected_id} (normalized: {connected_id_norm}) in memory but not in current positions")
                     continue
 
-                vertex_to = id_to_vertex[connected_id_str]
+                vertex_to = id_to_vertex[connected_id_norm]
 
                 # Avoid self-loops and ensure consistent edge ordering
                 if vertex_from != vertex_to:
@@ -924,7 +953,7 @@ def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
             # Add memory attribute to edges
             graph.es["memory_based"] = [True] * len(unique_edges)
 
-        logging.info(f"Created memory graph with {graph.vcount()} vertices and {graph.ecount()} memory-based edges")
+        logging.debug(f"Created memory graph with {graph.vcount()} vertices and {graph.ecount()} memory-based edges")
 
         return graph
 
@@ -957,7 +986,8 @@ def update_memory_from_proximity(current_positions: Union[np.ndarray, Dict[str, 
             if not isinstance(current_positions, np.ndarray):
                 raise GraphCreationError("Expected numpy array for 'array' aspect")
 
-            object_ids = current_positions[:, 0].astype(str)  # Convert to string for consistency
+            # Normalize IDs consistently 
+            object_ids = [normalize_id(obj_id) for obj_id in current_positions[:, 0]]
             positions_2d = current_positions[:, 1:3].astype(float)
 
         elif aspect == "dict":
@@ -965,7 +995,8 @@ def update_memory_from_proximity(current_positions: Union[np.ndarray, Dict[str, 
                 data_interface = DataInterface([("id", int), ("x", int), ("y", int)])
                 current_positions = data_interface.convert(current_positions)
 
-            object_ids = [str(obj_id) for obj_id in current_positions["id"]]  # Convert to string
+            # Normalize IDs consistently
+            object_ids = [normalize_id(obj_id) for obj_id in current_positions["id"]]
             positions_2d = np.column_stack([current_positions["x"], current_positions["y"]])
 
         else:
@@ -1016,13 +1047,13 @@ def update_memory_from_graph(graph: Any, memory_manager: MemoryManager) -> Dict[
 
         # Initialize all vertices with empty connections
         for vertex in graph.vs:
-            obj_id = str(vertex["id"])
+            obj_id = normalize_id(vertex["id"])  # FIXED: Added normalization
             current_connections[obj_id] = []
 
         # Add edges as bidirectional connections
         for edge in graph.es:
-            vertex1_id = str(graph.vs[edge.tuple[0]]["id"])
-            vertex2_id = str(graph.vs[edge.tuple[1]]["id"])
+            vertex1_id = normalize_id(graph.vs[edge.tuple[0]]["id"])  # FIXED: Added normalization
+            vertex2_id = normalize_id(graph.vs[edge.tuple[1]]["id"])  # FIXED: Added normalization
 
             current_connections[vertex1_id].append(vertex2_id)
             current_connections[vertex2_id].append(vertex1_id)
@@ -1228,6 +1259,64 @@ def create_minimum_spanning_tree(positions: np.ndarray, aspect: str = "array") -
     except Exception as e:
         raise GraphCreationError(f"Failed to create MST: {str(e)}")
 
-if __name__ == "__main__":
-    # Run example
-    example_graph = example_memory_graph_usage()
+def create_gabriel_graph(positions: np.ndarray, aspect: str = "array") -> Any:
+    """Create Gabriel graph from point positions
+    
+    Gabriel graph connects two points if no other point lies within the circle
+    having the two points as diameter endpoints.
+    
+    Args:
+        positions: Point positions as array [id, x, y, ...] or 2D positions
+        aspect: Data format ("array" or "dict")
+        
+    Returns:
+        igraph Graph object with Gabriel graph connections
+        
+    Raises:
+        GraphCreationError: If Gabriel graph creation fails
+    """
+    try:
+        if aspect == "array":
+            graph = create_graph_array(positions)
+            pos_2d = positions[:, 1:3]
+        else:
+            raise NotImplementedError("Dict aspect not implemented for Gabriel graph")
+        
+        n_points = len(pos_2d)
+        edges_to_add = []
+        
+        # For each pair of points
+        for i in range(n_points):
+            for j in range(i + 1, n_points):
+                p1 = pos_2d[i]
+                p2 = pos_2d[j]
+                
+                # Calculate circle center (midpoint) and radius
+                center = (p1 + p2) / 2
+                radius = np.linalg.norm(p1 - p2) / 2
+                
+                # Check if any other point lies within the circle
+                is_gabriel_edge = True
+                for k in range(n_points):
+                    if k == i or k == j:
+                        continue
+                        
+                    p3 = pos_2d[k]
+                    distance_to_center = np.linalg.norm(p3 - center)
+                    
+                    # If point is strictly inside the circle, this is not a Gabriel edge
+                    if distance_to_center < radius - 1e-10:  # Small epsilon for numerical stability
+                        is_gabriel_edge = False
+                        break
+                
+                if is_gabriel_edge:
+                    edges_to_add.append((i, j))
+        
+        # Add edges to graph
+        if edges_to_add:
+            graph.add_edges(edges_to_add)
+        
+        return graph
+        
+    except Exception as e:
+        raise GraphCreationError(f"Failed to create Gabriel graph: {str(e)}")

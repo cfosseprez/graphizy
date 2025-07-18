@@ -2,9 +2,9 @@
 Graphizy - A graph maker for computational geometry and network visualization
 
 .. moduleauthor:: Charles Fosseprez
-.. contact:: charles.fosseprez.me@gmail.com
-.. license:: MIT
-.. copyright:: Copyright (C) 2023 Charles Fosseprez
+.. contact:: charles.fosseprez.pro@gmail.com
+.. license:: GPL2 or later
+.. copyright:: Copyright (C) 2025 Charles Fosseprez
 """
 
 from graphizy.main import Graphing
@@ -13,7 +13,8 @@ from graphizy.algorithms import (
     generate_positions, make_subdiv, make_delaunay, get_delaunay,
     get_distance, graph_distance, create_graph_array, create_graph_dict, DataInterface,
     call_igraph_method, MemoryManager, create_memory_graph, update_memory_from_proximity,
-    update_memory_from_graph, update_memory_from_delaunay, update_memory_from_custom_function
+    update_memory_from_graph, update_memory_from_delaunay, update_memory_from_custom_function,
+    create_minimum_spanning_tree, create_k_nearest_graph, create_gabriel_graph
 )
 from graphizy.drawing import (
     draw_point, draw_line, draw_delaunay, show_graph, save_graph,
@@ -28,8 +29,8 @@ from graphizy.exceptions import (
 )
 
 __author__ = "Charles Fosseprez"
-__email__ = "charles.fosseprez.me@gmail.com"
-__license__ = "MIT"
+__email__ = "charles.fosseprez.pro@gmail.com"
+__license__ = "GPL2 or later"
 
 __all__ = [
     # Main class
@@ -54,6 +55,9 @@ __all__ = [
     "create_graph_dict",
     "DataInterface",
     "call_igraph_method",
+    "create_minimum_spanning_tree",
+    "create_k_nearest_graph",
+    "create_gabriel_graph",
 
     # Memory functions
     "MemoryManager",

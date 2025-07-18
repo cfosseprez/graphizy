@@ -2,9 +2,9 @@
 Configuration module for graphizy
 
 .. moduleauthor:: Charles Fosseprez
-.. contact:: charles.fosseprez.me@gmail.com
-.. license:: MIT
-.. copyright:: Copyright (C) 2023 Charles Fosseprez
+.. contact:: charles.fosseprez.pro@gmail.com
+.. license:: GPL2 or later
+.. copyright:: Copyright (C) 2025 Charles Fosseprez
 """
 
 from dataclasses import dataclass, field
@@ -139,6 +139,11 @@ class GraphizyConfig:
             else:
                 raise ValueError(f"Unknown config key: {key}")
 
+    def copy(self) -> 'GraphizyConfig':
+        """Create a deep copy of the configuration"""
+        import copy as copy_module
+        return copy_module.deepcopy(self)
+    
     def to_dict(self) -> dict:
         """Convert configuration to dictionary"""
         return {

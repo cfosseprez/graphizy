@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use Graphizy, please cite it using the following metadata."
+title: "Graphizy: Spatial Graph Construction and Temporal Analysis"
+authors:
+  - family-names: Fosseprez
+    given-names: Charles
+    orcid: "https://orcid.org/0009-0000-4524-0399"
+version: 0.1.0
+date-released: 2025-07-18
+repository-code: https://github.com/lesptizami/graphizy
+url: https://github.com/lesptizami/graphizy
+license: GPL 2.0 or later
+type: software

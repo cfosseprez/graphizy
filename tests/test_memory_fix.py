@@ -31,17 +31,14 @@ def test_memory_graph_fix():
     print(f"Graph vertices: {graph.vcount()}")
     print(f"Graph edges: {graph.ecount()}")
     
-    if graph.ecount() > 0:
-        print("✓ Memory graph creation successful!")
-        print("Edge connections:")
-        for edge in graph.es:
-            v1_id = graph.vs[edge.tuple[0]]["id"]
-            v2_id = graph.vs[edge.tuple[1]]["id"]
-            print(f"  {v1_id} <-> {v2_id}")
-        return True
-    else:
-        print("✗ Memory graph creation failed - no edges created")
-        return False
+    assert graph.ecount() > 0, "Memory graph creation failed - no edges created"
+    
+    print("✓ Memory graph creation successful!")
+    print("Edge connections:")
+    for edge in graph.es:
+        v1_id = graph.vs[edge.tuple[0]]["id"]
+        v2_id = graph.vs[edge.tuple[1]]["id"]
+        print(f"  {v1_id} <-> {v2_id}")
 
 def test_proximity_memory():
     """Test proximity memory updates"""
@@ -65,19 +62,16 @@ def test_proximity_memory():
     
     # Check if object 1 is connected to object 2
     obj1_connections = connections.get("1", [])
-    if "2" in obj1_connections:
-        print("✓ Proximity memory update successful!")
-        return True
-    else:
-        print("✗ Proximity memory update failed")
-        print(f"Object 1 connections: {obj1_connections}")
-        return False
+    assert "2" in obj1_connections, f"Object 1 should be connected to object 2. Got connections: {obj1_connections}"
+    
+    print("✓ Proximity memory update successful!")
 
 if __name__ == "__main__":
-    test1_success = test_memory_graph_fix()
-    test2_success = test_proximity_memory()
-    
-    if test1_success and test2_success:
+    try:
+        test_memory_graph_fix()
+        test_proximity_memory()
         print("\n🎉 All tests passed! Memory graph functionality is working.")
-    else:
-        print("\n❌ Some tests failed. Need further debugging.")
+    except AssertionError as e:
+        print(f"\n❌ Test failed: {e}")
+    except Exception as e:
+        print(f"\n💥 Unexpected error: {e}")

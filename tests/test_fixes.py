@@ -55,7 +55,7 @@ def test_examples():
     
     try:
         # Test that we can import from the fixed examples
-        sys.path.insert(0, 'examples')
+        sys.path.insert(0, '../examples')
         
         # We won't run the full examples, just test imports and basic setup
         print("✓ Example imports should now work")

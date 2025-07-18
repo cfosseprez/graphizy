@@ -2,9 +2,9 @@
 Main graphing class for graphizy
 
 .. moduleauthor:: Charles Fosseprez
-.. contact:: charles.fosseprez.me@gmail.com
-.. license:: MIT
-.. copyright:: Copyright (C) 2023 Charles Fosseprez
+.. contact:: charles.fosseprez.pro@gmail.com
+.. license:: GPL2 or later
+.. copyright:: Copyright (C) 2025 Charles Fosseprez
 """
 
 import logging
@@ -20,7 +20,9 @@ from graphizy.exceptions import (
 )
 from graphizy.algorithms import (
     create_graph_array, create_graph_dict, DataInterface, make_subdiv,
-    graph_delaunay, graph_distance, call_igraph_method
+    graph_delaunay, graph_distance, call_igraph_method, create_minimum_spanning_tree,
+    create_memory_graph, MemoryManager, update_memory_from_custom_function,
+    update_memory_from_graph, update_memory_from_delaunay, update_memory_from_proximity
 )
 from graphizy.drawing import draw_point, draw_line, show_graph, save_graph
 
@@ -254,15 +256,120 @@ class Graphing:
         except Exception as e:
             raise GraphCreationError(f"Failed to create proximity graph: {str(e)}")
 
+    def make_mst(self, data_points: Union[np.ndarray, Dict[str, Any]], 
+                 metric: str = None) -> Any:
+        """Make a minimum spanning tree graph
+
+        Args:
+            data_points: Point data as array or dictionary
+            metric: Distance metric to use (default: euclidean)
+
+        Returns:
+            igraph Graph object with MST connections
+
+        Raises:
+            GraphCreationError: If MST graph creation fails
+        """
+        try:
+            # Use config default if not provided
+            if metric is None:
+                metric = self.config.graph.distance_metric
+
+            timer_mst = timeit.default_timer()
+
+            if self.aspect == "array":
+                if not isinstance(data_points, np.ndarray):
+                    raise GraphCreationError("Expected numpy array for 'array' aspect")
+
+                graph = create_minimum_spanning_tree(data_points, aspect="array")
+                
+            elif self.aspect == "dict":
+                if isinstance(data_points, dict):
+                    # Convert dict to array for MST calculation
+                    data_array = np.column_stack((
+                        data_points["id"],
+                        data_points["x"], 
+                        data_points["y"]
+                    ))
+                elif isinstance(data_points, np.ndarray):
+                    data_array = data_points
+                else:
+                    raise GraphCreationError("Invalid data format for 'dict' aspect")
+                
+
+                graph = create_minimum_spanning_tree(data_array, aspect="array")
+            else:
+                raise GraphCreationError("Graph data interface could not be understood")
+
+            end_mst = timeit.default_timer()
+            logging.debug(f"MST calculation took {round((end_mst - timer_mst) * 1000, 3)}ms")
+
+            return graph
+
+        except Exception as e:
+            raise GraphCreationError(f"Failed to create MST graph: {str(e)}")
+
+    def make_gabriel(self, data_points: Union[np.ndarray, Dict[str, Any]]) -> Any:
+        """Make a Gabriel graph
+
+        Gabriel graph connects two points if no other point lies within the circle
+        having the two points as diameter endpoints. This creates a subset of the
+        Delaunay triangulation with interesting geometric properties.
+
+        Args:
+            data_points: Point data as array or dictionary
+
+        Returns:
+            igraph Graph object with Gabriel graph connections
+
+        Raises:
+            GraphCreationError: If Gabriel graph creation fails
+        """
+        try:
+            timer_gabriel = timeit.default_timer()
+
+            if self.aspect == "array":
+                if not isinstance(data_points, np.ndarray):
+                    raise GraphCreationError("Expected numpy array for 'array' aspect")
+                
+                # Import Gabriel graph function
+                from .algorithms import create_gabriel_graph
+                graph = create_gabriel_graph(data_points, aspect="array")
+                
+            elif self.aspect == "dict":
+                if isinstance(data_points, dict):
+                    # Convert dict to array for Gabriel calculation
+                    data_array = np.column_stack((
+                        data_points["id"],
+                        data_points["x"], 
+                        data_points["y"]
+                    ))
+                elif isinstance(data_points, np.ndarray):
+                    data_array = data_points
+                else:
+                    raise GraphCreationError("Invalid data format for 'dict' aspect")
+                
+                from .algorithms import create_gabriel_graph
+                graph = create_gabriel_graph(data_array, aspect="array")
+            else:
+                raise GraphCreationError("Graph data interface could not be understood")
+
+            end_gabriel = timeit.default_timer()
+            logging.debug(f"Gabriel graph calculation took {round((end_gabriel - timer_gabriel) * 1000, 3)}ms")
+
+            return graph
+
+        except Exception as e:
+            raise GraphCreationError(f"Failed to create Gabriel graph: {str(e)}")
+
     def init_memory_manager(self, max_memory_size: int = 100, max_iterations: int = None, track_edge_ages: bool = True):
         """Initialize memory manager for this graphing instance"""
-        from .algorithms import MemoryManager
+
         self.memory_manager = MemoryManager(max_memory_size, max_iterations, track_edge_ages)
         return self.memory_manager
 
     def make_memory_graph(self, data_points, memory_connections=None):
         """Create a memory-based graph"""
-        from .algorithms import create_memory_graph
 
         if memory_connections is None:
             if self.memory_manager is None:
@@ -273,7 +380,7 @@ class Graphing:
 
     def update_memory_with_proximity(self, data_points, proximity_thresh=None):
         """Update memory manager with current proximity connections"""
-        from .algorithms import update_memory_from_proximity
+
 
         if self.memory_manager is None:
             raise GraphCreationError("Memory manager not initialized. Call init_memory_manager() first")
@@ -300,7 +407,7 @@ class Graphing:
             if self.memory_manager is None:
                 raise GraphCreationError("Memory manager not initialized")
             
-            from .algorithms import update_memory_from_delaunay
+
             return update_memory_from_delaunay(
                 data_points, 
                 self.memory_manager,
@@ -315,8 +422,7 @@ class Graphing:
         try:
             if self.memory_manager is None:
                 raise GraphCreationError("Memory manager not initialized")
-            
-            from .algorithms import update_memory_from_graph
+
             return update_memory_from_graph(graph, self.memory_manager)
         except Exception as e:
             raise GraphCreationError(f"Failed to update memory with graph: {str(e)}")
@@ -326,8 +432,7 @@ class Graphing:
         try:
             if self.memory_manager is None:
                 raise GraphCreationError("Memory manager not initialized")
-            
-            from .algorithms import update_memory_from_custom_function
+
             return update_memory_from_custom_function(
                 data_points,
                 self.memory_manager, 

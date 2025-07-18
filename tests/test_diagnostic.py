@@ -27,10 +27,10 @@ def test_basic_imports():
             generate_positions, create_memory_graph
         )
         print("✅ All imports successful")
-        return True
+        # ✅ Proper pytest style - no return value
     except ImportError as e:
         print(f"❌ Import failed: {e}")
-        return False
+        assert False, f"Import failed: {e}"  # ✅ Use assert instead of return False
 
 def test_coordinate_system():
     """Test coordinate system with simple case"""
@@ -58,9 +58,7 @@ def test_coordinate_system():
         x_valid = (0 <= x_min) and (x_max < WIDTH)
         y_valid = (0 <= y_min) and (y_max < HEIGHT)
         
-        if not (x_valid and y_valid):
-            print(f"   ⚠️  Coordinates out of bounds!")
-            return False
+        assert x_valid and y_valid, f"Coordinates out of bounds: X[{x_min:.1f}, {x_max:.1f}], Y[{y_min:.1f}, {y_max:.1f}]"
         
         # Test triangulation
         particle_ids = np.arange(len(positions))
@@ -70,12 +68,11 @@ def test_coordinate_system():
         graph = grapher.make_delaunay(particle_stack)
         
         print(f"   ✅ Triangulation successful: {graph.vcount()} vertices, {graph.ecount()} edges")
-        return True
         
     except Exception as e:
         print(f"   ❌ Coordinate system test failed: {e}")
         print(f"   Error type: {type(e).__name__}")
-        return False
+        assert False, f"Coordinate system test failed: {e}"
 
 def test_memory_functionality():
     """Test memory functionality"""
@@ -102,17 +99,14 @@ def test_memory_functionality():
         grapher = Graphing()
         mgr = grapher.init_memory_manager(max_memory_size=5)
         
-        if mgr is None:
-            print("   ⚠️  Memory manager initialization returned None")
-            return False
+        assert mgr is not None, "Memory manager initialization returned None"
         
         print("   ✅ Memory functionality working")
-        return True
         
     except Exception as e:
         print(f"   ❌ Memory functionality test failed: {e}")
         print(f"   Error type: {type(e).__name__}")
-        return False
+        assert False, f"Memory functionality test failed: {e}"
 
 def test_specific_error_scenario():
     """Test the specific scenario that's causing issues"""
@@ -158,15 +152,13 @@ def test_specific_error_scenario():
         
         print(f"   ✅ Proximity successful: {proximity_graph.vcount()} vertices, {proximity_graph.ecount()} edges")
         
-        return True
-        
     except Exception as e:
         print(f"   ❌ Specific scenario failed: {e}")
         print(f"   Error type: {type(e).__name__}")
         import traceback
         print("   📋 Full traceback:")
         traceback.print_exc()
-        return False
+        assert False, f"Specific scenario failed: {e}"
 
 def diagnose_opencv_subdivision():
     """Diagnose OpenCV subdivision issues specifically"""

@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "GPL-2.0-or-later" }
 authors = [
-    {name = "Charles Fosseprez", email = "charles.fosseprez.me@gmail.com"},
+    {name = "Charles Fosseprez", email = "charles.fosseprez.pro@gmail.com"},
 ]
 keywords = ["graph", "delaunay", "triangulation", "visualization", "computational-geometry"]
 classifiers = [
