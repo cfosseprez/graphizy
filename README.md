@@ -1,5 +1,11 @@
 # Graphizy
 
+[![Documentation Status](https://readthedocs.org/projects/graphizy/badge/?version=latest)](https://graphizy.readthedocs.io/en/latest/)
+[![PyPI Version](https://img.shields.io/pypi/v/graphizy.svg)](https://pypi.org/project/graphizy/)
+[![Python Version](https://img.shields.io/pypi/pyversions/graphizy.svg)](https://pypi.org/project/graphizy/)
+[![License](https://img.shields.io/github/license/cfosseprez/graphizy.svg)](https://github.com/cfosseprez/graphizy/blob/main/LICENSE)
+[![Build Status](https://github.com/cfosseprez/graphizy/actions/workflows/main.yml/badge.svg)](https://github.com/cfosseprez/graphizy/actions)
+
 A powerful graph maker for computational geometry and network visualization, specializing in multiple graph types and memory-enhanced analysis.
 
 ![Detection to Graph](https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/detection_to_graph.png)

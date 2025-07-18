@@ -52,6 +52,7 @@ docs = [
 [project.urls]
 Homepage = "https://github.com/cfosseprez/graphizy"
 Repository = "https://github.com/cfosseprez/graphizy"
+Documentation = "https://graphizy.readthedocs.io/en/latest/"
 Issues = "https://github.com/cfosseprez/graphizy/issues"
 
 [project.scripts]
