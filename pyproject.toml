@@ -50,9 +50,9 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/lesptizami/graphizy"
-Repository = "https://github.com/lesptizami/graphizy"
-Issues = "https://github.com/lesptizami/graphizy/issues"
+Homepage = "https://github.com/cfosseprez/graphizy"
+Repository = "https://github.com/cfosseprez/graphizy"
+Issues = "https://github.com/cfosseprez/graphizy/issues"
 
 [project.scripts]
 graphizy = "graphizy.cli:main"

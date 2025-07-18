@@ -1,7 +1,7 @@
 Graphizy Documentation
 ======================
 
-.. image:: https://raw.githubusercontent.com/lesptizami/graphizy/main/images/detection_to_graph.png
+.. image:: https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/detection_to_graph.png
    :alt: Detection to Graph
    :align: center
 

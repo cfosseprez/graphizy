@@ -2,7 +2,7 @@
 
 A powerful graph maker for computational geometry and network visualization, specializing in multiple graph types and memory-enhanced analysis.
 
-![Detection to Graph](https://raw.githubusercontent.com/lesptizami/graphizy/main/images/detection_to_graph.png)
+![Detection to Graph](https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/detection_to_graph.png)
 
 *Figure: Positions are converted to graphs in just a few milliseconds for hundreds of individuals using OpenCV.  
 Graph analytics are accessible in real time by interfacing with igraph.*

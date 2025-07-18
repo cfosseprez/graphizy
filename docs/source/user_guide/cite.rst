@@ -12,19 +12,19 @@ BibTeX Entry
      title = {Graphizy: A Graph Maker for Computational Geometry and Network Visualization},
      author = {Charles Fosseprez},
      year = {2025},
-     url = {https://github.com/lesptizami/graphizy},
+     url = {https://github.com/cfosseprez/graphizy},
      version = {0.1.5}
    }
 
 APA Style
 ---------
 
-Fosseprez, C. (2025). *Graphizy: A graph maker for computational geometry and network visualization* (Version 0.1.5) [Computer software]. https://github.com/lesptizami/graphizy
+Fosseprez, C. (2025). *Graphizy: A graph maker for computational geometry and network visualization* (Version 0.1.5) [Computer software]. https://github.com/cfosseprez/graphizy
 
 IEEE Style
 ----------
 
-C. Fosseprez, "Graphizy: A graph maker for computational geometry and network visualization," 2025. [Online]. Available: https://github.com/lesptizami/graphizy
+C. Fosseprez, "Graphizy: A graph maker for computational geometry and network visualization," 2025. [Online]. Available: https://github.com/cfosseprez/graphizy
 
 Acknowledgments
 ---------------
