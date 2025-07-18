@@ -33,9 +33,6 @@ dependencies = [
     "scipy>=1.7.0",
 ]
 
-[tool.poetry.group.plot.dependencies]
-matplotlib = "^6.0"
-
 [tool.poetry.group.dev.dependencies]
 pytest = "^6.0"
 pytest-cov = "^2.0"
