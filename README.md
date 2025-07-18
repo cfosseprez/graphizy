@@ -6,36 +6,45 @@
 [![CI Tests](https://github.com/cfosseprez/graphizy/actions/workflows/ci.yml/badge.svg)](https://github.com/cfosseprez/graphizy/actions/workflows/ci.yml)
 [![GPL-2.0 License](https://img.shields.io/badge/License-GPL%202.0-blue.svg)](https://github.com/cfosseprez/graphizy/blob/main/LICENSE)
 
-A powerful graph maker for computational geometry and network visualization, specializing in multiple graph types and memory-enhanced analysis.
+A powerful graph maker for computational geometry and network visualization, you can choose from multiple graph types
+analyse their metrics in real time, and construct memory-enhanced graph for interaction monitoring.
 
 ![Detection to Graph](https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/detection_to_graph.png)
 
-*Figure: Positions are converted to graphs in just a few milliseconds for hundreds of individuals using OpenCV.  
+*Figure: Positions of Paramecium are converted to graphs in just a few milliseconds for hundreds of individuals using OpenCV for construction and Igraph for analysis.  
 Graph analytics are accessible in real time by interfacing with igraph.*
 
-## 🎯 Key Features
 
-### 📊 Graph Construction Types
-- **🔺 Delaunay Triangulation**: Optimal triangular meshes from point sets
-- **📡 Proximity Graphs**: Connect nearby points based on distance thresholds  
-- **🔗 K-Nearest Neighbors**: Connect each point to its k closest neighbors
-- **🌲 Minimum Spanning Tree**: Minimal connected graph with shortest total edge length
-- **🔵 Gabriel Graph**: Geometric proximity graph (subset of Delaunay triangulation)
-- **🧠 Memory-Enhanced Graphs**: Any graph type + historical connection tracking
+## Documentation
 
-### 🧮 Graph Analysis
+You can find the full documentation [here](https://graphizy.readthedocs.io/en/latest/).
+
+## Key Features
+
+### Graph Construction Types
+- ** Delaunay Triangulation**: Optimal triangular meshes from point sets
+- ** Proximity Graphs**: Connect nearby points based on distance thresholds  
+- ** K-Nearest Neighbors**: Connect each point to its k closest neighbors
+- ** Minimum Spanning Tree**: Minimal connected graph with shortest total edge length
+- ** Gabriel Graph**: Geometric proximity graph (subset of Delaunay triangulation)
+
+
+### Memory-Enhanced Graphs
+- ** Connection tracking **: Any graph can keep edges in memory for some times
+
+###  Graph Analysis
 - **igraph Integration**: Full access to [igraph's powerful analytics](https://igraph.org/python/tutorial/0.9.7/analysis.html)
 - **Comprehensive API**: Call any igraph method with error handling
 - **Real-time Statistics**: Vertex count, edge count, connectivity, clustering, centrality
 
-### 🎨 Visualization & Design  
+###  Visualization & Design  
 - **Flexible Configuration**: Runtime-configurable parameters using dataclasses
 - **Multiple Output Formats**: Save as images or display interactively with OpenCV
 - **Memory Visualization**: Age-based edge coloring for temporal analysis
 - **Command Line Interface**: Easy-to-use CLI for common operations
 - **Interactive Demos**: Real-time Brownian motion simulation with graph evolution
 
-### 🔧 Technical Excellence
+###  Technical Excellence
 - **Robust Error Handling**: Detailed exceptions and validation
 - **Performance Monitoring**: Built-in timing and optimization tracking
 - **Memory Management**: Configurable connection history with aging
@@ -127,7 +136,7 @@ print(f"Memory contains {stats['total_connections']} historical connections")
 print(f"Average edge age: {stats['edge_age_stats']['avg_age']:.1f} iterations")
 ```
 
-## 📊 Graph Types Comparison
+##  Graph Types Comparison
 
 | Graph Type | Connectivity | Edge Count | Use Case | Memory Compatible |
 |------------|--------------|------------|----------|-------------------|
@@ -195,7 +204,7 @@ grapher.update_config(
 )
 ```
 
-## 🔬 Advanced Analysis
+##  Advanced Analysis
 
 ### Graph Metrics and Centrality
 
@@ -281,7 +290,7 @@ grapher.update_memory_with_graph(custom_graph)
 - **`show_graph(image, title)`**: Interactive display
 - **`save_graph(image, filename)`**: Save to file
 
-## 🧪 Examples
+##  Examples
 
 ### Batch Analysis
 
@@ -399,31 +408,24 @@ GPL-2.0-or-later License - see [LICENSE](LICENSE) file for details.
 6. Push to branch (`git push origin feature/amazing-feature`)
 7. Open a Pull Request
 
-## 👨‍💻 Author
+##  Author
 
 **Charles Fosseprez**  
-📧 Email: charles.fosseprez.pro@gmail.com  
-🐙 GitHub: [@cfosseprez](https://github.com/cfosseprez)
+ Email: charles.fosseprez.pro@gmail.com  
+ GitHub: [@cfosseprez](https://github.com/cfosseprez)
 
 ## 📈 Changelog
 
-### v0.1.4 (Current)
-- ✨ Added Minimum Spanning Tree (MST) graph type
-- ✨ Added K-Nearest Neighbors (KNN) graph type  
-- 🧠 Enhanced memory system with age-based visualization
-- 🎮 Interactive Brownian motion simulator
-- 🐛 Fixed configuration initialization issues
-- 📚 Comprehensive documentation improvements
-- ✅ Added MST and memory functionality tests
+### v0.1.5 (Current)
+-  Added Minimum Spanning Tree (MST) graph type
+-  Added K-Nearest Neighbors (KNN) graph type  
+-  Enhanced memory system with age-based visualization
+-  Interactive Brownian motion simulator
+-  Fixed configuration initialization issues
+-  Comprehensive documentation improvements
+-  Added MST and memory functionality tests
 
-### v0.1.0
-- 🎉 Initial release
-- 🔺 Delaunay triangulation support
-- 📡 Proximity graph creation  
-- ⚙️ Configurable drawing parameters
-- 🖥️ Command line interface
-- ✅ Comprehensive test suite
-- 🛡️ Error handling and validation
+
 
 ---
 
