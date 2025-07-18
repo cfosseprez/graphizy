@@ -10,7 +10,7 @@ import os
 import sys
 from sphinx_gallery.sorting import FileNameSortKey, ExplicitOrder
 
-sys.path.insert(0, os.path.abspath('..'))
+sys.path.insert(0, os.path.abspath(''))
 
 sys.path.insert(0, os.path.abspath('../graphizy/'))  # Adjust relative path to your package root
 
