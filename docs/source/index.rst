@@ -15,16 +15,22 @@ Quick Start
 .. code-block:: python
 
    import numpy as np
-   from graphizy import Graphing, GraphizyConfig, generate_positions
+   from graphizy import Graphing, GraphizyConfig, generate_positions, validate_graphizy_input
 
    # Generate random points positions
    positions = generate_positions(800, 800, 100)
-   # The postions can be in different format
-   # Here it is and array with column id, x, y
+   # The positions can be in different format
+   # Here it is an array with column id, x, y
    data = np.column_stack((np.arange(len(positions)), positions))
+   
+   # Optional: Validate your data format (recommended for new users)
+   result = validate_graphizy_input(data, aspect="array", dimension=(800, 800), verbose=True)
+   if not result["valid"]:
+       print("Data validation errors:", result["errors"])
+       exit()
 
    # Create the grapher config
-   # Note: The grapher require the image dimensions
+   # Note: The grapher requires the image dimensions
    config = GraphizyConfig()
    config.graph.dimension = (800, 800)
    # Create the grapher
@@ -103,6 +109,8 @@ User Guide
    :maxdepth: 2
 
    user_guide/installation
+   user_guide/data_formats
+   user_guide/data_validation
    user_guide/graph_types
    user_guide/graph_analysis
    user_guide/memory_system

@@ -27,6 +27,7 @@ from graphizy.exceptions import (
     PositionGenerationError, IgraphMethodError, ConfigurationError,
     DependencyError
 )
+from graphizy.utils import validate_graphizy_input
 
 __author__ = "Charles Fosseprez"
 __email__ = "charles.fosseprez.pro@gmail.com"
@@ -90,4 +91,7 @@ __all__ = [
     "IgraphMethodError",
     "ConfigurationError",
     "DependencyError",
+
+    # Utility functions
+    "validate_graphizy_input",
 ]

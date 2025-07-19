@@ -11,8 +11,7 @@ analyse their metrics in real time, and construct memory-enhanced graph for inte
 
 ![Detection to Graph](https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/detection_to_graph.png)
 
-*Figure: Positions of Paramecium are converted to graphs in just a few milliseconds for hundreds of individuals using OpenCV for construction and Igraph for analysis.  
-Graph analytics are accessible in real time by interfacing with igraph.*
+*Figure: Positions of Paramecium are converted to graphs in just a few milliseconds for hundreds of individuals using OpenCV for construction and Igraph for analysis. Graph analytics are accessible in real time by interfacing with igraph.*
 
 
 ## Documentation

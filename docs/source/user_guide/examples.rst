@@ -3,6 +3,16 @@ Examples
 
 This section provides practical examples demonstrating the key features of Graphizy across different use cases and applications.
 
+.. note::
+   **New to Graphizy?** Start by understanding the data formats and validation:
+   
+   .. code-block:: python
+   
+      from graphizy import validate_graphizy_input
+      result = validate_graphizy_input(your_data, verbose=True)
+   
+   See the :doc:`data_formats` guide for input format requirements and the :doc:`data_validation` guide for troubleshooting.
+
 Basic Graph Creation
 --------------------
 
