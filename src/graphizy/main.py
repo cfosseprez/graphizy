@@ -309,7 +309,113 @@ class Graphing:
         except Exception as e:
             raise GraphCreationError(f"Failed to create MST graph: {str(e)}")
 
-    def make_gabriel(self, data_points: Union[np.ndarray, Dict[str, Any]]) -> Any:
+    def make_graph(self, graph_type: str, data_points: Union[np.ndarray, Dict[str, Any]], **kwargs) -> Any:
+        """
+        Create a graph using the plugin system
+        
+        Args:
+            graph_type: Name of the graph type (e.g., 'delaunay', 'proximity', 'mst')
+            data_points: Point data as array or dictionary
+            **kwargs: Graph-type specific parameters
+            
+        Returns:
+            igraph Graph object
+            
+        Raises:
+            ValueError: If graph type is not found
+            GraphCreationError: If graph creation fails
+            
+        Examples:
+            >>> # Create different graph types
+            >>> delaunay_graph = grapher.make_graph('delaunay', data)
+            >>> proximity_graph = grapher.make_graph('proximity', data, proximity_thresh=60.0)
+            >>> mst_graph = grapher.make_graph('mst', data)
+        """
+        try:
+            from .plugins import get_graph_registry
+            
+            registry = get_graph_registry()
+            return registry.create_graph(
+                graph_type=graph_type,
+                data_points=data_points,
+                aspect=self.aspect,
+                dimension=self.dimension,
+                **kwargs
+            )
+        except Exception as e:
+            raise GraphCreationError(f"Failed to create {graph_type} graph: {str(e)}")
+
+    @staticmethod
+    def list_graph_types(category: Optional[str] = None) -> Dict[str, Any]:
+        """
+        List all available graph types
+        
+        Args:
+            category: Optional category filter ('built-in', 'community', etc.)
+            
+        Returns:
+            Dictionary of graph types and their information
+        """
+        from .plugins import get_graph_registry
+        
+        registry = get_graph_registry()
+        return registry.list_plugins(category)
+    
+    @staticmethod
+    def get_graph_info(graph_type: str) -> Dict[str, Any]:
+        """
+        Get detailed information about a specific graph type
+        
+        Args:
+            graph_type: Name of the graph type
+            
+        Returns:
+            Dictionary with graph type information and parameters
+        """
+        from .plugins import get_graph_registry
+        
+        registry = get_graph_registry()
+        plugin = registry.get_plugin(graph_type)
+        return {
+            "info": plugin.info.__dict__,
+            "parameters": plugin.info.parameters
+        }
+
+    def make_graph(self, graph_type: str, data_points: Union[np.ndarray, Dict[str, Any]], **kwargs) -> Any:
+        """
+        Create a graph using the plugin system
+        
+        Args:
+            graph_type: Name of the graph type (e.g., 'delaunay', 'proximity', 'mst')
+            data_points: Point data as array or dictionary
+            **kwargs: Graph-type specific parameters
+            
+        Returns:
+            igraph Graph object
+            
+        Raises:
+            ValueError: If graph type is not found
+            GraphCreationError: If graph creation fails
+            
+        Examples:
+            >>> # Create different graph types
+            >>> delaunay_graph = grapher.make_graph('delaunay', data)
+            >>> proximity_graph = grapher.make_graph('proximity', data, proximity_thresh=60.0)
+            >>> mst_graph = grapher.make_graph('mst', data)
+        """
+        try:
+            from .plugins import get_graph_registry
+            
+            registry = get_graph_registry()
+            return registry.create_graph(
+                graph_type=graph_type,
+                data_points=data_points,
+                aspect=self.aspect,
+                dimension=self.dimension,
+                **kwargs
+            )
+        except Exception as e:
+            raise GraphCreationError(f"Failed to create {graph_type} graph: {str(e)}")
         """Make a Gabriel graph
 
         Gabriel graph connects two points if no other point lies within the circle

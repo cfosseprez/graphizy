@@ -114,6 +114,7 @@ User Guide
    user_guide/graph_types
    user_guide/graph_analysis
    user_guide/memory_system
+   user_guide/plugin_system
    user_guide/configuration
    user_guide/examples
 

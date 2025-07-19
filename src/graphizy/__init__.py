@@ -28,6 +28,13 @@ from graphizy.exceptions import (
     DependencyError
 )
 from graphizy.utils import validate_graphizy_input
+from graphizy.plugins import (
+    GraphTypePlugin, GraphTypeInfo, register_graph_type, 
+    get_graph_registry, graph_type_plugin
+)
+
+# Import built-in plugins to auto-register them
+from graphizy import builtin_plugins
 
 __author__ = "Charles Fosseprez"
 __email__ = "charles.fosseprez.pro@gmail.com"
@@ -94,4 +101,11 @@ __all__ = [
 
     # Utility functions
     "validate_graphizy_input",
+    
+    # Plugin System
+    "GraphTypePlugin",
+    "GraphTypeInfo", 
+    "register_graph_type",
+    "get_graph_registry",
+    "graph_type_plugin",
 ]
