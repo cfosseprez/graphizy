@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Union, Optional, Callable
 import numpy as np
 from dataclasses import dataclass
-
+import logging
 
 @dataclass
 class GraphTypeInfo:
@@ -118,7 +118,7 @@ class GraphTypeRegistry:
             self._categories[category] = []
         self._categories[category].append(name)
         
-        print(f"✅ Registered graph type: {name} ({category})")
+        logging.debug(f"✅ Registered graph type: {name} ({category})")
     
     def unregister(self, name: str) -> None:
         """Unregister a graph type plugin"""
