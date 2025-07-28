@@ -7,11 +7,11 @@
 
 
 
-<img align="left" width="64" height="48" src="https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/logo.png" alt="Graphizy">
+<img align="left" width="64" height="48" src="https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/logo.png" alt="Graphizy">  
 
 
 
-A powerful graph maker for computational geometry and network visualization, you can choose from multiple graph types
+\\A powerful graph maker for computational geometry and network visualization, you can choose from multiple graph types
 analyse their metrics in real time, and construct memory-enhanced graph for interaction monitoring.
 
 ![Detection to Graph](https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/detection_to_graph.png)
