@@ -1,11 +1,15 @@
-<img align="left" width="80" height="80" src="https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/logo.png" alt="Graphizy">
-
 
 [![Documentation Status](https://readthedocs.org/projects/graphizy/badge/?version=latest)](https://graphizy.readthedocs.io/en/latest/)
 [![PyPI Version](https://img.shields.io/pypi/v/graphizy.svg)](https://pypi.org/project/graphizy/)
 [![Python Version](https://img.shields.io/pypi/pyversions/graphizy.svg)](https://pypi.org/project/graphizy/)
 [![CI Tests](https://github.com/cfosseprez/graphizy/actions/workflows/ci.yml/badge.svg)](https://github.com/cfosseprez/graphizy/actions/workflows/ci.yml)
 [![GPL-2.0 License](https://img.shields.io/badge/License-GPL%202.0-blue.svg)](https://github.com/cfosseprez/graphizy/blob/main/LICENSE)
+
+
+
+<img align="left" width="64" height="48" src="https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/logo.png" alt="Graphizy">
+
+
 
 A powerful graph maker for computational geometry and network visualization, you can choose from multiple graph types
 analyse their metrics in real time, and construct memory-enhanced graph for interaction monitoring.
