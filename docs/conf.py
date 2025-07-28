@@ -76,7 +76,7 @@ html_theme_options = {
 }
 
 html_static_path = ['_static']
-html_logo = '_static/logo.jpg'  # Add your logo
+html_logo = '_static/new_logo.png'  # Add your logo
 html_favicon = '_static/favicon.ico'  # Add your favicon
 
 # -- Sphinx Gallery configuration --------------------------------------------
