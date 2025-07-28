@@ -1,4 +1,5 @@
-# Graphizy
+<img align="left" width="80" height="80" src="https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/logo.png" alt="Graphizy">
+
 
 [![Documentation Status](https://readthedocs.org/projects/graphizy/badge/?version=latest)](https://graphizy.readthedocs.io/en/latest/)
 [![PyPI Version](https://img.shields.io/pypi/v/graphizy.svg)](https://pypi.org/project/graphizy/)
