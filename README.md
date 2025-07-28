@@ -7,7 +7,9 @@
 
 
 
-<img align="left" width="64" height="48" src="https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/logo.png" alt="Graphizy">  # Graphizy  
+<img align="left" width="64" height="48" src="https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/logo.png" alt="Graphizy">  
+
+# Graphizy  
   
   
   
