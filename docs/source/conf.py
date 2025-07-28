@@ -86,7 +86,7 @@ html_show_sourcelink = True
 # so a file named "default.css" will overwrite the builtin "default.css".
 # html_static_path = ['_static']  # Commented out to avoid warnings
 html_static_path = ['_static']
-html_logo = '_static/new_logo.png'   # or .png if you prefer
+html_logo = '_static/new_logo.jpg'   # or .png if you prefer
 html_favicon = '_static/favicon.ico'
 
 # Custom CSS
