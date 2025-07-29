@@ -24,7 +24,7 @@ import igraph as ig
     name="random_edges",
     description="Randomly connects points with a specified probability",
     category="community",
-    author="Random Graph Developer",
+    author="Amazing Random Graph Developer",
     version="1.0.0",
     parameters={
         "edge_probability": {
@@ -87,7 +87,7 @@ def create_random_graph(data_points: np.ndarray, dimension: tuple, **kwargs) -> 
     name="star",
     description="Creates a star topology with one central hub",
     category="topology",
-    author="Star Graph Expert",
+    author="Star Graph Super Expert",
     version="1.0.0",
     parameters={
         "center_id": {
@@ -146,8 +146,9 @@ def create_star_graph(data_points: np.ndarray, dimension: tuple, **kwargs) -> ig
 
     if center_id is not None:
         # Use existing point as center
-        center_vertex_idx = graph.vs.find(id=center_id).index
-        if center_vertex_idx is None:
+        try:
+            center_vertex_idx = graph.vs.find(id=center_id).index
+        except (ValueError, IndexError):
             raise ValueError(f"Center ID {center_id} not found in data")
 
         # Connect all other vertices to the center
@@ -173,9 +174,10 @@ def create_star_graph(data_points: np.ndarray, dimension: tuple, **kwargs) -> ig
 
     else:
         # Connect all vertices to the first vertex (no new center)
-        center_vertex_idx = 0
-        edges_to_add = [(center_vertex_idx, i) for i in range(1, n_vertices)]
-        graph.add_edges(edges_to_add)
+        if n_vertices > 0:
+            center_vertex_idx = 0
+            edges_to_add = [(center_vertex_idx, i) for i in range(1, n_vertices)]
+            graph.add_edges(edges_to_add)
 
     return graph
 
@@ -295,9 +297,14 @@ def main():
     print("Available graph types:")
     all_types = grapher.list_graph_types()
     for name, info in all_types.items():
-        print(f"  • {name}: {info['description']}")
-        if 'category' in info and info['category'] != 'built-in':
-            print(f"    └─ Category: {info['category']}, Author: {info.get('author', 'Unknown')}")
+        # Access attributes using dot notation (e.g., info.description)
+        # The 'info' variable is a GraphTypeInfo object, not a dictionary.
+        print(f"  • {name}: {info.description}")
+
+        # Use hasattr for safe attribute checking and getattr for safe access
+        if hasattr(info, 'category') and info.category != 'built-in':
+            author = getattr(info, 'author', 'Unknown')
+            print(f"    └─ Category: {info.category}, Author: {author}")
 
     print("=" * 60)
     print("Creating graphs with new types:")
@@ -310,6 +317,12 @@ def main():
         np.random.rand(n_points) * 300 + 50,  # X coordinates
         np.random.rand(n_points) * 300 + 50  # Y coordinates
     ])
+
+    # --- NEW: Initialize graph variables to ensure they exist for the display block ---
+    random_graph = None
+    star_graph = None
+    grid_graph = None
+    delaunay_graph = None
 
     try:
         # Test the random edges graph
@@ -338,13 +351,14 @@ def main():
         print(f"   Delaunay graph: {delaunay_graph.vcount()} vertices, {delaunay_graph.ecount()} edges")
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error during graph creation: {e}")
 
     print("\n" + "=" * 60)
     print("Get detailed info about our new graph types:")
 
     try:
-        # Get info about our custom graph types using the correct method
+        # NOTE: This part is correct! get_plugin_info() *does* return a dictionary,
+        # so subscripting here is the right approach.
         star_info = Graphing.get_plugin_info("star")
         print(f"\nStar Graph Info:")
         print(f"   Description: {star_info['info']['description']}")
@@ -374,25 +388,41 @@ def main():
     print(" - Same API as built-in types")
     print(" - Easy to distribute as separate packages")
 
-    # Optional: Save visualizations
+    # --- UPDATED: Save and display visualizations ---
     try:
-        print("\nSaving visualizations...")
+        print("\nSaving and displaying visualizations...")
+        print("Press any key on a graph window to close it and see the next one.")
 
-        # Draw and save some graphs
-        random_image = grapher.draw_graph(random_graph)
-        grapher.save_graph(random_image, "random_edges_example.png")
-        print("   Saved random_edges_example.png")
+        # Draw, save, and show the random graph
+        if random_graph:
+            random_image = grapher.draw_graph(random_graph)
+            grapher.save_graph(random_image, "random_edges_example.png")
+            print("   Saved random_edges_example.png")
+            grapher.show_graph(random_image, title="Random Edges Graph", block=True)
 
-        star_image = grapher.draw_graph(star_graph)
-        grapher.save_graph(star_image, "star_graph_example.png")
-        print("   Saved star_graph_example.png")
+        # Draw, save, and show the star graph
+        if star_graph:
+            star_image = grapher.draw_graph(star_graph)
+            grapher.save_graph(star_image, "star_graph_example.png")
+            print("   Saved star_graph_example.png")
+            grapher.show_graph(star_image, title="Star Graph", block=True)
 
-        grid_image = grapher.draw_graph(grid_graph)
-        grapher.save_graph(grid_image, "grid_graph_example.png")
-        print("   Saved grid_graph_example.png")
+        # Draw, save, and show the grid graph
+        if grid_graph:
+            grid_image = grapher.draw_graph(grid_graph)
+            grapher.save_graph(grid_image, "grid_graph_example.png")
+            print("   Saved grid_graph_example.png")
+            grapher.show_graph(grid_image, title="Grid Graph", block=True)
+
+        # Draw, save, and show the built-in Delaunay graph
+        if delaunay_graph:
+            delaunay_image = grapher.draw_graph(delaunay_graph)
+            grapher.save_graph(delaunay_image, "delaunay_example.png")
+            print("   Saved delaunay_example.png")
+            grapher.show_graph(delaunay_image, title="Delaunay Graph (for comparison)", block=True)
 
     except Exception as e:
-        print(f"Could not save visualizations: {e}")
+        print(f"Could not save or display visualizations: {e}")
 
 
 if __name__ == "__main__":
