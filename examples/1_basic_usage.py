@@ -59,13 +59,13 @@ def example_delaunay_triangulation():
 
     try:
         # Define the dimensions of our canvas and the number of points (nodes).
-        WIDTH, HEIGHT = 800, 600
+        IMAGE_WIDTH, IMAGE_HEIGHT = 800, 600
         NUM_PARTICLES = 60
 
         # --- Data Generation ---
         # Create random (x, y) coordinates for our particles within the canvas.
-        print(f"Generating {NUM_PARTICLES} random points on an {WIDTH}x{HEIGHT} canvas...")
-        positions = generate_positions(WIDTH, HEIGHT, NUM_PARTICLES)
+        print(f"Generating {NUM_PARTICLES} random points on an {IMAGE_WIDTH}x{IMAGE_HEIGHT} canvas...")
+        positions = generate_positions(IMAGE_WIDTH, IMAGE_HEIGHT, NUM_PARTICLES)
 
         # The grapher needs data in a specific format: an array where each row is
         # [ID, x_position, y_position]. We create unique IDs for each particle.
@@ -74,12 +74,8 @@ def example_delaunay_triangulation():
 
         # --- Styling and Graph Creation ---
         # Create a configuration object to customize the graph's appearance.
-        config = GraphizyConfig()
-        config.graph.dimension = (WIDTH, HEIGHT)  # Set the canvas size.
-        config.drawing.line_color = (0, 255, 0)  # Green lines (R, G, B).
-        config.drawing.point_color = (0, 0, 255)  # Blue points (R, G, B).
-        config.drawing.line_thickness = 1  # Thin lines.
-        config.drawing.point_radius = 6  # Small points.
+        config = GraphizyConfig(dimension=(IMAGE_WIDTH, IMAGE_HEIGHT))
+        config.set_drawing(line_color=(255, 0, 0), point_color = (0, 0, 255), line_thickness = 1, point_radius=5)
 
         # Initialize the main Graphing object with our custom configuration.
         grapher = Graphing(config=config)
@@ -144,11 +140,11 @@ def example_proximity_graph(particle_stack):
         # The most important parameter here is the THRESHOLD.
         # A larger threshold will result in more connections and a denser graph.
         THRESHOLD = 80.0
-        WIDTH, HEIGHT = 800, 600
+        IMAGE_WIDTH, IMAGE_HEIGHT = 800, 600
 
         # We'll create a new configuration to show how styles can be different.
         config = GraphizyConfig()
-        config.graph.dimension = (WIDTH, HEIGHT)
+        config.graph.dimension = (IMAGE_WIDTH, IMAGE_HEIGHT)
         config.graph.proximity_threshold = THRESHOLD  # Set the distance threshold.
         config.drawing.line_color = (255, 0, 0)  # Red lines.
         config.drawing.point_color = (255, 255, 0)  # Yellow points.
@@ -225,11 +221,11 @@ def example_k_nearest_neighbors(particle_stack):
         # --- Configuration ---
         # 'K' is the number of nearest neighbors to connect to for each point.
         K = 4
-        WIDTH, HEIGHT = 800, 600
+        IMAGE_WIDTH, IMAGE_HEIGHT = 800, 600
 
         # Another style configuration.
         config = GraphizyConfig()
-        config.graph.dimension = (WIDTH, HEIGHT)
+        config.graph.dimension = (IMAGE_WIDTH, IMAGE_HEIGHT)
         config.drawing.line_color = (0, 255, 255)  # Cyan lines.
         config.drawing.point_color = (255, 0, 255)  # Magenta points.
         config.drawing.line_thickness = 2
@@ -356,10 +352,10 @@ def example_configuration_showcase():
 
     try:
         # Use a smaller dataset for this quick visual showcase.
-        WIDTH, HEIGHT = 400, 400
+        IMAGE_WIDTH, IMAGE_HEIGHT = 400, 400
         NUM_PARTICLES = 30
 
-        positions = generate_positions(WIDTH, HEIGHT, NUM_PARTICLES)
+        positions = generate_positions(IMAGE_WIDTH, IMAGE_HEIGHT, NUM_PARTICLES)
         particle_ids = np.arange(len(positions))
         particle_stack = np.column_stack((particle_ids, positions))
 
@@ -397,7 +393,7 @@ def example_configuration_showcase():
 
             # Create a new config and apply the style settings from our list.
             config = GraphizyConfig()
-            config.graph.dimension = (WIDTH, HEIGHT)
+            config.graph.dimension = (IMAGE_WIDTH, IMAGE_HEIGHT)
             config.drawing.line_color = style["line_color"]
             config.drawing.point_color = style["point_color"]
             config.drawing.line_thickness = style["line_thickness"]

@@ -44,11 +44,17 @@ def get_examples():
         },
         {
             'id': 4,
-            'file': '4_integrated_brownian.py',
-            'name': 'Integrated Brownian Motion',
+            'file': '4_video_analysis.py',
+            'name': 'Interactive video analysis',
             'description': 'Complete simulation with dynamic networks and movie generation',
             'duration': '~5-10 minutes',
-            'quick_args': ['--iterations', '30', '--particles', '15', '--save-freq', '2']
+        },
+        {
+            'id': 5,
+            'file': '5.add_new_graph_type.py',
+            'name': 'Add custom graph',
+            'description': 'Example of custom graph addition',
+            'duration': '~5-10 minutes',
         }
     ]
     return examples

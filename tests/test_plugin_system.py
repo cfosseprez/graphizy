@@ -7,7 +7,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 import numpy as np
-from graphizy.plugins import graph_type_plugin, GraphTypePlugin, GraphTypeInfo, register_graph_type, get_graph_registry
+from graphizy.plugins_logic import graph_type_plugin, GraphTypePlugin, GraphTypeInfo, register_graph_type, get_graph_registry
 
 
 def test_plugin_system():

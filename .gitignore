@@ -167,6 +167,12 @@ tmp/
 *.engine
 *.trt
 
+# Images files
+*.jpg
+*.png
+*.tiff
+*.gif
+
 # Video files
 *.mp4
 *.avi

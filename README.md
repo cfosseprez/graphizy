@@ -1,4 +1,7 @@
 
+**Graphizy** is a fast, flexible Python library for building and analyzing computational geometry-based graphs from 2D coordinates.
+
+
 [![Documentation Status](https://readthedocs.org/projects/graphizy/badge/?version=latest)](https://graphizy.readthedocs.io/en/latest/)
 [![PyPI Version](https://img.shields.io/pypi/v/graphizy.svg)](https://pypi.org/project/graphizy/)
 [![Python Version](https://img.shields.io/pypi/pyversions/graphizy.svg)](https://pypi.org/project/graphizy/)
@@ -10,11 +13,10 @@
 <img align="left" width="64" height="48" src="https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/logo.png" alt="Graphizy">  
 
 # Graphizy  
-  
-  
-  
-A powerful graph maker for computational geometry and network visualization, you can choose from multiple graph types
-analyse their metrics in real time, and construct memory-enhanced graph for interaction monitoring.
+
+Graphizy is a fast and flexible Python library for building and analyzing graphs from 2D spatial data.
+Designed for computational geometry and network visualization, it supports a range of graph types, real-time metric analysis, and memory-enhanced graphs to track dynamic interactions over time — all powered by OpenCV and igraph.
+
 
 ![Detection to Graph](https://raw.githubusercontent.com/cfosseprez/graphizy/main/images/detection_to_graph.png)
 
@@ -33,28 +35,21 @@ You can find the full documentation [here](https://graphizy.readthedocs.io/en/la
 - **K-Nearest Neighbors**: Connect each point to its k closest neighbors
 - **Minimum Spanning Tree**: Minimal connected graph with shortest total edge length
 - **Gabriel Graph**: Geometric proximity graph (subset of Delaunay triangulation)
-
+- **Custom Graphs**: Easily define and plug in your own graph types  
 
 ### Memory-Enhanced Graphs
-- **Graph memory**: Any graph can keep edges in memory for some times or some interaction. Allowing for a new type of analysis
+- **Graph memory**: Graphs can retain edges across time steps or interactions, enabling temporal analysis of evolving systems such as particle motion, biological agents, or social networks.
 
 ###  Graph Analysis
 - **igraph Integration**: Full access to [igraph's powerful analytics](https://igraph.org/python/tutorial/0.9.7/analysis.html)
 - **Comprehensive API**: Call any igraph method with error handling
 - **Real-time Statistics**: Vertex count, edge count, connectivity, clustering, centrality
 
-###  Visualization & Design  
-- **Flexible Configuration**: Runtime-configurable parameters using dataclasses
-- **Multiple Output Formats**: Save as images or display interactively with OpenCV
-- **Memory Visualization**: Age-based edge coloring for temporal analysis
-- **Command Line Interface**: Easy-to-use CLI for common operations
-- **Interactive Demos**: Real-time Brownian motion simulation with graph evolution
-
-###  Technical Excellence
-- **Robust Error Handling**: Detailed exceptions and validation
-- **Performance Monitoring**: Built-in timing and optimization tracking
-- **Memory Management**: Configurable connection history with aging
-- **Type Safety**: Full type hints and dataclass configuration
+###  Visualization & Developer Features
+- **Flexible Configuration**: Runtime-configurable parameters using Type-safe dataclasses
+- **Visual Output**: Real-time OpenCV display, image export
+- **Interactive Demos & CLI**: Simulate dynamics and run tasks from the command line
+- **Reliable & Performant**: Robust error handling, memory tracking, and built-in profiling
 
 ## 🚀 Installation
 
@@ -72,36 +67,35 @@ pip install -e .
 
 ## ⚡ Quick Start
 
-### Basic Graph Creation
+### Basic Graph Creation For one Frame
 
 ```python
-import numpy as np
-from graphizy import Graphing, GraphizyConfig, generate_positions
+from graphizy import Graphing, GraphizyConfig, generate_and_format_positions, validate_graphizy_input
 
-# Generate random points
-positions = generate_positions(800, 800, 100)
-particle_ids = np.arange(len(positions))
-data = np.column_stack((particle_ids, positions))
+# Parameters
+IMAGE_WIDTH, IMAGE_HEIGHT = 800, 800
 
-# Create grapher with configuration
-config = GraphizyConfig()
-config.graph.dimension = (800, 800)
+# 1. Generate random points (id, x, y) and to be sure, validate they are compatible
+data = generate_and_format_positions(size_x=IMAGE_WIDTH, size_y=IMAGE_HEIGHT, num_particles=100)
+validate_graphizy_input(data)
+
+# 2. Configure Graphizy
+config = GraphizyConfig(dimension=(IMAGE_WIDTH, IMAGE_HEIGHT))
 grapher = Graphing(config=config)
 
-# Create different graph types
+# 3. Create different graph types
 delaunay_graph = grapher.make_delaunay(data)
 proximity_graph = grapher.make_proximity(data, proximity_thresh=50.0)
-knn_graph = grapher.make_knn(data, k=4)  # Connect to 4 nearest neighbors
-mst_graph = grapher.make_mst(data)       # Minimum spanning tree
-gabriel_graph = grapher.make_gabriel(data)  # Gabriel graph
+knn_graph = grapher.make_knn(data, k=4)
+mst_graph = grapher.make_mst(data)
+gabriel_graph = grapher.make_gabriel(data)
 
-# Visualize and save
+# 4. Visualize and save results
 delaunay_image = grapher.draw_graph(delaunay_graph)
 grapher.save_graph(delaunay_image, "delaunay.jpg")
-# Or display interactively
-grapher.show_graph(delaunay_image, "Delaunay Triangulation")
+grapher.show_graph(delaunay_image, "Delaunay Triangulation", block=False)
 
-# Get comprehensive statistics
+# 5. Analyze graph metrics
 info = grapher.get_graph_info(delaunay_graph)
 print(f"Graph: {info['vertex_count']} vertices, {info['edge_count']} edges")
 print(f"Density: {info['density']:.3f}, Connected: {info['is_connected']}")
@@ -112,8 +106,22 @@ print(f"Density: {info['density']:.3f}, Connected: {info['is_connected']}")
 Memory graphs track connections over time, allowing analysis of temporal patterns:
 
 ```python
+import numpy as np
+from graphizy import Graphing, GraphizyConfig, generate_and_format_positions
+
+# Parameters
+IMAGE_WIDTH, IMAGE_HEIGHT = 800, 800
+
+# 1. Generate random points (id, x, y)
+data = generate_and_format_positions(size_x=IMAGE_WIDTH, size_y=IMAGE_HEIGHT, num_particles=100)
+
+# 2. Configure Graphizy
+config = GraphizyConfig(dimension=(IMAGE_WIDTH, IMAGE_HEIGHT))
+grapher = Graphing(config=config)
+
+
 # Initialize memory manager
-grapher.init_memory_manager(max_memory_size=50, track_edge_ages=True)
+grapher.init_memory_manager(max_memory_size=3, track_edge_ages=True)
 
 # Simulate evolution over time
 for iteration in range(100):

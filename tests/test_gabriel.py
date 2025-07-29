@@ -7,6 +7,8 @@ import sys
 import os
 import numpy as np
 
+from tests.test_fix_comprehensive import result
+
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
@@ -44,7 +46,7 @@ def test_gabriel_graph():
             print(f"✓ Gabriel graph is subset of Delaunay: {gabriel_edges} ≤ {delaunay_edges} edges")
         else:
             print(f"✗ Gabriel graph has more edges than Delaunay: {gabriel_edges} > {delaunay_edges}")
-            return False
+            result=False
         
         # Test visualization
         print("Testing Gabriel graph visualization...")
@@ -68,7 +70,9 @@ def test_gabriel_graph():
         memory_gabriel = grapher.make_memory_graph(particle_stack)
         print(f"✓ Memory-enhanced Gabriel graph created: {memory_gabriel.vcount()} vertices, {memory_gabriel.ecount()} edges")
         
-        return True
+        result=True
+
+        assert result==True
         
     except Exception as e:
         print(f"✗ Error testing Gabriel graph: {e}")
@@ -118,15 +122,18 @@ def test_gabriel_comparison():
         
         if gabriel_edges <= delaunay_edges:
             print(f"\n✓ Verified: Gabriel ⊆ Delaunay ({gabriel_edges} ≤ {delaunay_edges} edges)")
+            result = True
         else:
             print(f"\n✗ Error: Gabriel has more edges than Delaunay!")
-            return False
+            result=False
         
-        return True
+
         
     except Exception as e:
         print(f"✗ Error in comparison test: {e}")
-        return False
+        result=False
+
+    assert result==True
 
 if __name__ == "__main__":
     print("Testing graphizy Gabriel graph functionality...")

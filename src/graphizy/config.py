@@ -38,7 +38,7 @@ class DrawingConfig:
 @dataclass
 class GraphConfig:
     """Configuration for graph creation parameters"""
-    dimension: Tuple[int, int] = (1200, 1200)
+    dimension: Tuple[int, int] = (1200, 1200)  # It is required to have hte dimension for the opencv triangulation
     data_shape: list = field(
         default_factory=lambda: [("id", int), ("x", int), ("y", int), ("speed", float), ("feedback", bool)])
     aspect: str = "array"
@@ -110,7 +110,6 @@ class LoggingConfig:
         )
 
 
-@dataclass
 class GraphizyConfig:
     """Master configuration class combining all config sections"""
     drawing: DrawingConfig = field(default_factory=DrawingConfig)
@@ -119,31 +118,78 @@ class GraphizyConfig:
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
 
+    def __init__(self, **kwargs):
+        graph_kwargs = {k: kwargs.pop(k) for k in list(kwargs.keys()) if k in GraphConfig.__dataclass_fields__}
+        drawing_kwargs = {k: kwargs.pop(k) for k in list(kwargs.keys()) if k in DrawingConfig.__dataclass_fields__}
+        gen_kwargs = {k: kwargs.pop(k) for k in list(kwargs.keys()) if k in GenerationConfig.__dataclass_fields__}
+        logging_kwargs = {k: kwargs.pop(k) for k in list(kwargs.keys()) if k in LoggingConfig.__dataclass_fields__}
+        memory_kwargs = {k: kwargs.pop(k) for k in list(kwargs.keys()) if k in MemoryConfig.__dataclass_fields__}
+
+        self.graph = GraphConfig(**graph_kwargs)
+        self.drawing = DrawingConfig(**drawing_kwargs)
+        self.generation = GenerationConfig(**gen_kwargs)
+        self.logging = LoggingConfig(**logging_kwargs)
+        self.memory = MemoryConfig(**memory_kwargs)
+
+        if kwargs:
+            raise ValueError(f"Unknown configuration keys: {list(kwargs.keys())}")
+
     def update(self, **kwargs):
         """Update configuration values at runtime"""
         for key, value in kwargs.items():
             if hasattr(self, key):
-                if isinstance(getattr(self, key), (DrawingConfig, GraphConfig, GenerationConfig, LoggingConfig)):
-                    # Update nested config
-                    config_obj = getattr(self, key)
-                    if isinstance(value, dict):
-                        for nested_key, nested_value in value.items():
-                            if hasattr(config_obj, nested_key):
-                                setattr(config_obj, nested_key, nested_value)
-                            else:
-                                raise ValueError(f"Unknown config key: {key}.{nested_key}")
-                    else:
-                        setattr(self, key, value)
+                config_obj = getattr(self, key)
+                if hasattr(config_obj, '__dataclass_fields__') and isinstance(value, dict):
+                    for nested_key, nested_value in value.items():
+                        if hasattr(config_obj, nested_key):
+                            setattr(config_obj, nested_key, nested_value)
+                        else:
+                            raise ValueError(f"Unknown config key: {key}.{nested_key}")
                 else:
                     setattr(self, key, value)
             else:
                 raise ValueError(f"Unknown config key: {key}")
 
+    def set_drawing(self, **kwargs):
+        for key, value in kwargs.items():
+            if hasattr(self.drawing, key):
+                setattr(self.drawing, key, value)
+            else:
+                raise ValueError(f"Invalid drawing config key: {key}")
+
+    def set_graph(self, **kwargs):
+        for key, value in kwargs.items():
+            if hasattr(self.graph, key):
+                setattr(self.graph, key, value)
+            else:
+                raise ValueError(f"Invalid graph config key: {key}")
+
+    def set_generation(self, **kwargs):
+        for key, value in kwargs.items():
+            if hasattr(self.generation, key):
+                setattr(self.generation, key, value)
+            else:
+                raise ValueError(f"Invalid generation config key: {key}")
+
+    def set_logging(self, **kwargs):
+        for key, value in kwargs.items():
+            if hasattr(self.logging, key):
+                setattr(self.logging, key, value)
+            else:
+                raise ValueError(f"Invalid logging config key: {key}")
+
+    def set_memory(self, **kwargs):
+        for key, value in kwargs.items():
+            if hasattr(self.memory, key):
+                setattr(self.memory, key, value)
+            else:
+                raise ValueError(f"Invalid memory config key: {key}")
+
     def copy(self) -> 'GraphizyConfig':
         """Create a deep copy of the configuration"""
         import copy as copy_module
         return copy_module.deepcopy(self)
-    
+
     def to_dict(self) -> dict:
         """Convert configuration to dictionary"""
         return {
@@ -171,5 +217,11 @@ class GraphizyConfig:
             "logging": {
                 "level": self.logging.level,
                 "format": self.logging.format,
+            },
+            "memory": {
+                "max_memory_size": self.memory.max_memory_size,
+                "max_iterations": self.memory.max_iterations,
+                "auto_update_from_proximity": self.memory.auto_update_from_proximity,
+                "memory_decay_factor": self.memory.memory_decay_factor,
             }
         }

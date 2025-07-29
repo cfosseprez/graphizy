@@ -10,11 +10,14 @@ Graphizy - A graph maker for computational geometry and network visualization
 from graphizy.main import Graphing
 from graphizy.config import GraphizyConfig, DrawingConfig, GraphConfig, GenerationConfig, LoggingConfig, MemoryConfig
 from graphizy.algorithms import (
-    generate_positions, make_subdiv, make_delaunay, get_delaunay,
+    make_subdiv, make_delaunay, get_delaunay,
     get_distance, graph_distance, create_graph_array, create_graph_dict, DataInterface,
     call_igraph_method, MemoryManager, create_memory_graph, update_memory_from_proximity,
     update_memory_from_graph, update_memory_from_delaunay, update_memory_from_custom_function,
-    create_minimum_spanning_tree, create_k_nearest_graph, create_gabriel_graph
+    create_minimum_spanning_tree, create_knn_graph, create_gabriel_graph
+)
+from graphizy.positions import (
+generate_positions, format_positions, generate_and_format_positions
 )
 from graphizy.drawing import (
     draw_point, draw_line, draw_delaunay, show_graph, save_graph,
@@ -28,7 +31,7 @@ from graphizy.exceptions import (
     DependencyError
 )
 from graphizy.utils import validate_graphizy_input
-from graphizy.plugins import (
+from graphizy.plugins_logic import (
     GraphTypePlugin, GraphTypeInfo, register_graph_type, 
     get_graph_registry, graph_type_plugin
 )
@@ -52,8 +55,12 @@ __all__ = [
     "LoggingConfig",
     "MemoryConfig",
 
-    # Algorithm functions
+    # Formatting function
+    "format_positions",
     "generate_positions",
+    "generate_and_format_positions",
+
+    # Algorithm functions
     "make_subdiv",
     "make_delaunay",
     "get_delaunay",
@@ -64,7 +71,7 @@ __all__ = [
     "DataInterface",
     "call_igraph_method",
     "create_minimum_spanning_tree",
-    "create_k_nearest_graph",
+    "create_knn_graph",
     "create_gabriel_graph",
 
     # Memory functions

@@ -1,3 +1,3 @@
 """
-Examples package for graphizy
+Examples for graphizy
 """

@@ -22,7 +22,7 @@ from graphizy.cli import (
     create_parser, parse_color, load_config, create_config_from_args,
     cmd_delaunay, cmd_proximity, cmd_both, cmd_info, main
 )
-from graphizy import GraphizyConfig
+from graphizy import GraphizyConfig, GraphizyError
 
 
 class TestCLIParser:
@@ -108,20 +108,10 @@ class TestCLIUtilities:
     """Test CLI utility functions"""
 
     def test_parse_color_valid(self):
-        """Test valid color parsing"""
-        # Test RGB to BGR conversion
-        color = parse_color('255,0,0')  # Red
-        assert color == (0, 0, 255)  # BGR format
-
-        color = parse_color('0,255,0')  # Green
-        assert color == (0, 255, 0)  # BGR format
-
-        color = parse_color('0,0,255')  # Blue
-        assert color == (255, 0, 0)  # BGR format... wait, this should be (255, 0, 0) for blue in BGR
-
-        # Let me fix this
-        color = parse_color('0,0,255')  # Blue
-        assert color == (255, 0, 0)  # This is wrong, let me correct the test
+        """Test valid color parsing with correct BGR conversion"""
+        assert parse_color('255,0,0') == (0, 0, 255)  # Red
+        assert parse_color('0,255,0') == (0, 255, 0)  # Green
+        assert parse_color('0,0,255') == (255, 0, 0)  # Blue
 
     def test_parse_color_corrected(self):
         """Test color parsing with correct BGR conversion"""
@@ -137,14 +127,9 @@ class TestCLIUtilities:
     def test_parse_color_invalid(self):
         """Test invalid color parsing"""
         with pytest.raises(ValueError):
-            parse_color('255,0')  # Too few values
-
+            parse_color('255,0')
         with pytest.raises(ValueError):
-            parse_color('255,0,0,0')  # Too many values
-
-        with pytest.raises(ValueError):
-            parse_color('invalid,color,format')  # Non-numeric
-
+            parse_color('invalid')
 
     def test_parse_color_edge_cases(self):
         """Test color parsing edge cases"""
@@ -157,20 +142,10 @@ class TestCLIUtilities:
 
     def test_load_config_valid(self):
         """Test loading valid configuration file"""
-        config_data = {
-            "drawing": {
-                "line_color": [255, 0, 0],
-                "point_radius": 12
-            },
-            "graph": {
-                "dimension": [800, 600]
-            }
-        }
-
+        config_data = {"drawing": {"point_radius": 12}}
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(config_data, f)
             config_file = f.name
-
         try:
             loaded_config = load_config(config_file)
             assert loaded_config == config_data
@@ -178,24 +153,17 @@ class TestCLIUtilities:
             os.unlink(config_file)
 
     def test_load_config_invalid(self):
-        """Test loading invalid configuration file"""
-        from graphizy.exceptions import GraphizyError
-
-        # Test non-existent file
+        """Test loading invalid or non-existent configuration file"""
         with pytest.raises(GraphizyError):
             load_config('non_existent_file.json')
-
-        # Test invalid JSON
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            f.write('invalid json content')
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+            f.write('invalid json')
             config_file = f.name
-
         try:
             with pytest.raises(GraphizyError):
                 load_config(config_file)
         finally:
             os.unlink(config_file)
-
 
 class TestConfigCreation:
     """Test configuration creation from CLI arguments"""

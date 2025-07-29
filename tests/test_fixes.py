@@ -41,13 +41,15 @@ def test_config_creation():
         proximity_graph = grapher.make_proximity(particle_stack, proximity_thresh=100.0)
         print("✓ Proximity graph creation works")
         
-        return True
+        result=True
         
     except Exception as e:
         print(f"✗ Error: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        result=False
+
+    assert result==True
 
 def test_examples():
     """Test that the example files can import and basic setup works"""
@@ -59,11 +61,11 @@ def test_examples():
         
         # We won't run the full examples, just test imports and basic setup
         print("✓ Example imports should now work")
-        return True
-        
+        result = True
     except Exception as e:
         print(f"✗ Error: {e}")
-        return False
+        result = False
+    assert result == True
 
 if __name__ == "__main__":
     print("Testing graphizy fixes...")

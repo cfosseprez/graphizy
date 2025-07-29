@@ -2,6 +2,8 @@
 Built-in graph type plugins for Graphizy
 
 This module contains plugin implementations for all the built-in graph types.
+It demonstrates the best practice for creating plugins by calling the low-level
+algorithm functions directly, avoiding circular dependencies and unnecessary overhead.
 
 .. moduleauthor:: Charles Fosseprez
 .. contact:: charles.fosseprez.pro@gmail.com
@@ -10,128 +12,99 @@ This module contains plugin implementations for all the built-in graph types.
 """
 
 import numpy as np
-from typing import Union, Dict, Any
+from typing import Any
 
-from .plugins import GraphTypePlugin, GraphTypeInfo, register_graph_type
+from .plugins_logic import GraphTypePlugin, GraphTypeInfo, register_graph_type
+# Import the core algorithm functions directly, NOT the Graphing class
 from .algorithms import (
-    create_graph_array, create_graph_dict, make_subdiv, graph_delaunay,
-    graph_distance, create_minimum_spanning_tree, create_gabriel_graph
+    create_delaunay_graph, create_proximity_graph,
+    create_minimum_spanning_tree, create_gabriel_graph, create_knn_graph
 )
 
 
 class DelaunayPlugin(GraphTypePlugin):
     """Delaunay triangulation graph plugin"""
-    
     @property
-    def info(self):
+    def info(self) -> GraphTypeInfo:
         return GraphTypeInfo(
             name="delaunay",
             description="Creates a Delaunay triangulation connecting nearby points optimally",
-            parameters={},
-            category="built-in",
-            author="Graphizy Team",
-            version="1.0.0"
+            parameters={}, category="built-in", author="Graphizy Team", version="1.0.0"
         )
-    
-    def create_graph(self, data_points: Union[np.ndarray, Dict[str, Any]], 
-                     aspect: str, dimension: tuple, **kwargs):
-        """Create Delaunay triangulation graph"""
-        from .main import Graphing  # Import here to avoid circular import
-        
-        # Use existing implementation
-        grapher = Graphing(dimension=dimension, aspect=aspect)
-        return grapher.make_delaunay(data_points)
+
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
+        """Create Delaunay triangulation graph by calling the algorithm directly."""
+        return create_delaunay_graph(data_points, dimension=dimension)
 
 
 class ProximityPlugin(GraphTypePlugin):
     """Proximity graph plugin"""
-    
     @property
-    def info(self):
+    def info(self) -> GraphTypeInfo:
         return GraphTypeInfo(
             name="proximity",
             description="Connects points within a specified distance threshold",
             parameters={
-                "proximity_thresh": {
-                    "type": float,
-                    "default": 50.0,
-                    "description": "Maximum distance for connecting points"
-                },
-                "metric": {
-                    "type": str,
-                    "default": "euclidean",
-                    "description": "Distance metric to use"
-                }
+                "proximity_thresh": {"type": float, "default": 50.0, "description": "Maximum distance for connecting points"},
+                "metric": {"type": str, "default": "euclidean", "description": "Distance metric to use"}
             },
-            category="built-in",
-            author="Graphizy Team",
-            version="1.0.0"
+            category="built-in", author="Graphizy Team", version="1.0.0"
         )
-    
-    def create_graph(self, data_points: Union[np.ndarray, Dict[str, Any]], 
-                     aspect: str, dimension: tuple, **kwargs):
-        """Create proximity graph"""
-        from .main import Graphing  # Import here to avoid circular import
-        
+
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
+        """Create proximity graph by calling the algorithm directly."""
         proximity_thresh = kwargs.get("proximity_thresh", 50.0)
         metric = kwargs.get("metric", "euclidean")
-        
-        grapher = Graphing(dimension=dimension, aspect=aspect)
-        return grapher.make_proximity(data_points, proximity_thresh, metric)
+        return create_proximity_graph(data_points, proximity_thresh, metric=metric)
 
 
 class MSTPlugin(GraphTypePlugin):
     """Minimum Spanning Tree graph plugin"""
-    
     @property
-    def info(self):
+    def info(self) -> GraphTypeInfo:
         return GraphTypeInfo(
             name="mst",
             description="Creates a minimum spanning tree connecting all points with minimum total edge weight",
-            parameters={
-                "metric": {
-                    "type": str,
-                    "default": "euclidean",
-                    "description": "Distance metric for edge weights"
-                }
-            },
-            category="built-in",
-            author="Graphizy Team",
-            version="1.0.0"
+            parameters={"metric": {"type": str, "default": "euclidean", "description": "Distance metric for edge weights"}},
+            category="built-in", author="Graphizy Team", version="1.0.0"
         )
-    
-    def create_graph(self, data_points: Union[np.ndarray, Dict[str, Any]], 
-                     aspect: str, dimension: tuple, **kwargs):
-        """Create minimum spanning tree graph"""
-        from .main import Graphing  # Import here to avoid circular import
-        
+
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
+        """Create minimum spanning tree graph by calling the algorithm directly."""
         metric = kwargs.get("metric", "euclidean")
-        
-        grapher = Graphing(dimension=dimension, aspect=aspect)
-        return grapher.make_mst(data_points, metric)
+        return create_minimum_spanning_tree(data_points, metric=metric)
 
 
 class GabrielPlugin(GraphTypePlugin):
     """Gabriel graph plugin"""
-    
     @property
-    def info(self):
+    def info(self) -> GraphTypeInfo:
         return GraphTypeInfo(
             name="gabriel",
-            description="Creates a Gabriel graph where two points are connected if no other point lies within their diameter circle",
-            parameters={},
-            category="built-in",
-            author="Graphizy Team",
-            version="1.0.0"
+            description="Creates a Gabriel graph where no other point lies within the diameter circle of two connected points",
+            parameters={}, category="built-in", author="Graphizy Team", version="1.0.0"
         )
-    
-    def create_graph(self, data_points: Union[np.ndarray, Dict[str, Any]], 
-                     aspect: str, dimension: tuple, **kwargs):
-        """Create Gabriel graph"""
-        from .main import Graphing  # Import here to avoid circular import
-        
-        grapher = Graphing(dimension=dimension, aspect=aspect)
-        return grapher.make_gabriel(data_points)
+
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
+        """Create Gabriel graph by calling the algorithm directly."""
+        return create_gabriel_graph(data_points)
+
+
+class KNNPlugin(GraphTypePlugin):
+    """K-Nearest Neighbors graph plugin"""
+    @property
+    def info(self) -> GraphTypeInfo:
+        return GraphTypeInfo(
+            name="knn",
+            description="Connects each point to its k nearest neighbors",
+            parameters={"k": {"type": int, "default": 4, "description": "Number of neighbors"}},
+            category="built-in", author="Graphizy Team", version="1.0.0"
+        )
+
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
+        """Create k-NN graph by calling the algorithm directly."""
+        k = kwargs.get("k", 4)
+        return create_knn_graph(data_points, k=k)
 
 
 # Register all built-in plugins
@@ -141,6 +114,7 @@ def register_builtin_plugins():
     register_graph_type(ProximityPlugin())
     register_graph_type(MSTPlugin())
     register_graph_type(GabrielPlugin())
+    register_graph_type(KNNPlugin())
 
 
 # Auto-register when module is imported

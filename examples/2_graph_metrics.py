@@ -167,23 +167,23 @@ def example_centrality_measures(graphs: Dict[str, Any], grapher: Graphing):
 
     # 1. Degree Centrality: The number of connections a node has.
     print("\n- Degree (Number of connections):")
-    degrees = grapher.call_method(graph, 'degree')
+    degrees = grapher.call_method_safe(graph, 'degree')
     degree_values = list(degrees.values())
     print(f"  Average: {np.mean(degree_values):.2f}, Range: {min(degree_values)}-{max(degree_values)}")
 
     # 2. Betweenness Centrality: Measures how often a node lies on the shortest path between other nodes.
     # High betweenness indicates a "bridge" node that connects disparate parts of the graph.
     print("\n- Betweenness (Bridge-like role):")
-    # `call_method` is a helper that returns a user-friendly dictionary mapping node IDs to their values.
-    betweenness = grapher.call_method(graph, 'betweenness')
+    # `call_method_safe()` is a helper that returns a user-friendly dictionary mapping node IDs to their values.
+    betweenness = grapher.call_method_safe(graph, 'betweenness')
     sorted_bet = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)
     print(f"  Top 3 nodes: {[(item[0], f'{item[1]:.2f}') for item in sorted_bet[:3]]}")
 
     # 3. Closeness Centrality: Measures the average distance from a node to all other nodes.
     # A high value means the node is, on average, "close" to all others and can spread information efficiently.
     print("\n- Closeness (Ease of reaching other nodes):")
-    if grapher.call_method_raw(graph, 'is_connected'):
-        closeness = grapher.call_method(graph, 'closeness')
+    if grapher.call_method_safe(graph, 'is_connected'):
+        closeness = grapher.call_method_safe(graph, 'closeness')
         sorted_close = sorted(closeness.items(), key=lambda x: x[1], reverse=True)
         print(f"  Top 3 nodes: {[(item[0], f'{item[1]:.3f}') for item in sorted_close[:3]]}")
     else:

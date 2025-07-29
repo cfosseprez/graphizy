@@ -258,11 +258,11 @@ class TestGraphing:
         graph = create_graph_array(data)
 
         # Test calling vcount method
-        vertex_count = grapher.call_method(graph, 'vcount')
+        vertex_count = grapher.call_method_brutal(graph, 'vcount')
         assert vertex_count == 2
 
         # Test calling ecount method
-        edge_count = grapher.call_method(graph, 'ecount')
+        edge_count = grapher.call_method_brutal(graph, 'ecount')
         assert edge_count == 0
 
 

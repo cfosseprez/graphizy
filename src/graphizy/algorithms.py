@@ -12,6 +12,7 @@ import time
 import random
 import timeit
 from typing import List, Tuple, Dict, Any, Union, Optional
+from scipy.spatial.distance import cdist, pdist, squareform
 import numpy as np
 from collections import defaultdict, deque
 
@@ -20,6 +21,8 @@ from graphizy.exceptions import (
     GraphCreationError, PositionGenerationError, DependencyError,
     IgraphMethodError
 )
+from .exceptions import handle_subdivision_bounds_error, InvalidDataShapeError
+
 try:
     import cv2
 except ImportError:
@@ -65,63 +68,7 @@ def normalize_id(obj_id: Any) -> str:
         return str(obj_id)
 
 
-def generate_positions(size_x: int, size_y: int, num_particles: int,
-                       to_array: bool = True, convert: bool = True) -> Union[List, np.ndarray]:
-    """Generate a number of non-repetitive positions.
 
-    Args:
-        size_x: Size of the target array in x
-        size_y: Size of the target array in y
-        num_particles: Number of particles to place in the array
-        to_array: If the output should be converted to numpy array
-        convert: If the output should be converted to float
-
-    Returns:
-        List or numpy array of positions
-
-    Raises:
-        PositionGenerationError: If position generation fails
-    """
-    try:
-        if size_x <= 0 or size_y <= 0:
-            raise PositionGenerationError("Size dimensions must be positive")
-        if num_particles <= 0:
-            raise PositionGenerationError("Number of particles must be positive")
-        if num_particles > size_x * size_y:
-            raise PositionGenerationError("Number of particles cannot exceed grid size")
-
-        rand_points = []
-        excluded = set()
-        i = 0
-
-        max_attempts = num_particles * 10  # Prevent infinite loops
-        attempts = 0
-
-        while i < num_particles and attempts < max_attempts:
-            x = random.randrange(0, size_x)
-            y = random.randrange(0, size_y)
-            attempts += 1
-
-            if (x, y) in excluded:
-                continue
-
-            rand_points.append((x, y))
-            i += 1
-            excluded.add((x, y))
-
-        if i < num_particles:
-            raise PositionGenerationError(f"Could only generate {i} unique positions out of {num_particles} requested")
-
-        if to_array:
-            if convert:
-                rand_points = np.array(rand_points).astype("float32")
-            else:
-                rand_points = np.array(rand_points)
-
-        return rand_points
-
-    except Exception as e:
-        raise PositionGenerationError(f"Failed to generate positions: {str(e)}")
 
 
 def make_subdiv(point_array: np.ndarray, dimensions: Union[List, Tuple],
@@ -173,7 +120,7 @@ def make_subdiv(point_array: np.ndarray, dimensions: Union[List, Tuple],
             raise SubdivisionError(f"Found {len(bad_points)} points with X < 0", point_array, dimensions)
 
         if np.any(point_array[:, 0] >= width):
-            from .exceptions import handle_subdivision_bounds_error
+
             handle_subdivision_bounds_error(point_array, dimensions, 'x')
 
         # Validate Y coordinates
@@ -182,7 +129,7 @@ def make_subdiv(point_array: np.ndarray, dimensions: Union[List, Tuple],
             raise SubdivisionError(f"Found {len(bad_points)} points with Y < 0", point_array, dimensions)
 
         if np.any(point_array[:, 1] >= height):
-            from .exceptions import handle_subdivision_bounds_error
+
             handle_subdivision_bounds_error(point_array, dimensions, 'y')
 
         # Timer
@@ -343,6 +290,30 @@ def find_vertex(trilist: List, subdiv: Any, g: Any) -> Any:
         raise GraphCreationError(f"Failed to find vertices: {str(e)}")
 
 
+def _are_points_collinear(points, tolerance=1e-10):
+    """
+    Check if points are approximately collinear
+
+    Args:
+        points: numpy array of shape (n, 2) with x, y coordinates
+        tolerance: tolerance for collinearity check
+
+    Returns:
+        bool: True if points are collinear
+    """
+    if len(points) < 3:
+        return True
+
+    # Use cross product to check collinearity
+    # For points A, B, C: they're collinear if (B-A) × (C-A) ≈ 0
+    A, B, C = points[0], points[1], points[2]
+
+    # Cross product in 2D: (B-A) × (C-A) = (B_x-A_x)(C_y-A_y) - (B_y-A_y)(C_x-A_x)
+    cross_product = ((B[0] - A[0]) * (C[1] - A[1]) -
+                     (B[1] - A[1]) * (C[0] - A[0]))
+
+    return abs(cross_product) < tolerance
+
 def graph_delaunay(graph: Any, subdiv: Any, trilist: List) -> Any:
     """From CV to original ID and igraph
 
@@ -363,7 +334,43 @@ def graph_delaunay(graph: Any, subdiv: Any, trilist: List) -> Any:
         if subdiv is None:
             raise GraphCreationError("Subdivision cannot be None")
         if trilist is None or len(trilist) == 0:
-            raise GraphCreationError("Triangle list cannot be empty")
+            num_vertices = len(graph.vs)
+
+            if num_vertices < 3:
+                raise GraphCreationError(
+                    f"Delaunay triangulation requires at least 3 points, got {num_vertices}. "
+                    f"Provide more points for meaningful triangulation."
+                )
+            elif num_vertices == 3:
+                # Special case: exactly 3 points should form 1 triangle
+                # Check if points are collinear
+                positions = np.array([(v["x"], v["y"]) for v in graph.vs])
+
+                if _are_points_collinear(positions):
+                    raise GraphCreationError(
+                        "Cannot create Delaunay triangulation: the 3 points are collinear. "
+                        "Provide points that form a proper triangle."
+                    )
+                else:
+                    # Create the single triangle manually
+                    logging.warning("Creating manual triangle for 3-point case")
+                    graph.add_edge(0, 1)
+                    graph.add_edge(1, 2)
+                    graph.add_edge(2, 0)
+                    return graph
+            elif num_vertices <= 10:
+                # Small dataset: provide more helpful error message
+                raise GraphCreationError(
+                    f"No valid triangles found for {num_vertices} points. "
+                    f"This can happen with collinear points or points outside the valid range. "
+                    f"Try using more well-distributed points (recommended: ≥10 points)."
+                )
+            else:
+                # Larger dataset with no triangles: likely a serious issue
+                raise GraphCreationError(
+                    f"No triangles found in Delaunay triangulation for {num_vertices} points. "
+                    f"Check that points are within valid coordinate ranges and not all collinear."
+                )
 
         edges_set = set()
 
@@ -596,7 +603,7 @@ class DataInterface:
         Raises:
             InvalidDataShapeError: If data shape is invalid
         """
-        from .exceptions import InvalidDataShapeError
+
 
         try:
             # Validate data_shape
@@ -1189,10 +1196,136 @@ def example_memory_graph_usage():
 
 
 # Example custom connection functions
-def create_k_nearest_graph(positions: np.ndarray, k: int = 3, aspect: str = "array") -> Any:
+
+def create_delaunay_graph(data_points: Union[np.ndarray, Dict[str, Any]],
+                          aspect: str = "array", dimension: Tuple[int, int] = (1200, 1200)) -> Any:
+    """Create a Delaunay triangulation graph from point data
+
+    Args:
+        data_points: Point data as array or dictionary
+        aspect: Data format ("array" or "dict")
+        dimension: Image dimensions (width, height)
+
+    Returns:
+        igraph Graph object with Delaunay triangulation
+
+    Raises:
+        GraphCreationError: If Delaunay graph creation fails
+    """
+    try:
+        timer0 = time.time()
+
+        # Create and populate the graph with points
+        if aspect == "array":
+            if not isinstance(data_points, np.ndarray):
+                raise GraphCreationError("Expected numpy array for 'array' aspect")
+
+            # Simple type check - reject string/object IDs
+            if data_points.dtype.kind in ['U', 'S', 'O']:
+                raise GraphCreationError("Object IDs must be numeric, not string type")
+
+            graph = create_graph_array(data_points)
+
+            # Make triangulation with appropriate columns (assuming standard format [id, x, y])
+            pos_array = np.stack((
+                data_points[:, 1],  # x position (column 1)
+                data_points[:, 2]  # y position (column 2)
+            ), axis=1)
+            subdiv = make_subdiv(pos_array, dimension)
+            tri_list = subdiv.getTriangleList()
+
+        elif aspect == "dict":
+            if isinstance(data_points, dict):
+                graph = create_graph_dict(data_points)
+                pos_array = np.stack((data_points["x"], data_points["y"]), axis=1)
+            elif isinstance(data_points, np.ndarray):
+                # Convert array to dict format first
+                dinter = DataInterface()  # Use default data shape
+                data_points = dinter.convert(data_points)
+                graph = create_graph_dict(data_points)
+                pos_array = np.stack((data_points["x"], data_points["y"]), axis=1)
+            else:
+                raise GraphCreationError("Invalid data format for 'dict' aspect")
+
+            subdiv = make_subdiv(pos_array, dimension)
+            tri_list = subdiv.getTriangleList()
+        else:
+            raise GraphCreationError("Graph data interface could not be understood")
+
+        logging.debug(f"Creation and Triangulation took {round((time.time() - timer0) * 1000, 3)}ms")
+
+        timer1 = time.time()
+        # Populate edges
+        graph = graph_delaunay(graph, subdiv, tri_list)
+        logging.debug(f"Conversion took {round((time.time() - timer1) * 1000, 3)}ms")
+
+        return graph
+
+    except Exception as e:
+        raise GraphCreationError(f"Failed to create Delaunay graph: {str(e)}")
+
+
+def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
+                           proximity_thresh: float, aspect: str = "array",
+                           metric: str = "euclidean") -> Any:
+    """Create a proximity graph from point data
+
+    Args:
+        data_points: Point data as array or dictionary
+        proximity_thresh: Distance threshold for connections
+        aspect: Data format ("array" or "dict")
+        metric: Distance metric to use
+
+    Returns:
+        igraph Graph object with proximity connections
+
+    Raises:
+        GraphCreationError: If proximity graph creation fails
+    """
+    try:
+        timer_prox = timeit.default_timer()
+
+        if aspect == "array":
+            if not isinstance(data_points, np.ndarray):
+                raise GraphCreationError("Expected numpy array for 'array' aspect")
+
+            graph = create_graph_array(data_points)
+            # Extract position columns (assuming standard format [id, x, y])
+            pos_array = np.stack((
+                data_points[:, 1],  # x position (column 1)
+                data_points[:, 2]  # y position (column 2)
+            ), axis=1)
+
+        elif aspect == "dict":
+            if isinstance(data_points, dict):
+                graph = create_graph_dict(data_points)
+                pos_array = np.stack((data_points["x"], data_points["y"]), axis=1)
+            elif isinstance(data_points, np.ndarray):
+                # Convert array to dict format first
+                dinter = DataInterface()  # Use default data shape
+                data_points = dinter.convert(data_points)
+                graph = create_graph_dict(data_points)
+                pos_array = np.stack((data_points["x"], data_points["y"]), axis=1)
+            else:
+                raise GraphCreationError("Invalid data format for 'dict' aspect")
+        else:
+            raise GraphCreationError("Graph data interface could not be understood")
+
+        # Create proximity connections
+        graph = graph_distance(graph, pos_array, proximity_thresh, metric=metric)
+
+        end_prox = timeit.default_timer()
+        logging.debug(f"Distance calculation took {round((end_prox - timer_prox) * 1000, 3)}ms")
+
+        return graph
+
+    except Exception as e:
+        raise GraphCreationError(f"Failed to create proximity graph: {str(e)}")
+
+def create_knn_graph(positions: np.ndarray, k: int = 3, aspect: str = "array") -> Any:
     """Create graph connecting each point to its k nearest neighbors"""
     try:
-        from scipy.spatial.distance import cdist
+
 
         if aspect == "array":
             graph = create_graph_array(positions)
@@ -1225,39 +1358,40 @@ def create_k_nearest_graph(positions: np.ndarray, k: int = 3, aspect: str = "arr
         raise GraphCreationError(f"Failed to create k-nearest graph: {str(e)}")
 
 
-def create_minimum_spanning_tree(positions: np.ndarray, aspect: str = "array") -> Any:
-    """Create minimum spanning tree graph"""
+def create_minimum_spanning_tree(positions: np.ndarray, metric: str = "euclidean") -> Any:
+    """Create minimum spanning tree graph from a standardized array."""
     try:
-        if aspect == "array":
-            graph = create_graph_array(positions)
-            pos_2d = positions[:, 1:3]
-        else:
-            raise NotImplementedError("Dict aspect not implemented for MST")
+        # This function now correctly accepts the 'metric' argument.
+        graph = create_graph_array(positions)
+        pos_2d = positions[:, 1:3]
 
-        # Create complete graph first
-        from scipy.spatial.distance import pdist, squareform
-        distances = squareform(pdist(pos_2d))
+        # Use pdist for a more efficient distance matrix calculation, passing the metric.
+        distances = squareform(pdist(pos_2d, metric=metric))
 
-        # Add all edges with weights
+        # Add all edges with weights to a temporary complete graph
+        complete_graph = ig.Graph(n=len(positions), directed=False)
         edges_to_add = []
         weights = []
-
-        n = len(positions)
-        for i in range(n):
-            for j in range(i + 1, n):
+        for i in range(len(positions)):
+            for j in range(i + 1, len(positions)):
                 edges_to_add.append((i, j))
                 weights.append(distances[i, j])
 
-        graph.add_edges(edges_to_add)
-        graph.es["weight"] = weights
+        complete_graph.add_edges(edges_to_add)
+        complete_graph.es['weight'] = weights
 
-        # Get minimum spanning tree
-        mst = graph.spanning_tree(weights="weight")
+        # Get the MST from the complete graph
+        mst_graph = complete_graph.spanning_tree(weights="weight")
 
-        return mst
+        # Transfer edges to the original graph with all vertex attributes
+        graph.add_edges(mst_graph.get_edgelist())
+        graph.es['weight'] = mst_graph.es['weight']
+
+        return graph
 
     except Exception as e:
         raise GraphCreationError(f"Failed to create MST: {str(e)}")
+
 
 def create_gabriel_graph(positions: np.ndarray, aspect: str = "array") -> Any:
     """Create Gabriel graph from point positions
@@ -1320,3 +1454,51 @@ def create_gabriel_graph(positions: np.ndarray, aspect: str = "array") -> Any:
         
     except Exception as e:
         raise GraphCreationError(f"Failed to create Gabriel graph: {str(e)}")
+
+
+def create_graph(data_points: Union[np.ndarray, Dict[str, Any]],
+                 graph_type: str, aspect: str = "array",
+                 dimension: Tuple[int, int] = (1200, 1200), **kwargs) -> Any:
+    """Create any type of graph from point data
+
+    Args:
+        data_points: Point data as array or dictionary
+        graph_type: Type of graph ("delaunay", "proximity", "knn", "mst", "gabriel")
+        aspect: Data format ("array" or "dict")
+        dimension: Image dimensions (width, height)
+        **kwargs: Graph-specific parameters
+
+    Returns:
+        igraph Graph object
+
+    Raises:
+        GraphCreationError: If graph creation fails
+        ValueError: If unknown graph type
+    """
+    try:
+        graph_type = graph_type.lower()
+
+        if graph_type == "delaunay":
+            return create_delaunay_graph(data_points, aspect, dimension)
+
+        elif graph_type == "proximity":
+            proximity_thresh = kwargs.get('proximity_thresh', 100.0)
+            metric = kwargs.get('metric', 'euclidean')
+            return create_proximity_graph(data_points, proximity_thresh, aspect, metric)
+
+        elif graph_type == "knn" or graph_type == "k_nearest":
+            k = kwargs.get('k', 4)
+            return create_knn_graph(data_points, k, aspect)
+
+        elif graph_type == "mst" or graph_type == "minimum_spanning_tree":
+            return create_minimum_spanning_tree(data_points, aspect)
+
+        elif graph_type == "gabriel":
+            return create_gabriel_graph(data_points, aspect)
+
+        else:
+            raise ValueError(f"Unknown graph type: {graph_type}. "
+                             f"Supported types: delaunay, proximity, knn, mst, gabriel")
+
+    except Exception as e:
+        raise GraphCreationError(f"Failed to create {graph_type} graph: {str(e)}")

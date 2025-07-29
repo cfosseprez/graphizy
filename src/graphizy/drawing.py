@@ -183,29 +183,39 @@ def draw_delaunay(img: np.ndarray, subdiv: Any, color_line: Tuple[int, int, int]
         raise DrawingError(f"Failed to draw Delaunay triangulation: {str(e)}")
 
 
-def show_graph(image_graph: np.ndarray, title: str = "My beautiful graph") -> None:
-    """Display graph image using OpenCV
+def show_graph(
+    image_graph: np.ndarray,
+    title: str = "My beautiful graph",
+    block: bool = False,
+    delay_display: int = 100
+) -> None:
+    """
+    Display a graph image using OpenCV.
 
     Args:
-        image_graph: Image array to display
-        title: Window title
+        image_graph (np.ndarray): Image array to display.
+        title (str): Window title.
+        block (bool): If True, wait indefinitely for key press.
+        delay_display (int): Delay in milliseconds if not blocking.
 
     Raises:
-        DrawingError: If display operation fails
+        DrawingError: If image is invalid or display fails.
     """
     try:
-        if image_graph is None:
-            raise DrawingError("Image cannot be None")
+        if image_graph is None or not isinstance(image_graph, np.ndarray):
+            raise DrawingError("Provided image must be a valid numpy array.")
         if image_graph.size == 0:
-            raise DrawingError("Image cannot be empty")
+            raise DrawingError("Provided image is empty.")
 
         cv2.imshow(title, image_graph)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        cv2.waitKey(0 if block else delay_display)
+        try:
+            cv2.destroyWindow(title)
+        except Exception:
+            pass
 
     except Exception as e:
-        raise DrawingError(f"Failed to display graph: {str(e)}")
-
+        raise DrawingError(f"Failed to display graph: {e}")
 
 def save_graph(image_graph: np.ndarray, filename: str) -> None:
     """Save graph image to file

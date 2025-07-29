@@ -13,8 +13,8 @@ sys.path.insert(0, os.path.abspath('../../src'))
 project = 'Graphizy'
 copyright = '2025, Charles Fosseprez'
 author = 'Charles Fosseprez'
-release = '0.1.5'
-version = '0.1.5'
+release = '0.1.14'
+version = '0.1.14'
 
 # -- General configuration ---------------------------------------------------
 extensions = [

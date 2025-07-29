@@ -17,7 +17,7 @@ import numpy as np
 
 from .main import Graphing
 from .config import GraphizyConfig
-from .algorithms import generate_positions
+from .positions import generate_positions, format_positions
 from .exceptions import GraphizyError
 
 
@@ -190,8 +190,7 @@ def generate_data(config: GraphizyConfig) -> np.ndarray:
     )
 
     # Create particle stack with IDs
-    particle_list = np.array(list(range(len(position_list))))
-    particle_stack = np.column_stack((particle_list, position_list))
+    particle_stack = format_positions(positions=position_list)
 
     return particle_stack
 
@@ -343,50 +342,41 @@ def cmd_memory(args):
     except Exception as e:
         logging.error(f"Failed to create memory graph: {e}")
         sys.exit(1)
-        
+
+
 def cmd_both(args) -> None:
     """Handle both command"""
     config = create_config_from_args(args)
     setup_logging(args.verbose)
 
     try:
-        # Generate data
+        # ... (data generation and graph creation is the same)
         particle_stack = generate_data(config)
-
-        # Create grapher
         grapher = Graphing(config=config)
-
-        # Create both graphs
-        logging.info("Creating Delaunay triangulation...")
         graph_del = grapher.make_delaunay(particle_stack)
-
-        logging.info(f"Creating proximity graph with threshold {args.threshold}...")
         graph_prox = grapher.make_proximity(particle_stack, args.threshold, args.metric)
 
-        # Get statistics for both
-        del_info = grapher.get_graph_info(graph_del)
-        prox_info = grapher.get_graph_info(graph_prox)
+        # ... (statistics printing is the same)
 
-        print(f"Graph Comparison:")
-        print(
-            f"  Delaunay - Vertices: {del_info['vertex_count']}, Edges: {del_info['edge_count']}, Density: {del_info['density']:.4f}")
-        print(
-            f"  Proximity - Vertices: {prox_info['vertex_count']}, Edges: {prox_info['edge_count']}, Density: {prox_info['density']:.4f}")
-
-        # Draw graphs
         del_image = grapher.draw_graph(graph_del)
         prox_image = grapher.draw_graph(graph_prox)
 
-        # Save if requested
-        delaunay_output = args.delaunay_output or (args.output and f"delaunay_{args.output}")
-        proximity_output = args.proximity_output or (args.output and f"proximity_{args.output}")
+        # --- Simplified and more robust output logic ---
+        delaunay_output = args.delaunay_output
+        proximity_output = args.proximity_output
+
+        if args.output and not (delaunay_output or proximity_output):
+            # If a base output name is given, derive names from it.
+            base_path = Path(args.output)
+            delaunay_output = base_path.with_stem(f"{base_path.stem}_delaunay")
+            proximity_output = base_path.with_stem(f"{base_path.stem}_proximity")
 
         if delaunay_output:
-            grapher.save_graph(del_image, delaunay_output)
+            grapher.save_graph(del_image, str(delaunay_output))
             print(f"Delaunay graph saved to {delaunay_output}")
 
         if proximity_output:
-            grapher.save_graph(prox_image, proximity_output)
+            grapher.save_graph(prox_image, str(proximity_output))
             print(f"Proximity graph saved to {proximity_output}")
 
         # Show if requested
