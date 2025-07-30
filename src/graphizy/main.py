@@ -1709,8 +1709,56 @@ class Graphing:
         except Exception as e:
             return {"error": f"Failed to get memory analysis: {str(e)}"}
 
+    # ============================================================================
+    # Networkx bridge
+    # ============================================================================
 
+    def get_networkx_analyzer(self) -> 'NetworkXAnalyzer':
+        """
+        Get NetworkX analyzer for advanced graph analysis.
 
+        Returns:
+            NetworkXAnalyzer instance for this Graphing object
+
+        Examples:
+            >>> # Get analyzer
+            >>> nx_analyzer = grapher.get_networkx_analyzer()
+            >>>
+            >>> # Analyze current graphs
+            >>> analysis = nx_analyzer.analyze('delaunay')
+            >>> print(f"Communities: {analysis['num_communities']}")
+            >>>
+            >>> # Direct NetworkX access
+            >>> nx_graph = nx_analyzer.get_networkx('proximity')
+            >>> custom_centrality = nx.eigenvector_centrality(nx_graph)
+        """
+        from .networkx_bridge import NetworkXAnalyzer
+        return NetworkXAnalyzer(self)
+
+    def to_networkx(self, graph_type: str = None, igraph_graph: Any = None) -> Any:
+        """
+        Convert graph to NetworkX format.
+
+        Args:
+            graph_type: Type from current graphs
+            igraph_graph: Manual igraph to convert
+
+        Returns:
+            NetworkX Graph object
+        """
+        from .networkx_bridge import to_networkx
+
+        if igraph_graph is not None:
+            return to_networkx(igraph_graph)
+
+        if graph_type is None:
+            raise ValueError("Must provide either graph_type or igraph_graph")
+
+        current_graphs = self.get_current_graphs()
+        if graph_type not in current_graphs:
+            raise ValueError(f"Graph type '{graph_type}' not found")
+
+        return to_networkx(current_graphs[graph_type])
 
     # ============================================================================
     # GRAPH ANALYSIS AND METRICS METHODS

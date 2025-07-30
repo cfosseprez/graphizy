@@ -29,7 +29,7 @@ class DelaunayPlugin(GraphTypePlugin):
         return GraphTypeInfo(
             name="delaunay",
             description="Creates a Delaunay triangulation connecting nearby points optimally",
-            parameters={}, category="built-in", author="Graphizy Team", version="1.0.0"
+            parameters={}, category="built-in", author="Charles Fosseprez", version="1.0.0"
         )
 
     def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
@@ -48,7 +48,7 @@ class ProximityPlugin(GraphTypePlugin):
                 "proximity_thresh": {"type": float, "default": 50.0, "description": "Maximum distance for connecting points"},
                 "metric": {"type": str, "default": "euclidean", "description": "Distance metric to use"}
             },
-            category="built-in", author="Graphizy Team", version="1.0.0"
+            category="built-in", author="Charles Fosseprez", version="1.0.0"
         )
 
     def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
@@ -66,7 +66,7 @@ class MSTPlugin(GraphTypePlugin):
             name="mst",
             description="Creates a minimum spanning tree connecting all points with minimum total edge weight",
             parameters={"metric": {"type": str, "default": "euclidean", "description": "Distance metric for edge weights"}},
-            category="built-in", author="Graphizy Team", version="1.0.0"
+            category="built-in", author="Charles Fosseprez", version="1.0.0"
         )
 
     def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
@@ -82,7 +82,7 @@ class GabrielPlugin(GraphTypePlugin):
         return GraphTypeInfo(
             name="gabriel",
             description="Creates a Gabriel graph where no other point lies within the diameter circle of two connected points",
-            parameters={}, category="built-in", author="Graphizy Team", version="1.0.0"
+            parameters={}, category="built-in", author="Charles Fosseprez", version="1.0.0"
         )
 
     def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
@@ -98,7 +98,7 @@ class KNNPlugin(GraphTypePlugin):
             name="knn",
             description="Connects each point to its k nearest neighbors",
             parameters={"k": {"type": int, "default": 4, "description": "Number of neighbors"}},
-            category="built-in", author="Graphizy Team", version="1.0.0"
+            category="built-in", author="Charles Fosseprez", version="1.0.0"
         )
 
     def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:

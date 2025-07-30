@@ -737,19 +737,62 @@ def call_igraph_method(graph: Any, method_name: str, *args, **kwargs) -> Any:
         raise IgraphMethodError(f"Failed to call method '{method_name}': {str(e)}")
 
 
+def add_edge_distances(graph: Any, data_points: np.ndarray, edge_metric: str = "euclidean") -> Any:
+    """
+    Add distance attributes to all edges in a graph.
+
+    Args:
+        graph: igraph Graph object
+        data_points: Array with [id, x, y] columns
+        edge_metric: Distance metric to use
+
+    Returns:
+        Graph with 'distance' attribute on edges
+    """
+    if graph.ecount() == 0:
+        return graph
+
+    # Extract ids and coordinates
+    ids = data_points[:, 0].astype(int)
+    coords = data_points[:, 1:3]
+
+    # Build a mapping from vertex id to index in coords
+    id_to_index = {id_: idx for idx, id_ in enumerate(ids)}
+
+    # Precompute all pairwise distances
+    dist_matrix = cdist(coords, coords, metric=edge_metric)
+
+    # Compute distance for each edge using precomputed matrix
+    distances = []
+    for edge in graph.es:
+        source_id = graph.vs[edge.source]["id"]
+        target_id = graph.vs[edge.target]["id"]
+
+        i = id_to_index[source_id]
+        j = id_to_index[target_id]
+        distances.append(dist_matrix[i, j])
+
+    graph.es["distance"] = distances
+    return graph
 
 
 
-# Example custom connection functions
 
 def create_delaunay_graph(data_points: Union[np.ndarray, Dict[str, Any]],
-                          aspect: str = "array", dimension: Tuple[int, int] = (1200, 1200)) -> Any:
+                          aspect: str = "array", dimension: Tuple[int, int] = (1200, 1200),
+                          edge_metric: str = "euclidean",
+                          add_distance: Union[bool, Dict[str, Any]] = True) -> Any:
     """Create a Delaunay triangulation graph from point data
 
     Args:
         data_points: Point data as array or dictionary
         aspect: Data format ("array" or "dict")
         dimension: Image dimensions (width, height)
+        edge_metric: Distance metric to use
+        add_distance: Whether to add distances. Can be:
+                     - True: Add distances using same metric
+                     - False: Don't add distances
+                     - Dict: {"metric": "euclidean"} for different distance metric
 
     Returns:
         igraph Graph object with Delaunay triangulation
@@ -804,6 +847,14 @@ def create_delaunay_graph(data_points: Union[np.ndarray, Dict[str, Any]],
         graph = graph_delaunay(graph, subdiv, tri_list)
         logging.debug(f"Conversion took {round((time.time() - timer1) * 1000, 3)}ms")
 
+        # Add distances if requested
+        if add_distance:
+            if isinstance(add_distance, dict):
+                distance_metric = add_distance.get("metric", edge_metric)
+            else:
+                distance_metric = edge_metric
+            graph = add_edge_distances(graph, data_points, distance_metric)
+
         return graph
 
     except Exception as e:
@@ -812,17 +863,24 @@ def create_delaunay_graph(data_points: Union[np.ndarray, Dict[str, Any]],
 
 def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
                            proximity_thresh: float, aspect: str = "array",
-                           metric: str = "euclidean") -> Any:
+                           metric: str = "euclidean",
+                           edge_metric: str = "euclidean",
+                           add_distance: Union[bool, Dict[str, Any]] = True) -> Any:
     """Create a proximity graph from point data
 
     Args:
         data_points: Point data as array or dictionary
         proximity_thresh: Distance threshold for connections
         aspect: Data format ("array" or "dict")
-        metric: Distance metric to use
+        metric: Distance metric to use for the graph construction
+        edge_metric: Distance metric to use for the edge distances
+        add_distance: Whether to add distances. Can be:
+                     - True: Add distances using same metric
+                     - False: Don't add distances
+                     - Dict: {"metric": "euclidean"} for different distance metric
 
     Returns:
-        igraph Graph object with proximity connections
+        igraph Graph object with proximity connections and optional distances
 
     Raises:
         GraphCreationError: If proximity graph creation fails
@@ -835,7 +893,6 @@ def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
                 raise GraphCreationError("Expected numpy array for 'array' aspect")
 
             graph = create_graph_array(data_points)
-            # Extract position columns (assuming standard format [id, x, y])
             pos_array = np.stack((
                 data_points[:, 1],  # x position (column 1)
                 data_points[:, 2]  # y position (column 2)
@@ -846,8 +903,7 @@ def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
                 graph = create_graph_dict(data_points)
                 pos_array = np.stack((data_points["x"], data_points["y"]), axis=1)
             elif isinstance(data_points, np.ndarray):
-                # Convert array to dict format first
-                dinter = DataInterface()  # Use default data shape
+                dinter = DataInterface()
                 data_points = dinter.convert(data_points)
                 graph = create_graph_dict(data_points)
                 pos_array = np.stack((data_points["x"], data_points["y"]), axis=1)
@@ -859,6 +915,14 @@ def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
         # Create proximity connections
         graph = graph_distance(graph, pos_array, proximity_thresh, metric=metric)
 
+        # Add distances if requested
+        if add_distance:
+            if isinstance(add_distance, dict):
+                distance_metric = add_distance.get("metric", edge_metric)
+            else:
+                distance_metric = edge_metric
+            graph = add_edge_distances(graph, data_points, distance_metric)
+
         end_prox = timeit.default_timer()
         logging.debug(f"Distance calculation took {round((end_prox - timer_prox) * 1000, 3)}ms")
 
@@ -867,11 +931,20 @@ def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
     except Exception as e:
         raise GraphCreationError(f"Failed to create proximity graph: {str(e)}")
 
-def create_knn_graph(positions: np.ndarray, k: int = 3, aspect: str = "array") -> Any:
-    """Create graph connecting each point to its k nearest neighbors"""
+
+def create_knn_graph(positions: np.ndarray, k: int = 3, aspect: str = "array",
+                     edge_metric: str = "euclidean",
+                     add_distance: Union[bool, Dict[str, Any]] = True) -> Any:
+    """Create graph connecting each point to its k nearest neighbors
+
+    Args:
+        positions: Point data array
+        k: Number of nearest neighbors
+        aspect: Data format
+        edge_metric: Distance metric to use for the edge distances
+        add_distance: Whether to add distance attributes
+    """
     try:
-
-
         if aspect == "array":
             graph = create_graph_array(positions)
             pos_2d = positions[:, 1:3]
@@ -884,7 +957,6 @@ def create_knn_graph(positions: np.ndarray, k: int = 3, aspect: str = "array") -
         # Find k nearest neighbors for each point
         edges_to_add = []
         for i, row in enumerate(distances):
-            # Get indices of k+1 nearest (including self), then exclude self
             nearest_indices = np.argsort(row)[:k + 1]
             nearest_indices = nearest_indices[nearest_indices != i][:k]
 
@@ -897,14 +969,33 @@ def create_knn_graph(positions: np.ndarray, k: int = 3, aspect: str = "array") -
         if unique_edges:
             graph.add_edges(unique_edges)
 
+        # Add distances if requested
+        if add_distance:
+            if isinstance(add_distance, dict):
+                distance_metric = add_distance.get("metric", edge_metric)
+            else:
+                distance_metric = edge_metric
+            graph = add_edge_distances(graph, positions, distance_metric)
+
         return graph
 
     except Exception as e:
         raise GraphCreationError(f"Failed to create k-nearest graph: {str(e)}")
 
 
-def create_minimum_spanning_tree(positions: np.ndarray, aspect: str = "array", metric: str = "euclidean") -> Any:
-    """Create minimum spanning tree graph from a standardized array."""
+def create_minimum_spanning_tree(positions: np.ndarray, aspect: str = "array",
+                                 metric: str = "euclidean",
+                                 edge_metric: str = "euclidean",
+                                 add_distance: Union[bool, Dict[str, Any]] = True) -> Any:
+    """Create minimum spanning tree graph from a standardized array.
+
+    Args:
+        positions: Point data array
+        aspect: Data format
+        metric: Distance metric for MST construction
+        edge_metric: Distance metric to use for the edge distances
+        add_distance: Whether to add distance attributes
+    """
     try:
         if aspect == "array":
             graph = create_graph_array(positions)
@@ -912,12 +1003,10 @@ def create_minimum_spanning_tree(positions: np.ndarray, aspect: str = "array", m
         else:
             raise NotImplementedError("Dict aspect not implemented for MST")
 
-        # Normalize the metric name to scipy-compatible format
         normalized_metric = normalize_distance_metric(metric)
-        # Use pdist for a more efficient distance matrix calculation, passing the metric.
         distances = squareform(pdist(pos_2d, metric=normalized_metric))
 
-        # Add all edges with weights to a temporary complete graph
+        # Create complete graph for MST algorithm
         complete_graph = ig.Graph(n=len(positions), directed=False)
         edges_to_add = []
         weights = []
@@ -929,25 +1018,42 @@ def create_minimum_spanning_tree(positions: np.ndarray, aspect: str = "array", m
         complete_graph.add_edges(edges_to_add)
         complete_graph.es['weight'] = weights
 
-        # Get the MST from the complete graph
+        # Get MST
         mst_graph = complete_graph.spanning_tree(weights="weight")
 
-        # Transfer edges to the original graph with all vertex attributes
+        # Transfer edges to original graph
         graph.add_edges(mst_graph.get_edgelist())
         graph.es['weight'] = mst_graph.es['weight']
+
+        # Add distance attributes if requested (note: weight and distance are the same for MST)
+        if add_distance:
+            if isinstance(add_distance, dict):
+                distance_metric = add_distance.get("metric", edge_metric)
+                # Only recompute if different metric requested
+                if distance_metric != metric:
+                    graph = add_edge_distances(graph, positions, distance_metric)
+                else:
+                    # Copy weights as distances since they're the same
+                    graph.es["distance"] = graph.es["weight"]
+            else:
+                # Copy weights as distances
+                graph.es["distance"] = graph.es["weight"]
 
         return graph
 
     except Exception as e:
         raise GraphCreationError(f"Failed to create MST: {str(e)}")
 
-
-def create_gabriel_graph(positions: np.ndarray, aspect: str = "array") -> Any:
+def create_gabriel_graph(positions: np.ndarray, aspect: str = "array",
+                         edge_metric: str = "euclidean",
+                         add_distance: Union[bool, Dict[str, Any]] = True) -> Any:
     """Create Gabriel graph from point positions
 
-    This implementation is optimized by first computing the Delaunay triangulation,
-    as the Gabriel graph is its subgraph. This reduces complexity from O(n^3) to
-    approximately O(n log n).
+    Args:
+        positions: Point data array
+        aspect: Data format
+        edge_metric: Distance metric to use for the edge distances
+        add_distance: Whether to add distance attributes
     """
     try:
         if aspect == "array":
@@ -960,25 +1066,22 @@ def create_gabriel_graph(positions: np.ndarray, aspect: str = "array") -> Any:
         if n_points < 2:
             return graph
 
-        # 1. Start with a Delaunay triangulation, which is a superset of the Gabriel graph.
-        # This is much faster than checking all n*(n-1)/2 pairs.
-        # We create a temporary graph just for the triangulation edges.
+        # Create Delaunay triangulation as starting point
         temp_graph = create_delaunay_graph(positions, aspect="array",
-                                           dimension=(int(pos_2d[:, 0].max()) + 1, int(pos_2d[:, 1].max()) + 1))
+                                           dimension=(int(pos_2d[:, 0].max()) + 1, int(pos_2d[:, 1].max()) + 1),
+                                           add_distance=False)  # Don't add distances to temp graph
 
         edges_to_add = []
 
-        # 2. For each edge in the Delaunay graph, check the Gabriel condition.
+        # Check Gabriel condition for each Delaunay edge
         for edge in temp_graph.es:
             i, j = edge.tuple
             p1 = pos_2d[i]
             p2 = pos_2d[j]
 
-            # Calculate circle center (midpoint) and squared radius
             center = (p1 + p2) / 2
             radius_sq = np.sum(((p1 - p2) / 2) ** 2)
 
-            # 3. Check if any other point lies within the circle.
             is_gabriel_edge = True
             for k in range(n_points):
                 if k == i or k == j:
@@ -987,17 +1090,24 @@ def create_gabriel_graph(positions: np.ndarray, aspect: str = "array") -> Any:
                 p3 = pos_2d[k]
                 dist_sq = np.sum((p3 - center) ** 2)
 
-                # If a point is strictly inside the circle, it's not a Gabriel edge.
-                if dist_sq < radius_sq - 1e-10:  # Epsilon for float stability
+                if dist_sq < radius_sq - 1e-10:
                     is_gabriel_edge = False
                     break
 
             if is_gabriel_edge:
                 edges_to_add.append((i, j))
 
-        # Add the valid Gabriel edges to the final graph
+        # Add Gabriel edges
         if edges_to_add:
             graph.add_edges(edges_to_add)
+
+        # Add distances if requested
+        if add_distance:
+            if isinstance(add_distance, dict):
+                distance_metric = add_distance.get("metric", edge_metric)
+            else:
+                distance_metric = edge_metric
+            graph = add_edge_distances(graph, positions, distance_metric)
 
         return graph
 
