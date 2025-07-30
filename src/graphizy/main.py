@@ -46,6 +46,8 @@ from graphizy.algorithms import (
     create_graph_array, create_graph_dict, DataInterface, call_igraph_method,
     create_delaunay_graph, create_proximity_graph,
     create_minimum_spanning_tree, create_knn_graph, create_gabriel_graph,
+)
+from graphizy.memory import (
     create_memory_graph, MemoryManager, update_memory_from_custom_function,
     update_memory_from_graph, update_memory_from_delaunay, update_memory_from_proximity
 )
@@ -1500,7 +1502,10 @@ class Graphing:
             - Useful for comparing graph sparsity
         """
         try:
-            return call_igraph_method(graph, "density")
+            dens = call_igraph_method(graph, "density")
+            if np.isnan(dens):
+                dens = 0.0
+            return dens
         except Exception as e:
             raise IgraphMethodError(f"Failed to calculate density: {str(e)}")
 
@@ -1640,6 +1645,8 @@ class Graphing:
                     # Complex objects, custom types, etc. - return as-is
                     return result
 
+        except ValueError:
+            raise
         except Exception as e:
             raise IgraphMethodError(f"Failed to call method '{method_name}': {str(e)}")
 

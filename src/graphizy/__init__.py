@@ -12,9 +12,11 @@ from graphizy.config import GraphizyConfig, DrawingConfig, GraphConfig, Generati
 from graphizy.algorithms import (
     make_subdiv, make_delaunay, get_delaunay,
     get_distance, graph_distance, create_graph_array, create_graph_dict, DataInterface,
-    call_igraph_method, MemoryManager, create_memory_graph, update_memory_from_proximity,
-    update_memory_from_graph, update_memory_from_delaunay, update_memory_from_custom_function,
-    create_minimum_spanning_tree, create_knn_graph, create_gabriel_graph
+    call_igraph_method, create_minimum_spanning_tree, create_knn_graph, create_gabriel_graph
+)
+from graphizy.memory import (
+    create_memory_graph, MemoryManager, update_memory_from_custom_function,
+    update_memory_from_graph, update_memory_from_delaunay, update_memory_from_proximity
 )
 from graphizy.positions import (
 generate_positions, format_positions, generate_and_format_positions
@@ -35,6 +37,7 @@ from graphizy.plugins_logic import (
     GraphTypePlugin, GraphTypeInfo, register_graph_type, 
     get_graph_registry, graph_type_plugin
 )
+from graphizy.simulator import BrownianSimulator
 
 # Import built-in plugins to auto-register them
 from graphizy import builtin_plugins
@@ -115,4 +118,7 @@ __all__ = [
     "register_graph_type",
     "get_graph_registry",
     "graph_type_plugin",
+
+    # Simulation
+    "BrownianSimulator",
 ]

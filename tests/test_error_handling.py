@@ -88,8 +88,8 @@ class TestDataValidationErrors:
         grapher = Graphing(aspect="dict")
 
         # Missing required keys
-        with pytest.raises(GraphCreationError, match="must contain keys"):
-            grapher._get_data_as_array({"id": [1], "x": [10]})  # Missing 'y'
+        with pytest.raises(GraphCreationError, match="must contain required keys"):
+            grapher._get_data_as_array({"id": [1], "x": [10]})
 
         # Mismatched lengths
         with pytest.raises(GraphCreationError, match="same length"):
@@ -117,16 +117,16 @@ class TestConfigurationErrors:
     def test_invalid_dimensions(self):
         """Test invalid dimension handling."""
         # Single dimension should raise InvalidDimensionError when wrapped in GraphCreationError
-        with pytest.raises(GraphCreationError):
-            Graphing(dimension=(100,))  # Single dimension
+        with pytest.raises(InvalidDimensionError):
+            Graphing(dimension=(100,)) # Single dimension
 
-        with pytest.raises(GraphCreationError):
+        with pytest.raises(InvalidDimensionError):
             Graphing(dimension=(-100, 100))  # Negative dimension
 
     def test_invalid_aspect(self):
         """Test invalid aspect parameter."""
         # Should raise GraphCreationError (which wraps InvalidAspectError)
-        with pytest.raises(GraphCreationError):
+        with pytest.raises(InvalidAspectError):
             Graphing(aspect="invalid_aspect")
 
     def test_configuration_validation(self):

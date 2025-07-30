@@ -3,7 +3,8 @@ Tests for the MemoryManager and memory-based graph functionality.
 """
 import pytest
 import numpy as np
-from graphizy.algorithms import MemoryManager, create_memory_graph, normalize_id
+from graphizy.algorithms import normalize_id
+from graphizy.memory import MemoryManager, create_memory_graph
 from graphizy import Graphing
 from graphizy.exceptions import GraphCreationError
 

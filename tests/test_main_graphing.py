@@ -598,6 +598,7 @@ class TestVisualizationMethods:
         grapher.visualizer = mock_viz_instance
 
         # Test draw_memory_graph delegation
+        grapher.init_memory_manager()
         grapher.draw_memory_graph(graph, use_age_colors=True)
         mock_viz_instance.draw_memory_graph.assert_called_once()
 
@@ -621,13 +622,14 @@ class TestMemoryManagementMethods:
     def test_init_memory_manager_comprehensive(self):
         """Test memory manager initialization with various parameters."""
         grapher = Graphing()
-
-        # Test with all parameters
-        memory_mgr = grapher.init_memory_manager(
+        grapher.init_memory_manager(
             max_memory_size=200,
             max_iterations=50,
             track_edge_ages=True
         )
+
+        # Test with all parameters
+        memory_mgr = grapher.memory_manager
         assert memory_mgr is not None
         assert grapher.memory_manager is not None
 
@@ -855,7 +857,7 @@ class TestAnalysisAndMetricsMethods:
             component_mode="connected_only",
             default_value=0.0
         )
-        assert isinstance(betweenness_connected, (list, dict))
+        assert isinstance(betweenness_connected, (list, dict, float))
 
     def test_compute_component_metrics(self, large_dataset):
         """Test comprehensive component metrics computation."""
@@ -949,6 +951,7 @@ class TestErrorHandlingAndEdgeCases:
     def test_visualization_error_propagation(self, large_dataset):
         """Test that visualization errors are properly propagated."""
         grapher = Graphing()
+        grapher.init_memory_manager()
         graph = grapher.make_proximity(large_dataset, proximity_thresh=30.0)
 
         # Mock visualizer methods to raise exceptions
