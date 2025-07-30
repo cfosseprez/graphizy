@@ -1,5 +1,4 @@
 
-**Graphizy** is a fast, flexible Python library for building and analyzing computational geometry-based graphs from 2D coordinates.
 
 
 [![Documentation Status](https://readthedocs.org/projects/graphizy/badge/?version=latest)](https://graphizy.readthedocs.io/en/latest/)
@@ -163,24 +162,11 @@ print(f"Average edge age: {stats['edge_age_stats']['avg_age']:.1f} iterations")
 
 ## 🎮 Interactive Demo
 
-Experience real-time graph evolution with the interactive Brownian motion simulator:
+Experience real-time graph evolution with the interactive demonstration:
 
 ```bash
-# Basic proximity graph simulation
-python examples/improved_brownian.py 1
-
-# Delaunay triangulation with memory tracking
-python examples/improved_brownian.py 2 --memory
-
-# Minimum spanning tree evolution
-python examples/improved_brownian.py 4 --memory --particles 100
-
-# Compare all graph types side-by-side
-python examples/improved_brownian.py 5 --memory
-
-# Interactive controls:
-# ESC - Exit, SPACE - Pause, R - Reset, M - Toggle memory
-# 1-5 - Switch graph types, +/- - Adjust memory size
+# Launch the demonstrator
+python examples/4_interactive_demo.py
 ```
 
 ## ⚙️ Configuration

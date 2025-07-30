@@ -52,10 +52,10 @@ def benchmark_delaunay_triangulation():
         info = grapher.get_graph_info(graph)
 
         # Advanced metrics using explicit format control
-        degree_centrality = grapher.call_method(graph, 'degree', "list")
-        betweenness_centrality = grapher.call_method(graph, 'betweenness', "list")
-        closeness_centrality = grapher.call_method(graph, 'closeness', "list")
-        clustering_coeff = grapher.call_method(graph, 'transitivity_local_undirected', "list")
+        degree_centrality = grapher.call_method_safe(graph, 'degree', "list")
+        betweenness_centrality = grapher.call_method_safe(graph, 'betweenness', "list")
+        closeness_centrality = grapher.call_method_safe(graph, 'closeness', "list")
+        clustering_coeff = grapher.call_method_safe(graph, 'transitivity_local_undirected', "list")
 
         # Graph-level metrics (scalars)
         diameter = grapher.call_method_safe(graph, 'diameter', "raw", default_value=0)
@@ -179,17 +179,18 @@ def benchmark_proximity_graphs():
         start_metrics = time.perf_counter()
 
         # Connected components analysis
-        components = grapher.call_method(graph, 'connected_components', "raw")
+        components = grapher.call_method_safe(graph, 'connected_components', "raw")
         n_components = len(components)
         largest_component_size = max(len(comp) for comp in components) if components else 0
 
         # Clustering metrics - using explicit list format
         global_clustering = grapher.call_method_safe(graph, 'transitivity_undirected', "raw", default_value=0.0)
         local_clustering = grapher.call_method_safe(graph, 'transitivity_local_undirected', "list", default_value=[])
-        avg_clustering = np.mean(local_clustering) if local_clustering else 0
+        flat_clustering = [val for val in local_clustering if isinstance(val, (int, float))]
+        avg_clustering = np.mean(flat_clustering) if flat_clustering else 0
 
         # Degree distribution - using explicit list format
-        degrees = grapher.call_method(graph, 'degree', "list")
+        degrees = grapher.call_method_safe(graph, 'degree', "list")
         avg_degree = np.mean(degrees) if degrees else 0
         degree_std = np.std(degrees) if degrees else 0
 
@@ -309,11 +310,11 @@ def benchmark_mst_graphs():
         start_metrics = time.perf_counter()
 
         # Connectivity analysis (MST is always connected and acyclic)
-        is_connected = grapher.call_method(graph, 'is_connected', "raw")
-        n_components = len(grapher.call_method(graph, 'connected_components', "raw"))
+        is_connected = grapher.call_method_safe(graph, 'is_connected', "raw")
+        n_components = len(grapher.call_method_safe(graph, 'connected_components', "raw"))
 
         # Degree analysis - using explicit list format
-        degrees = grapher.call_method(graph, 'degree', "list")
+        degrees = grapher.call_method_safe(graph, 'degree', "list")
         avg_degree = np.mean(degrees) if degrees else 0
         max_degree = max(degrees) if degrees else 0
 
@@ -498,23 +499,35 @@ def run_comprehensive_benchmark():
 
     # Detailed results table with better precision
     print(f"\nDetailed Results (Construction | Metrics | Total):")
-    print(f"{'Graph Type':<15} {'Nodes':<6} {'Graphizy Const.':<14} {'NetworkX Const.':<14} {'Graphizy Metrics':<15} {'NetworkX Metrics':<15} {'Total Speedup':<12}")
-    print("-" * 115)
+    print(f"{'Graph Type':<15} {'Nodes':<6} "
+          f"{'Graphizy Const.':<16} {'NetworkX Const.':<16} "
+          f"{'Graphizy Metrics':<17} {'NetworkX Metrics':<17} "
+          f"{'Graphizy Total':<16} {'NetworkX Total':<17} {'Total Speedup':<12}")
+    print("-" * 150)
 
     for result in delaunay_results:
-        print(f"{'Delaunay':<15} {result['nodes']:<6} {result['graphizy_construction_time']:<14.3f} "
-              f"{result['networkx_construction_time']:<14.3f} {result['graphizy_metrics_time']:<15.3f} "
-              f"{result['networkx_metrics_time']:<15.3f} {result['total_speedup']:<12.1f}")
+        graphizy_total = result['graphizy_construction_time'] + result['graphizy_metrics_time']
+        networkx_total = result['networkx_construction_time'] + result['networkx_metrics_time']
+        print(f"{'Delaunay':<15} {result['nodes']:<6} "
+              f"{result['graphizy_construction_time']:<16.3f} {result['networkx_construction_time']:<16.3f} "
+              f"{result['graphizy_metrics_time']:<17.3f} {result['networkx_metrics_time']:<17.3f} "
+              f"{graphizy_total:<16.3f} {networkx_total:<17.3f} {result['total_speedup']:<12.1f}")
 
     for result in proximity_results:
-        print(f"{'Proximity':<15} {result['nodes']:<6} {result['graphizy_construction_time']:<14.3f} "
-              f"{result['networkx_construction_time']:<14.3f} {result['graphizy_metrics_time']:<15.3f} "
-              f"{result['networkx_metrics_time']:<15.3f} {result['total_speedup']:<12.1f}")
+        graphizy_total = result['graphizy_construction_time'] + result['graphizy_metrics_time']
+        networkx_total = result['networkx_construction_time'] + result['networkx_metrics_time']
+        print(f"{'Proximity':<15} {result['nodes']:<6} "
+              f"{result['graphizy_construction_time']:<16.3f} {result['networkx_construction_time']:<16.3f} "
+              f"{result['graphizy_metrics_time']:<17.3f} {result['networkx_metrics_time']:<17.3f} "
+              f"{graphizy_total:<16.3f} {networkx_total:<17.3f} {result['total_speedup']:<12.1f}")
 
     for result in mst_results:
-        print(f"{'MST':<15} {result['nodes']:<6} {result['graphizy_construction_time']:<14.3f} "
-              f"{result['networkx_construction_time']:<14.3f} {result['graphizy_metrics_time']:<15.3f} "
-              f"{result['networkx_metrics_time']:<15.3f} {result['total_speedup']:<12.1f}")
+        graphizy_total = result['graphizy_construction_time'] + result['graphizy_metrics_time']
+        networkx_total = result['networkx_construction_time'] + result['networkx_metrics_time']
+        print(f"{'MST':<15} {result['nodes']:<6} "
+              f"{result['graphizy_construction_time']:<16.3f} {result['networkx_construction_time']:<16.3f} "
+              f"{result['graphizy_metrics_time']:<17.3f} {result['networkx_metrics_time']:<17.3f} "
+              f"{graphizy_total:<16.3f} {networkx_total:<17.3f} {result['total_speedup']:<12.1f}")
 
     print(f"\nMemory System Performance (Graphizy only):")
     for result in memory_results:

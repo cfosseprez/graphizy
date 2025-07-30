@@ -35,7 +35,7 @@ Examples:
     )
 
     # Subcommands
-    subparsers = parser.add_subparsers(dest='command', help='Graph type to create')
+    subparsers = parser.add_subparsers(dest='command', help='Graph type to create', required=True)
 
     # Common arguments
     common_parser = argparse.ArgumentParser(add_help=False)
@@ -209,7 +209,7 @@ def cmd_delaunay(args) -> None:
 
         # Create Delaunay graph
         logging.info("Creating Delaunay triangulation...")
-        graph_del = grapher.make_delaunay(particle_stack)
+        graph_del = grapher.make_graph("delaunay", particle_stack)
 
         # Get statistics
         info = grapher.get_graph_info(graph_del)
@@ -217,7 +217,7 @@ def cmd_delaunay(args) -> None:
         print(f"  Vertices: {info['vertex_count']}")
         print(f"  Edges: {info['edge_count']}")
         print(f"  Density: {info['density']:.4f}")
-        if info['average_path_length']:
+        if info.get('average_path_length'):
             print(f"  Average Path Length: {info['average_path_length']:.4f}")
 
         # Draw graph
@@ -251,7 +251,7 @@ def cmd_proximity(args) -> None:
 
         # Create proximity graph
         logging.info(f"Creating proximity graph with threshold {args.threshold}...")
-        graph_prox = grapher.make_proximity(particle_stack, args.threshold, args.metric)
+        graph_prox = grapher.make_graph("proximity", particle_stack, proximity_thresh=args.threshold, metric=args.metric)
 
         # Get statistics
         info = grapher.get_graph_info(graph_prox)
@@ -260,7 +260,7 @@ def cmd_proximity(args) -> None:
         print(f"  Edges: {info['edge_count']}")
         print(f"  Density: {info['density']:.4f}")
         print(f"  Connected: {info['is_connected']}")
-        if info['average_path_length']:
+        if info.get('average_path_length'):
             print(f"  Average Path Length: {info['average_path_length']:.4f}")
 
         # Draw graph
@@ -353,8 +353,8 @@ def cmd_both(args) -> None:
         # ... (data generation and graph creation is the same)
         particle_stack = generate_data(config)
         grapher = Graphing(config=config)
-        graph_del = grapher.make_delaunay(particle_stack)
-        graph_prox = grapher.make_proximity(particle_stack, args.threshold, args.metric)
+        graph_del = grapher.make_graph("delaunay", particle_stack)
+        graph_prox = grapher.make_graph("proximity", particle_stack, proximity_thresh=args.threshold, metric=args.metric)
 
         # ... (statistics printing is the same)
 
@@ -402,8 +402,8 @@ def cmd_info(args) -> None:
         grapher = Graphing(config=config)
 
         # Create both graphs
-        graph_del = grapher.make_delaunay(particle_stack)
-        graph_prox = grapher.make_proximity(particle_stack, args.threshold)
+        graph_del = grapher.make_graph("delaunay", particle_stack)
+        graph_prox = grapher.make_graph("proximity", particle_stack, proximity_thresh=args.threshold)
 
         # Detailed statistics
         del_info = grapher.get_graph_info(graph_del)

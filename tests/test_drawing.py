@@ -1,45 +1,67 @@
 """
-Tests for the drawing.py module, focusing on error handling and edge cases.
+Tests for the drawing and visualization components.
 """
 import pytest
 import numpy as np
-from graphizy.drawing import draw_point, draw_line, show_graph, save_graph
+from unittest.mock import Mock, patch
+from graphizy import Graphing
+from graphizy.drawing import Visualizer
 from graphizy.exceptions import DrawingError
 
-@pytest.fixture
-def blank_image():
-    """Provides a blank 100x100 image."""
-    return np.zeros((100, 100, 3), dtype=np.uint8)
+def test_visualizer_initialization(default_config):
+    """Test that the Visualizer is correctly initialized within Graphing."""
+    grapher = Graphing(config=default_config)
+    assert isinstance(grapher.visualizer, Visualizer)
+    assert grapher.visualizer.dimension == (200, 200)
 
-class TestDrawingFunctions:
-    """Tests the core drawing utility functions."""
+def test_draw_graph_delegation(grapher, sample_array_data):
+    """Test that grapher.draw_graph correctly delegates to the visualizer."""
+    graph = grapher.make_graph("delaunay", sample_array_data)
 
-    def test_draw_point_errors(self, blank_image):
-        """Test error conditions for draw_point."""
-        with pytest.raises(DrawingError, match="Image cannot be None"):
-            draw_point(None, (10, 10), (255, 0, 0))
-        with pytest.raises(DrawingError, match="Point must have exactly 2 coordinates"):
-            draw_point(blank_image, (10,), (255, 0, 0))
-        with pytest.raises(DrawingError, match="Radius must be >= 1"):
-            draw_point(blank_image, (10, 10), (255, 0, 0), radius=0)
+    with patch.object(grapher.visualizer, 'draw_graph', wraps=grapher.visualizer.draw_graph) as mock_draw:
+        image = grapher.draw_graph(graph)
+        mock_draw.assert_called_once()
+        # Check that the first argument is the graph
+        assert mock_draw.call_args[0][0] == graph
+        assert isinstance(image, np.ndarray)
+        assert image.shape == (200, 200, 3)
 
-    def test_draw_line_errors(self, blank_image):
-        """Test error conditions for draw_line."""
-        with pytest.raises(DrawingError, match="Image cannot be None"):
-            draw_line(None, 0, 0, 10, 10, (255, 0, 0))
-        with pytest.raises(DrawingError, match="Thickness must be >= 1"):
-            draw_line(blank_image, 0, 0, 10, 10, (255, 0, 0), thickness=0)
+def test_draw_memory_graph_delegation(grapher, sample_array_data):
+    """Test that grapher.draw_memory_graph delegates correctly."""
+    grapher.init_memory_manager()
+    grapher.update_memory_with_graph(grapher.make_graph("delaunay", sample_array_data))
+    mem_graph = grapher.make_memory_graph(sample_array_data)
 
-    def test_show_graph_errors(self):
-        """Test error conditions for show_graph."""
-        with pytest.raises(DrawingError, match="image must be a valid numpy array"):
-            show_graph(None)
-        with pytest.raises(DrawingError, match="image is empty"):
-            show_graph(np.array([]))
+    with patch.object(grapher.visualizer, 'draw_memory_graph', wraps=grapher.visualizer.draw_memory_graph) as mock_draw:
+        image = grapher.draw_memory_graph(mem_graph, use_age_colors=True)
+        mock_draw.assert_called_once()
+        assert isinstance(image, np.ndarray)
 
-    def test_save_graph_errors(self, blank_image):
-        """Test error conditions for save_graph."""
-        with pytest.raises(DrawingError, match="Image cannot be None"):
-            save_graph(None, "test.png")
-        with pytest.raises(DrawingError, match="Filename cannot be empty"):
-            save_graph(blank_image, "")
+@patch('graphizy.drawing.cv2.imwrite')
+def test_save_graph(mock_imwrite, grapher, sample_array_data):
+    """Test saving a graph image."""
+    mock_imwrite.return_value = True
+    graph = grapher.make_graph("delaunay", sample_array_data)
+    image = grapher.draw_graph(graph)
+    grapher.save_graph(image, "test_output.png")
+    mock_imwrite.assert_called_once()
+
+@patch('graphizy.drawing.cv2.imshow')
+@patch('graphizy.drawing.cv2.waitKey')
+@patch('graphizy.drawing.cv2.destroyWindow')
+def test_show_graph(mock_destroy, mock_wait, mock_show, grapher, sample_array_data):
+    """Test showing a graph image."""
+    graph = grapher.make_graph("delaunay", sample_array_data)
+    image = grapher.draw_graph(graph)
+    grapher.show_graph(image, title="Test Show", block=True)
+    mock_show.assert_called_once()
+    mock_wait.assert_called_once_with(0)  # block=True means waitKey(0)
+    mock_destroy.assert_called_once_with("Test Show")
+
+def test_drawing_errors(grapher, blank_image):
+    """Test error conditions for drawing functions."""
+    with pytest.raises(DrawingError):
+        grapher.draw_graph(None)  # Graph cannot be None
+
+    with pytest.raises(DrawingError):
+        grapher.save_graph(blank_image, "")  # Filename cannot be empty

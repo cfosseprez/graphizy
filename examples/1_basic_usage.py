@@ -26,10 +26,10 @@ import sys
 from graphizy import (
     Graphing,  # The main class that does all the work.
     GraphizyConfig,  # A class for configuring graph settings and styles.
-    generate_positions,  # A helper function to create random 2D points.
+    generate_and_format_positions,  # A helper function to create random 2D points.
+    validate_graphizy_input,  # A helper function to validate coordinates
     GraphizyError  # Custom error class for handling package-specific issues.
 )
-
 # This utility helps create an 'output' directory if it doesn't exist.
 from graphizy.utils import setup_output_directory
 
@@ -65,12 +65,12 @@ def example_delaunay_triangulation():
         # --- Data Generation ---
         # Create random (x, y) coordinates for our particles within the canvas.
         print(f"Generating {NUM_PARTICLES} random points on an {IMAGE_WIDTH}x{IMAGE_HEIGHT} canvas...")
-        positions = generate_positions(IMAGE_WIDTH, IMAGE_HEIGHT, NUM_PARTICLES)
-
         # The grapher needs data in a specific format: an array where each row is
         # [ID, x_position, y_position]. We create unique IDs for each particle.
-        particle_ids = np.arange(len(positions))
-        particle_stack = np.column_stack((particle_ids, positions))
+        # particle_ids = np.arange(len(positions))
+        # particle_stack = np.column_stack((particle_ids, positions))
+        particle_stack = generate_and_format_positions(size_x=IMAGE_WIDTH, size_y=IMAGE_HEIGHT, num_particles=NUM_PARTICLES)
+        validate_graphizy_input(particle_stack)
 
         # --- Styling and Graph Creation ---
         # Create a configuration object to customize the graph's appearance.

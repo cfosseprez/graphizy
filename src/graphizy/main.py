@@ -49,7 +49,7 @@ from graphizy.algorithms import (
     create_memory_graph, MemoryManager, update_memory_from_custom_function,
     update_memory_from_graph, update_memory_from_delaunay, update_memory_from_proximity
 )
-from graphizy.drawing import draw_point, draw_line, show_graph, save_graph
+from graphizy.drawing import Visualizer
 
 
 class Graphing:
@@ -173,24 +173,22 @@ class Graphing:
             # Initialize data interface for handling different data formats
             self.dinter = DataInterface(self.config.graph.data_shape)
 
-            # Cache drawing parameters for performance (avoid repeated config access)
-            self._update_drawing_cache()
 
             # Initialize memory manager as None (created on-demand)
             self.memory_manager = None
 
+            # Initialize the visualizer
+            self.visualizer = Visualizer(self.config.drawing, self.config.graph.dimension)
+
+
             logging.info(f"Graphing object initialized: {self.dimension} canvas, '{self.aspect}' aspect")
 
+        except (InvalidDimensionError, InvalidAspectError):
+            # Re-raise specific exceptions as-is
+            raise
         except Exception as e:
             raise GraphCreationError(f"Failed to initialize Graphing object: {str(e)}")
 
-    def _update_drawing_cache(self) -> None:
-        """Update cached drawing parameters from config for performance."""
-        self.line_thickness = self.config.drawing.line_thickness
-        self.line_color = self.config.drawing.line_color
-        self.point_thickness = self.config.drawing.point_thickness
-        self.point_radius = self.config.drawing.point_radius
-        self.point_color = self.config.drawing.point_color
 
     @property
     def drawing_config(self) -> DrawingConfig:
@@ -251,12 +249,6 @@ class Graphing:
         """
         try:
             self.config.update(**kwargs)
-
-            # Update cached drawing parameters if drawing config changed
-            if 'drawing' in kwargs or any(key in ['line_thickness', 'line_color',
-                                                 'point_thickness', 'point_radius',
-                                                 'point_color'] for key in kwargs):
-                self._update_drawing_cache()
 
             # Update instance variables if graph config changed
             if 'graph' in kwargs or 'dimension' in kwargs:
@@ -326,7 +318,7 @@ class Graphing:
                 # Ensure all required keys are present and have same length
                 required_keys = ["id", "x", "y"]
                 if not all(k in data_points for k in required_keys):
-                    raise GraphCreationError(f"Dict data must contain keys: {required_keys}")
+                    raise GraphCreationError(f"Dict data must contain required keys: {required_keys}")
                 if len(set(len(v) for v in data_points.values())) > 1:
                     raise GraphCreationError("All lists in data dictionary must have the same length.")
 
@@ -859,6 +851,114 @@ class Graphing:
         }
 
     # ============================================================================
+    # VISUALIZATION METHODS (Delegated to Visualizer)
+    # ============================================================================
+
+    def draw_graph(self, graph: Any, **kwargs) -> np.ndarray:
+        """
+        Draw a graph to an image array.
+
+        This method provides a convenient top-level API by delegating the drawing
+        task to the internal Visualizer instance.
+
+        Args:
+            graph: igraph Graph object to draw.
+            **kwargs: Additional arguments for the visualizer, e.g., 'radius', 'thickness'.
+
+        Returns:
+            np.ndarray: An RGB image array of the drawn graph.
+        """
+        try:
+            return self.visualizer.draw_graph(graph, **kwargs)
+        except Exception as e:
+            raise DrawingError(f"Failed to draw graph: {e}") from e
+
+    def draw_memory_graph(self, graph: Any, **kwargs) -> np.ndarray:
+        """
+        Draw a memory graph with optional age-based coloring.
+
+        Delegates to the Visualizer's draw_memory_graph method.
+
+        Args:
+            graph: igraph Graph object to draw.
+            **kwargs: Additional arguments like 'use_age_colors', 'alpha_range'.
+
+        Returns:
+            np.ndarray: An RGB image array of the drawn memory graph.
+        """
+        try:
+            return self.visualizer.draw_memory_graph(graph, **kwargs)
+        except Exception as e:
+            raise DrawingError(f"Failed to draw memory graph: {e}") from e
+
+    def overlay_graph(self, image_graph: np.ndarray, graph: Any) -> np.ndarray:
+        """
+        Overlay an additional graph onto an existing image.
+
+        Delegates to the Visualizer's overlay_graph method.
+
+        Args:
+            image_graph: The base image to draw on.
+            graph: The igraph Graph object to overlay.
+
+        Returns:
+            np.ndarray: The modified image array.
+        """
+        try:
+            return self.visualizer.overlay_graph(image_graph, graph)
+        except Exception as e:
+            raise DrawingError(f"Failed to overlay graph: {e}") from e
+
+    def overlay_collision(self, image_graph: np.ndarray, graph: Any) -> np.ndarray:
+        """
+        Overlay an additional graph onto an existing image.
+
+        Delegates to the Visualizer's overlay_graph method.
+
+        Args:
+            image_graph: The base image to draw on.
+            graph: The igraph Graph object to overlay.
+
+        Returns:
+            np.ndarray: The modified image array.
+        """
+        try:
+            return self.visualizer.overlay_collision(image_graph, graph)
+        except Exception as e:
+            raise DrawingError(f"Failed to overlay graph: {e}") from e
+
+    def show_graph(self, image_graph: np.ndarray, title: str = "Graphizy", **kwargs) -> None:
+        """
+        Display a graph image in a window.
+
+        Delegates to the Visualizer's show_graph method.
+
+        Args:
+            image_graph: The image array to display.
+            title: The title of the window.
+            **kwargs: Additional arguments like 'block'.
+        """
+        try:
+            self.visualizer.show_graph(image_graph, title, **kwargs)
+        except Exception as e:
+            raise DrawingError(f"Failed to show graph: {e}") from e
+
+    def save_graph(self, image_graph: np.ndarray, filename: str) -> None:
+        """
+        Save a graph image to a file.
+
+        Delegates to the Visualizer's save_graph method.
+
+        Args:
+            image_graph: The image array to save.
+            filename: The path to save the file to.
+        """
+        try:
+            self.visualizer.save_graph(image_graph, filename)
+        except Exception as e:
+            raise DrawingError(f"Failed to save graph: {e}") from e
+
+    # ============================================================================
     # MEMORY MANAGEMENT METHODS
     # ============================================================================
 
@@ -914,6 +1014,7 @@ class Graphing:
             self.memory_manager = MemoryManager(max_memory_size, max_iterations, track_edge_ages)
             logging.info(f"Memory manager initialized: max_size={max_memory_size}, "
                         f"max_iterations={max_iterations}, track_ages={track_edge_ages}")
+            self.visualizer.memory_manager=self.memory_manager
             return self.memory_manager
         except Exception as e:
             raise GraphCreationError(f"Failed to initialize memory manager: {str(e)}")
@@ -1268,390 +1369,8 @@ class Graphing:
         except Exception as e:
             return {"error": f"Failed to get memory analysis: {str(e)}"}
 
-    # ============================================================================
-    # DRAWING AND VISUALIZATION METHODS
-    # ============================================================================
 
-    def draw_memory_graph(self,
-                         graph: Any,
-                         radius: int = None,
-                         thickness: int = None,
-                         use_age_colors: bool = True,
-                         alpha_range: Tuple[float, float] = (0.3, 1.0)) -> np.ndarray:
-        """
-        Draw memory graph with optional age-based edge coloring and transparency.
 
-        This specialized drawing method can visualize temporal information by
-        varying edge appearance based on connection age/persistence in memory.
-        Newer or more frequent connections can be highlighted while older
-        connections are drawn more subtly.
-
-        Args:
-            graph: igraph Graph object to draw
-            radius: Point radius override. If None, uses config default.
-            thickness: Point thickness override. If None, uses config default.
-            use_age_colors: Whether to apply age-based styling to edges.
-                          If True, requires memory_manager with age tracking enabled.
-            alpha_range: (min_alpha, max_alpha) tuple for transparency range.
-                        Older connections use min_alpha, newer use max_alpha.
-
-        Returns:
-            np.ndarray: Image array representing the drawn graph.
-
-        Raises:
-            DrawingError: If drawing fails or memory manager required but not available.
-
-        Examples:
-            >>> # Basic memory graph drawing
-            >>> memory_graph = grapher.make_memory_graph(data)
-            >>> image = grapher.draw_memory_graph(memory_graph)
-            >>> grapher.show_graph(image, title="Memory Graph")
-
-            >>> # Custom age-based visualization
-            >>> image = grapher.draw_memory_graph(
-            ...     memory_graph,
-            ...     use_age_colors=True,
-            ...     alpha_range=(0.1, 1.0),  # Very faded old connections
-            ...     radius=8,
-            ...     thickness=2
-            ... )
-
-            >>> # Disable age coloring for standard appearance
-            >>> image = grapher.draw_memory_graph(
-            ...     memory_graph,
-            ...     use_age_colors=False
-            ... )
-
-        Note:
-            - Age-based coloring requires memory manager with track_edge_ages=True
-            - Alpha blending may not be supported in all drawing backends
-            - Performance may be slower with age-based coloring for large graphs
-            - Falls back to standard drawing if age information unavailable
-        """
-        try:
-            from .drawing import create_memory_graph_image
-
-            if graph is None:
-                raise DrawingError("Graph cannot be None")
-
-            # Use config defaults if not provided
-            if radius is None:
-                radius = self.point_radius
-            if thickness is None:
-                thickness = self.point_thickness
-
-            # Create the image using the drawing module
-            image = create_memory_graph_image(
-                graph=graph,
-                memory_manager=self.memory_manager,
-                dimension=self.dimension,
-                point_color=self.point_color,
-                line_color=self.line_color,
-                point_radius=radius,
-                point_thickness=thickness,
-                line_thickness=self.line_thickness,
-                use_age_colors=use_age_colors,
-                alpha_range=alpha_range
-            )
-
-            return image
-
-        except Exception as e:
-            raise DrawingError(f"Failed to draw memory graph: {str(e)}")
-
-    def draw_graph(self,
-                  graph: Any,
-                  radius: int = None,
-                  thickness: int = None,
-                  direct_show: bool = False,
-                  kwargs_show: Optional[Dict] = None) -> np.ndarray:
-        """
-        Draw a graph to an image array with customizable appearance.
-
-        This is the primary method for converting igraph Graph objects into
-        visual representations. It handles both vertices (as circles) and
-        edges (as lines) with configurable styling.
-
-        Args:
-            graph: igraph Graph object with vertices having "x", "y" coordinates
-            radius: Point radius override. If None, uses self.point_radius from config.
-            thickness: Point border thickness override. If None, uses self.point_thickness.
-            direct_show: If True, immediately display the graph using show_graph().
-                        Convenient for interactive use.
-            kwargs_show: Additional parameters passed to show_graph() if direct_show=True.
-                        E.g., {'title': 'My Graph', 'block': False}
-
-        Returns:
-            np.ndarray: RGB image array with shape (height, width, 3) and dtype uint8.
-                       Background is black (0,0,0), drawn elements use configured colors.
-
-        Raises:
-            DrawingError: If graph is None, missing coordinates, or drawing operations fail.
-
-        Examples:
-            >>> # Basic drawing
-            >>> graph = grapher.make_delaunay(data)
-            >>> image = grapher.draw_graph(graph)
-            >>> grapher.show_graph(image)
-
-            >>> # Custom appearance
-            >>> image = grapher.draw_graph(graph, radius=10, thickness=3)
-
-            >>> # Draw and show immediately
-            >>> image = grapher.draw_graph(
-            ...     graph,
-            ...     direct_show=True,
-            ...     kwargs_show={'title': 'Delaunay Triangulation', 'block': True}
-            ... )
-
-            >>> # Multiple graphs on same image
-            >>> image = grapher.draw_graph(delaunay_graph)
-            >>> image = grapher.overlay_graph(image, mst_graph)  # Overlay MST
-            >>> grapher.show_graph(image, title="Combined Graph")
-
-        Note:
-            - Graph must have vertex attributes "x" and "y" for coordinates
-            - Coordinates are in image pixel space (0 to dimension)
-            - Drawing order: edges first, then vertices (vertices on top)
-            - Image dimensions set by self.dimension from config
-            - Colors set by self.point_color and self.line_color from config
-        """
-        try:
-            if graph is None:
-                raise DrawingError("Graph cannot be None")
-
-            # Use config defaults if parameters not provided
-            if radius is None:
-                radius = self.point_radius
-            if thickness is None:
-                thickness = self.point_thickness
-            if kwargs_show is None:
-                kwargs_show = {}
-
-            # Create image array: dimension is (width, height), NumPy needs (height, width)
-            width, height = self.dimension
-            image_graph = np.zeros((height, width, 3), dtype=np.uint8)
-
-            # Draw edges first (so vertices appear on top)
-            for edge in graph.es:
-                # Get vertex coordinates
-                source_idx, target_idx = edge.tuple
-                x0, y0 = int(graph.vs[source_idx]["x"]), int(graph.vs[source_idx]["y"])
-                x1, y1 = int(graph.vs[target_idx]["x"]), int(graph.vs[target_idx]["y"])
-
-                # Draw edge line
-                draw_line(image_graph, x0, y0, x1, y1, self.line_color, thickness=self.line_thickness)
-
-            # Draw vertices on top of edges
-            for vertex in graph.vs:
-                point_coords = (vertex["x"], vertex["y"])
-                draw_point(image_graph, point_coords, self.point_color,
-                          thickness=thickness, radius=radius)
-
-            # Optionally show immediately
-            if direct_show:
-                self.show_graph(image_graph, **kwargs_show)
-
-            return image_graph
-
-        except Exception as e:
-            raise DrawingError(f"Failed to draw graph: {str(e)}")
-
-    def overlay_graph(self, image_graph: np.ndarray, graph: Any) -> np.ndarray:
-        """
-        Overlay additional graph elements onto an existing image.
-
-        This method allows combining multiple graphs in a single visualization
-        by drawing additional vertices and edges on top of an existing image.
-        Useful for comparing different graph types or showing graph evolution.
-
-        Args:
-            image_graph: Existing image array to draw on. Modified in-place.
-            graph: igraph Graph object to overlay with vertices having "x", "y" coordinates.
-
-        Returns:
-            np.ndarray: The modified image array (same object as input for chaining).
-
-        Raises:
-            DrawingError: If either image or graph is None, or if drawing operations fail.
-
-        Examples:
-            >>> # Compare Delaunay triangulation with MST
-            >>> delaunay_graph = grapher.make_delaunay(data)
-            >>> mst_graph = grapher.make_mst(data)
-            >>>
-            >>> # Draw Delaunay as base
-            >>> image = grapher.draw_graph(delaunay_graph)
-            >>>
-            >>> # Overlay MST with different color
-            >>> grapher.update_config(line_color=(255, 0, 0))  # Red for MST
-            >>> image = grapher.overlay_graph(image, mst_graph)
-            >>> grapher.show_graph(image, title="Delaunay + MST")
-
-            >>> # Chain multiple overlays
-            >>> image = grapher.draw_graph(delaunay_graph)
-            >>> image = grapher.overlay_graph(image, mst_graph)
-            >>> image = grapher.overlay_graph(image, knn_graph)
-
-        Note:
-            - Image is modified in-place and also returned for method chaining
-            - Overlay uses current drawing configuration (colors, thickness, etc.)
-            - Later overlays draw on top of earlier ones
-            - Vertices are drawn on top of edges within each overlay
-            - Consider using different colors for different overlays
-        """
-        try:
-            if image_graph is None:
-                raise DrawingError("Image cannot be None")
-            if graph is None:
-                raise DrawingError("Graph cannot be None")
-
-            # Draw edges first
-            for edge in graph.es:
-                source_idx, target_idx = edge.tuple
-                x0, y0 = int(graph.vs[source_idx]["x"]), int(graph.vs[source_idx]["y"])
-                x1, y1 = int(graph.vs[target_idx]["x"]), int(graph.vs[target_idx]["y"])
-                draw_line(image_graph, x0, y0, x1, y1, self.line_color, self.line_thickness)
-
-            # Draw vertices on top
-            for vertex in graph.vs:
-                point_coords = (vertex["x"], vertex["y"])
-                draw_point(image_graph, point_coords, self.point_color,
-                          thickness=self.point_thickness, radius=self.point_radius)
-
-            return image_graph
-
-        except Exception as e:
-            raise DrawingError(f"Failed to overlay graph: {str(e)}")
-
-    def overlay_collision(self, image_graph: np.ndarray, graph: Any) -> np.ndarray:
-        """
-        Overlay collision/intersection points on graph edges.
-
-        This debugging/analysis method draws midpoints of all edges with
-        prominent markers. Useful for visualizing edge density, detecting
-        potential intersections, or highlighting edge midpoints for analysis.
-
-        Args:
-            image_graph: Existing image array to draw on. Modified in-place.
-            graph: igraph Graph object with edges to mark.
-
-        Returns:
-            np.ndarray: The modified image array with collision points added.
-
-        Raises:
-            DrawingError: If either image or graph is None, or if drawing operations fail.
-
-        Examples:
-            >>> # Visualize edge midpoints for analysis
-            >>> graph = grapher.make_delaunay(data)
-            >>> image = grapher.draw_graph(graph)
-            >>> image = grapher.overlay_collision(image, graph)
-            >>> grapher.show_graph(image, title="Graph with Edge Midpoints")
-
-            >>> # Analyze edge density in different regions
-            >>> dense_graph = grapher.make_proximity(data, proximity_thresh=50)
-            >>> image = grapher.draw_graph(dense_graph)
-            >>> image = grapher.overlay_collision(image, dense_graph)
-
-        Note:
-            - Collision points are drawn as large, prominent circles
-            - Useful for debugging edge placement and density analysis
-            - Midpoint calculation uses integer arithmetic (may have rounding)
-            - Collision markers use current point_color configuration
-        """
-        try:
-            if image_graph is None:
-                raise DrawingError("Image cannot be None")
-            if graph is None:
-                raise DrawingError("Graph cannot be None")
-
-            for edge in graph.es:
-                source_idx, target_idx = edge.tuple
-                x0, y0 = int(graph.vs[source_idx]["x"]), int(graph.vs[source_idx]["y"])
-                x1, y1 = int(graph.vs[target_idx]["x"]), int(graph.vs[target_idx]["y"])
-
-                # Draw the edge
-                draw_line(image_graph, x0, y0, x1, y1, self.line_color, self.line_thickness)
-
-                # Draw prominent midpoint marker
-                mid_x = int((x0 + x1) / 2)
-                mid_y = int((y0 + y1) / 2)
-                draw_point(image_graph, (mid_x, mid_y), self.point_color, radius=25, thickness=6)
-
-            return image_graph
-
-        except Exception as e:
-            raise DrawingError(f"Failed to overlay collision points: {str(e)}")
-
-    @staticmethod
-    def show_graph(image_graph: np.ndarray, title: str = "My beautiful graph", **kwargs) -> None:
-        """
-        Display a graph image using the configured display backend.
-
-        This is a convenience wrapper around the global show_graph function
-        that provides consistent image display with customizable options.
-
-        Args:
-            image_graph: Image array to display with shape (height, width, 3).
-            title: Window title for the display.
-            **kwargs: Additional arguments passed to the underlying show_graph function:
-                     - block: Whether to block execution until window is closed
-                     - delay_display: Delay before showing (for animations)
-                     - save_path: Optionally save image while displaying
-                     - Backend-specific options
-
-        Examples:
-            >>> image = grapher.draw_graph(graph)
-            >>> Graphing.show_graph(image, title="Delaunay Triangulation")
-
-            >>> # Non-blocking display for animations
-            >>> Graphing.show_graph(image, title="Animation Frame", block=False)
-
-            >>> # Display with save
-            >>> Graphing.show_graph(
-            ...     image,
-            ...     title="Final Result",
-            ...     save_path="output.png"
-            ... )
-
-        Note:
-            - Display backend depends on system configuration (matplotlib, opencv, etc.)
-            - Window behavior (blocking, resizing) depends on backend
-            - Static method can be called without Graphing instance
-        """
-        show_graph(image_graph, title, **kwargs)
-
-    @staticmethod
-    def save_graph(image_graph: np.ndarray, filename: str) -> None:
-        """
-        Save graph image to file.
-
-        This is a convenience wrapper around the global save_graph function
-        that handles various image formats and provides error handling.
-
-        Args:
-            image_graph: Image array to save with shape (height, width, 3).
-            filename: Output filename with extension. Extension determines format
-                     (e.g., .png, .jpg, .tiff, .bmp).
-
-        Examples:
-            >>> image = grapher.draw_graph(graph)
-            >>> Graphing.save_graph(image, "delaunay_triangulation.png")
-
-            >>> # Save with timestamp
-            >>> import datetime
-            >>> timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            >>> filename = f"graph_{timestamp}.png"
-            >>> Graphing.save_graph(image, filename)
-
-        Note:
-            - File format determined by extension
-            - Overwrites existing files without warning
-            - Directory must exist (not created automatically)
-            - Static method can be called without Graphing instance
-        """
-        save_graph(image_graph, filename)
 
     # ============================================================================
     # GRAPH ANALYSIS AND METRICS METHODS
@@ -1971,7 +1690,14 @@ class Graphing:
             - Useful for determining appropriate analysis methods
         """
         try:
-            components = self.call_method_brutal(graph, 'connected_components', "raw")
+            components_result = self.call_method_brutal(graph, 'connected_components', "raw")
+            
+            # Convert to list of lists if it's an igraph-specific type
+            if hasattr(components_result, '__iter__') and not isinstance(components_result, list):
+                components = [list(comp) for comp in components_result]
+            else:
+                components = components_result
+                
             is_connected = len(components) == 1
 
             component_sizes = [len(comp) for comp in components]

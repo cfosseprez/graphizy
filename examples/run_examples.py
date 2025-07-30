@@ -44,7 +44,7 @@ def get_examples():
         },
         {
             'id': 4,
-            'file': '4_video_analysis.py',
+            'file': '4_interactive_demo.py',
             'name': 'Interactive video analysis',
             'description': 'Complete simulation with dynamic networks and movie generation',
             'duration': '~5-10 minutes',

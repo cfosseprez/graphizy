@@ -39,6 +39,27 @@ except ImportError:
     raise DependencyError("scipy is required but not installed. Install with: pip install scipy")
 
 
+def normalize_distance_metric(metric: str) -> str:
+    """
+    Normalize distance metric names to scipy-compatible format.
+    
+    Args:
+        metric: Distance metric name
+        
+    Returns:
+        Scipy-compatible metric name
+    """
+    metric_mapping = {
+        'manhattan': 'cityblock',
+        'l1': 'cityblock',
+        'euclidean': 'euclidean',
+        'l2': 'euclidean',
+        'chebyshev': 'chebyshev',
+        'linf': 'chebyshev'
+    }
+    return metric_mapping.get(metric.lower(), metric.lower())
+
+
 def normalize_id(obj_id: Any) -> str:
     """
     Normalize object ID to consistent string format for real-time applications.
@@ -438,7 +459,9 @@ def get_distance(position_array: np.ndarray, proximity_thresh: float,
         if proximity_thresh <= 0:
             raise GraphCreationError("Proximity threshold must be positive")
 
-        square_dist = squareform(pdist(position_array, metric=metric))
+        # Normalize the metric name to scipy-compatible format
+        normalized_metric = normalize_distance_metric(metric)
+        square_dist = squareform(pdist(position_array, metric=normalized_metric))
         proxi_list = []
 
         for i, row in enumerate(square_dist):
@@ -1128,7 +1151,7 @@ def update_memory_from_custom_function(current_positions: Union[np.ndarray, Dict
     Args:
         current_positions: Current positions
         memory_manager: MemoryManager instance to update
-        connection_function: Function that takes positions and returns graph
+        connection_function: Function that takes positions and returns connections
         aspect: Data format
         **kwargs: Additional arguments for the connection function
 
@@ -1136,11 +1159,46 @@ def update_memory_from_custom_function(current_positions: Union[np.ndarray, Dict
         Current connections dictionary
     """
     try:
-        # Call the custom function to create a graph
-        custom_graph = connection_function(current_positions, aspect=aspect, **kwargs)
-
-        # Update memory from the custom graph
-        return update_memory_from_graph(custom_graph, memory_manager)
+        # Call the custom function to get connections
+        custom_connections = connection_function(current_positions, **kwargs)
+        
+        # Handle different return types from custom function
+        if hasattr(custom_connections, 'vs'):  # It's an igraph object
+            return update_memory_from_graph(custom_connections, memory_manager)
+        
+        elif isinstance(custom_connections, (list, tuple)):  # List of (id1, id2) tuples
+            # Convert connections list to connection dictionary
+            connections_dict = {}
+            
+            # Initialize all object IDs
+            if aspect == "array":
+                all_ids = [normalize_id(obj_id) for obj_id in current_positions[:, 0]]
+            else:  # dict aspect
+                all_ids = [normalize_id(obj_id) for obj_id in current_positions["id"]]
+            
+            for obj_id in all_ids:
+                connections_dict[obj_id] = []
+            
+            # Add connections from the list
+            for connection in custom_connections:
+                if len(connection) >= 2:
+                    id1 = normalize_id(connection[0])
+                    id2 = normalize_id(connection[1])
+                    
+                    if id1 in connections_dict and id2 in connections_dict:
+                        connections_dict[id1].append(id2)
+                        connections_dict[id2].append(id1)
+            
+            # Update memory manager
+            memory_manager.add_connections(connections_dict)
+            return connections_dict
+            
+        elif isinstance(custom_connections, dict):  # Already a connections dictionary
+            memory_manager.add_connections(custom_connections)
+            return custom_connections
+            
+        else:
+            raise GraphCreationError(f"Custom function returned unsupported type: {type(custom_connections)}")
 
     except Exception as e:
         raise GraphCreationError(f"Failed to update memory from custom function: {str(e)}")
@@ -1358,15 +1416,19 @@ def create_knn_graph(positions: np.ndarray, k: int = 3, aspect: str = "array") -
         raise GraphCreationError(f"Failed to create k-nearest graph: {str(e)}")
 
 
-def create_minimum_spanning_tree(positions: np.ndarray, metric: str = "euclidean") -> Any:
+def create_minimum_spanning_tree(positions: np.ndarray, aspect: str = "array", metric: str = "euclidean") -> Any:
     """Create minimum spanning tree graph from a standardized array."""
     try:
-        # This function now correctly accepts the 'metric' argument.
-        graph = create_graph_array(positions)
-        pos_2d = positions[:, 1:3]
+        if aspect == "array":
+            graph = create_graph_array(positions)
+            pos_2d = positions[:, 1:3]
+        else:
+            raise NotImplementedError("Dict aspect not implemented for MST")
 
+        # Normalize the metric name to scipy-compatible format
+        normalized_metric = normalize_distance_metric(metric)
         # Use pdist for a more efficient distance matrix calculation, passing the metric.
-        distances = squareform(pdist(pos_2d, metric=metric))
+        distances = squareform(pdist(pos_2d, metric=normalized_metric))
 
         # Add all edges with weights to a temporary complete graph
         complete_graph = ig.Graph(n=len(positions), directed=False)
@@ -1395,19 +1457,10 @@ def create_minimum_spanning_tree(positions: np.ndarray, metric: str = "euclidean
 
 def create_gabriel_graph(positions: np.ndarray, aspect: str = "array") -> Any:
     """Create Gabriel graph from point positions
-    
-    Gabriel graph connects two points if no other point lies within the circle
-    having the two points as diameter endpoints.
-    
-    Args:
-        positions: Point positions as array [id, x, y, ...] or 2D positions
-        aspect: Data format ("array" or "dict")
-        
-    Returns:
-        igraph Graph object with Gabriel graph connections
-        
-    Raises:
-        GraphCreationError: If Gabriel graph creation fails
+
+    This implementation is optimized by first computing the Delaunay triangulation,
+    as the Gabriel graph is its subgraph. This reduces complexity from O(n^3) to
+    approximately O(n log n).
     """
     try:
         if aspect == "array":
@@ -1415,43 +1468,52 @@ def create_gabriel_graph(positions: np.ndarray, aspect: str = "array") -> Any:
             pos_2d = positions[:, 1:3]
         else:
             raise NotImplementedError("Dict aspect not implemented for Gabriel graph")
-        
+
         n_points = len(pos_2d)
+        if n_points < 2:
+            return graph
+
+        # 1. Start with a Delaunay triangulation, which is a superset of the Gabriel graph.
+        # This is much faster than checking all n*(n-1)/2 pairs.
+        # We create a temporary graph just for the triangulation edges.
+        temp_graph = create_delaunay_graph(positions, aspect="array",
+                                           dimension=(int(pos_2d[:, 0].max()) + 1, int(pos_2d[:, 1].max()) + 1))
+
         edges_to_add = []
-        
-        # For each pair of points
-        for i in range(n_points):
-            for j in range(i + 1, n_points):
-                p1 = pos_2d[i]
-                p2 = pos_2d[j]
-                
-                # Calculate circle center (midpoint) and radius
-                center = (p1 + p2) / 2
-                radius = np.linalg.norm(p1 - p2) / 2
-                
-                # Check if any other point lies within the circle
-                is_gabriel_edge = True
-                for k in range(n_points):
-                    if k == i or k == j:
-                        continue
-                        
-                    p3 = pos_2d[k]
-                    distance_to_center = np.linalg.norm(p3 - center)
-                    
-                    # If point is strictly inside the circle, this is not a Gabriel edge
-                    if distance_to_center < radius - 1e-10:  # Small epsilon for numerical stability
-                        is_gabriel_edge = False
-                        break
-                
-                if is_gabriel_edge:
-                    edges_to_add.append((i, j))
-        
-        # Add edges to graph
+
+        # 2. For each edge in the Delaunay graph, check the Gabriel condition.
+        for edge in temp_graph.es:
+            i, j = edge.tuple
+            p1 = pos_2d[i]
+            p2 = pos_2d[j]
+
+            # Calculate circle center (midpoint) and squared radius
+            center = (p1 + p2) / 2
+            radius_sq = np.sum(((p1 - p2) / 2) ** 2)
+
+            # 3. Check if any other point lies within the circle.
+            is_gabriel_edge = True
+            for k in range(n_points):
+                if k == i or k == j:
+                    continue
+
+                p3 = pos_2d[k]
+                dist_sq = np.sum((p3 - center) ** 2)
+
+                # If a point is strictly inside the circle, it's not a Gabriel edge.
+                if dist_sq < radius_sq - 1e-10:  # Epsilon for float stability
+                    is_gabriel_edge = False
+                    break
+
+            if is_gabriel_edge:
+                edges_to_add.append((i, j))
+
+        # Add the valid Gabriel edges to the final graph
         if edges_to_add:
             graph.add_edges(edges_to_add)
-        
+
         return graph
-        
+
     except Exception as e:
         raise GraphCreationError(f"Failed to create Gabriel graph: {str(e)}")
 
@@ -1491,7 +1553,8 @@ def create_graph(data_points: Union[np.ndarray, Dict[str, Any]],
             return create_knn_graph(data_points, k, aspect)
 
         elif graph_type == "mst" or graph_type == "minimum_spanning_tree":
-            return create_minimum_spanning_tree(data_points, aspect)
+            metric = kwargs.get('metric', 'euclidean')
+            return create_minimum_spanning_tree(data_points, aspect, metric)
 
         elif graph_type == "gabriel":
             return create_gabriel_graph(data_points, aspect)

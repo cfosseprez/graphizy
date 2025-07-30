@@ -8,7 +8,7 @@ including the new Minimum Spanning Tree (MST) graph type.
 Graph Types:
     1 - Proximity Graph
     2 - Delaunay Triangulation
-    3 - K-Nearest Neighbors
+    3 - Gabriel Graph
     4 - Minimum Spanning Tree (NEW!)
     5 - Combined View (All graphs)
 
@@ -74,7 +74,7 @@ class ImprovedBrownianSimulation:
         self.knn_k = 4
 
         # Display parameters
-        self.window_name = "Graphizy - Improved Brownian Motion with MST"
+        self.window_name = "Graphizy - Interactive (Press m to toggle memory / 1-5 to change graph type)"
         self.paused = False
         self.current_graph_type = 1
 
@@ -116,7 +116,7 @@ class ImprovedBrownianSimulation:
         self.graphers = {
             'proximity': self._create_grapher(base_config, (0, 0, 255), (255, 255, 255)),  # Red
             'delaunay': self._create_grapher(base_config, (0, 255, 0), (255, 255, 0)),  # Green
-            'knn': self._create_grapher(base_config, (255, 100, 0), (100, 255, 255)),  # Blue
+            'gabriel': self._create_grapher(base_config, (255, 100, 0), (100, 255, 255)),  # Blue
             'mst': self._create_grapher(base_config, (255, 0, 255), (255, 255, 100)),  # Purple (NEW!)
         }
 
@@ -182,9 +182,9 @@ class ImprovedBrownianSimulation:
             else:
                 return getattr(self, f'_last_{graph_type}', None)
 
-        elif graph_type == 'knn':
+        elif graph_type == 'gabriel':
             # Create K-nearest neighbors graph
-            return self._create_knn_graph(grapher)
+            return self._create_gabriel_graph(grapher)
 
         elif graph_type == 'mst':
             # Create Minimum Spanning Tree graph (NEW!)
@@ -210,7 +210,7 @@ class ImprovedBrownianSimulation:
 
         return memory_graph
 
-    def _create_knn_graph(self, grapher: Graphing) -> Any:
+    def _create_gabriel_graph(self, grapher: Graphing) -> Any:
         """Create K-nearest neighbors graph"""
         try:
             # Simple KNN implementation

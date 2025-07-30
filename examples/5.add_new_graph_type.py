@@ -19,6 +19,9 @@ from graphizy import Graphing, graph_type_plugin
 import random
 import igraph as ig
 
+# This utility helps create an 'output' directory if it doesn't exist.
+from graphizy.utils import setup_output_directory
+
 
 @graph_type_plugin(
     name="random_edges",
@@ -284,6 +287,8 @@ def create_grid_graph(data_points: np.ndarray, dimension: tuple, **kwargs) -> ig
 def main():
     """Demonstrate adding custom graph types to Graphizy."""
 
+    output_dir = setup_output_directory()
+
     print("Demonstrating easy graph type extension in Graphizy")
     print("=" * 60)
 
@@ -396,28 +401,28 @@ def main():
         # Draw, save, and show the random graph
         if random_graph:
             random_image = grapher.draw_graph(random_graph)
-            grapher.save_graph(random_image, "random_edges_example.png")
+            grapher.save_graph(random_image, str(output_dir / "random_edges_example.png"))
             print("   Saved random_edges_example.png")
             grapher.show_graph(random_image, title="Random Edges Graph", block=True)
 
         # Draw, save, and show the star graph
         if star_graph:
             star_image = grapher.draw_graph(star_graph)
-            grapher.save_graph(star_image, "star_graph_example.png")
+            grapher.save_graph(star_image, str(output_dir / "star_graph_example.png"))
             print("   Saved star_graph_example.png")
             grapher.show_graph(star_image, title="Star Graph", block=True)
 
         # Draw, save, and show the grid graph
         if grid_graph:
             grid_image = grapher.draw_graph(grid_graph)
-            grapher.save_graph(grid_image, "grid_graph_example.png")
+            grapher.save_graph(grid_image, str(output_dir / "grid_graph_example.png"))
             print("   Saved grid_graph_example.png")
             grapher.show_graph(grid_image, title="Grid Graph", block=True)
 
         # Draw, save, and show the built-in Delaunay graph
         if delaunay_graph:
             delaunay_image = grapher.draw_graph(delaunay_graph)
-            grapher.save_graph(delaunay_image, "delaunay_example.png")
+            grapher.save_graph(delaunay_image, str(output_dir / "delaunay_example.png"))
             print("   Saved delaunay_example.png")
             grapher.show_graph(delaunay_image, title="Delaunay Graph (for comparison)", block=True)
 

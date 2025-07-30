@@ -147,6 +147,17 @@ class GraphizyConfig:
                             raise ValueError(f"Unknown config key: {key}.{nested_key}")
                 else:
                     setattr(self, key, value)
+            # Handle flat parameters that should be routed to appropriate sub-configs
+            elif hasattr(self.drawing, key):
+                setattr(self.drawing, key, value)
+            elif hasattr(self.graph, key):
+                setattr(self.graph, key, value)
+            elif hasattr(self.generation, key):
+                setattr(self.generation, key, value)
+            elif hasattr(self.logging, key):
+                setattr(self.logging, key, value)
+            elif hasattr(self.memory, key):
+                setattr(self.memory, key, value)
             else:
                 raise ValueError(f"Unknown config key: {key}")
 
