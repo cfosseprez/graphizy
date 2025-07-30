@@ -15,8 +15,7 @@ from graphizy.algorithms import (
     call_igraph_method, create_minimum_spanning_tree, create_knn_graph, create_gabriel_graph
 )
 from graphizy.memory import (
-    create_memory_graph, MemoryManager, update_memory_from_custom_function,
-    update_memory_from_graph, update_memory_from_delaunay, update_memory_from_proximity
+    create_memory_graph, MemoryManager, update_memory_from_graph
 )
 from graphizy.positions import (
 generate_positions, format_positions, generate_and_format_positions

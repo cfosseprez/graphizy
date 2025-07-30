@@ -122,7 +122,8 @@ def test_memory_system_integration(grapher):
     data = np.array([[0, 10, 10], [1, 20, 20], [2, 30, 30]])
     
     # Update memory with proximity
-    connections = grapher.update_memory_with_proximity(data, proximity_thresh=50.0)
+    graph = grapher.make_graph("proximity", data, proximity_thresh=50.0)
+    connections = grapher.update_memory_with_graph(graph)
     assert isinstance(connections, dict)
     
     # Get memory statistics
@@ -642,13 +643,15 @@ class TestMemoryManagementMethods:
         grapher.init_memory_manager(max_memory_size=100)
 
         # Test update_memory_with_proximity
-        connections = grapher.update_memory_with_proximity(
+        graph = grapher.make_graph("proximity",
             large_dataset, proximity_thresh=30.0
         )
+        connections = grapher.update_memory_with_graph(graph)
         assert isinstance(connections, dict)
 
         # Test update_memory_with_delaunay
-        connections = grapher.update_memory_with_delaunay(large_dataset)
+        graph = grapher.make_graph("proximity", large_dataset)
+        connections = grapher.update_memory_with_graph(graph)
         assert isinstance(connections, dict)
 
         # Test update_memory_with_graph
@@ -675,10 +678,12 @@ class TestMemoryManagementMethods:
 
         # Test operations without initialized memory manager
         with pytest.raises(GraphCreationError, match="not initialized"):
-            grapher.update_memory_with_proximity(large_dataset)
+            graph = grapher.make_graph("proximity", large_dataset)
+            connections = grapher.update_memory_with_graph(graph)
 
         with pytest.raises(GraphCreationError, match="not initialized"):
-            grapher.update_memory_with_delaunay(large_dataset)
+            graph = grapher.make_graph("proximity", large_dataset)
+            connections = grapher.update_memory_with_graph(graph)
 
         with pytest.raises(GraphCreationError, match="not initialized"):
             graph = grapher.make_proximity(large_dataset, proximity_thresh=30.0)
@@ -690,7 +695,8 @@ class TestMemoryManagementMethods:
         grapher.init_memory_manager()
 
         # Update memory first
-        grapher.update_memory_with_proximity(large_dataset, proximity_thresh=30.0)
+        graph = grapher.make_graph("proximity", large_dataset, proximity_thresh=30.0)
+
 
         # Test memory graph creation
         memory_graph = grapher.make_memory_graph(large_dataset)

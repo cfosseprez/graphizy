@@ -1,5 +1,3 @@
-
-
 import logging
 from typing import List, Tuple, Dict, Any, Union, Optional
 import numpy as np
@@ -10,14 +8,15 @@ from graphizy.exceptions import (
     GraphCreationError, PositionGenerationError, DependencyError,
     IgraphMethodError
 )
-from graphizy.algorithms import (create_graph_array,
-DataInterface,
-create_graph_dict,
-normalize_id,
-normalize_id,
-get_distance,
-make_subdiv,
-graph_delaunay,)
+from graphizy.algorithms import (
+    create_graph_array,
+    DataInterface,
+    create_graph_dict,
+    normalize_id,
+    get_distance,
+    make_subdiv,
+    graph_delaunay,
+)
 
 
 class MemoryManager:
@@ -46,19 +45,23 @@ class MemoryManager:
         if self.track_edge_ages:
             self.edge_ages = {}  # {(obj1, obj2): {"first_seen": iter, "last_seen": iter}}
 
-    def add_connections(self, connections: Dict[str, List[str]]) -> None:
-        """Add new connections to memory
+    def add_connections(self, connections: Dict[Any, List[Any]]) -> None:
+        """Add new connections to memory with automatic ID normalization
 
         Args:
             connections: Dictionary like {"A": ["C", "D"], "B": [], ...}
+                        IDs will be automatically normalized to strings
         """
         self.current_iteration += 1
+
+        # Normalize connections first to ensure consistency
+        normalized_connections = normalize_memory_connections(connections)
 
         # Track current edges for age updates (if enabled)
         if self.track_edge_ages:
             current_edges = set()
 
-        for obj_id, connected_ids in connections.items():
+        for obj_id, connected_ids in normalized_connections.items():
             self.all_objects.add(obj_id)
 
             # Add each connection with current iteration timestamp
@@ -110,7 +113,7 @@ class MemoryManager:
         """Get current memory as a graph dictionary
 
         Returns:
-            Dictionary with current memory connections
+            Dictionary with current memory connections (all IDs normalized as strings)
         """
         result = {}
 
@@ -149,9 +152,9 @@ class MemoryManager:
             ages = [current_iter - info["first_seen"] for info in self.edge_ages.values()]
 
             stats["edge_age_stats"] = {
-                "min_age": min(ages),
-                "max_age": max(ages),
-                "avg_age": sum(ages) / len(ages),
+                "min_age": min(ages) if ages else 0,
+                "max_age": max(ages) if ages else 0,
+                "avg_age": sum(ages) / len(ages) if ages else 0,
                 "total_aged_edges": len(ages)
             }
 
@@ -190,15 +193,42 @@ class MemoryManager:
 
         return normalized_ages
 
+    def clear(self) -> None:
+        """Clear all memory connections and reset state"""
+        self.memory.clear()
+        self.all_objects.clear()
+        if self.track_edge_ages:
+            self.edge_ages.clear()
+        self.current_iteration = 0
+        logging.debug("Memory manager cleared")
+
+
+def normalize_memory_connections(memory_connections: Dict[Any, List[Any]]) -> Dict[str, List[str]]:
+    """Ensure all memory connection IDs are normalized strings
+
+    Args:
+        memory_connections: Raw memory connections with potentially mixed ID types
+
+    Returns:
+        Normalized memory connections with string IDs
+    """
+    normalized = {}
+    for obj_id, connected_ids in memory_connections.items():
+        norm_obj_id = normalize_id(obj_id)
+        norm_connected_ids = [normalize_id(cid) for cid in connected_ids]
+        normalized[norm_obj_id] = norm_connected_ids
+    return normalized
+
 
 def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
-                        memory_connections: Dict[str, List[str]],
+                        memory_connections: Dict[Any, List[Any]],
                         aspect: str = "array") -> Any:
     """Create a graph with current positions and memory-based edges
 
     Args:
         current_positions: Current positions as array [id, x, y, ...] or dict
         memory_connections: Memory connections {"obj_id": ["connected_id1", "connected_id2"]}
+                           IDs will be automatically normalized
         aspect: Data format ("array" or "dict")
 
     Returns:
@@ -208,6 +238,9 @@ def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
         GraphCreationError: If graph creation fails
     """
     try:
+        # Normalize memory connections first for consistency
+        normalized_memory = normalize_memory_connections(memory_connections)
+
         # Create basic graph with positions
         if aspect == "array":
             if not isinstance(current_positions, np.ndarray):
@@ -232,26 +265,21 @@ def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
             normalized_id = normalize_id(obj_id)
             id_to_vertex[normalized_id] = i
 
-        # Add memory-based edges
+        # Add memory-based edges using normalized connections
         edges_to_add = []
-        for obj_id, connected_ids in memory_connections.items():
-            # Normalize the source ID
-            obj_id_norm = normalize_id(obj_id)
-            if obj_id_norm not in id_to_vertex:
-                logging.warning(f"Object {obj_id} (normalized: {obj_id_norm}) in memory but not in current positions")
+        for obj_id, connected_ids in normalized_memory.items():
+            if obj_id not in id_to_vertex:
+                logging.warning(f"Object {obj_id} in memory but not in current positions")
                 continue
 
-            vertex_from = id_to_vertex[obj_id_norm]
+            vertex_from = id_to_vertex[obj_id]
 
             for connected_id in connected_ids:
-                # Normalize the target ID
-                connected_id_norm = normalize_id(connected_id)
-                if connected_id_norm not in id_to_vertex:
-                    logging.warning(
-                        f"Connected object {connected_id} (normalized: {connected_id_norm}) in memory but not in current positions")
+                if connected_id not in id_to_vertex:
+                    logging.warning(f"Connected object {connected_id} in memory but not in current positions")
                     continue
 
-                vertex_to = id_to_vertex[connected_id_norm]
+                vertex_to = id_to_vertex[connected_id]
 
                 # Avoid self-loops and ensure consistent edge ordering
                 if vertex_from != vertex_to:
@@ -274,69 +302,6 @@ def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
         raise GraphCreationError(f"Failed to create memory graph: {str(e)}")
 
 
-def update_memory_from_proximity(current_positions: Union[np.ndarray, Dict[str, Any]],
-                                 proximity_thresh: float,
-                                 memory_manager: MemoryManager,
-                                 metric: str = "euclidean",
-                                 aspect: str = "array") -> Dict[str, List[str]]:
-    """Update memory manager with current proximity connections
-
-    Args:
-        current_positions: Current positions
-        proximity_thresh: Distance threshold for proximity
-        memory_manager: MemoryManager instance to update
-        metric: Distance metric
-        aspect: Data format
-
-    Returns:
-        Current proximity connections dictionary
-    """
-    try:
-
-        # Extract position data and create ID mapping
-        if aspect == "array":
-            if not isinstance(current_positions, np.ndarray):
-                raise GraphCreationError("Expected numpy array for 'array' aspect")
-
-            # Normalize IDs consistently
-            object_ids = [normalize_id(obj_id) for obj_id in current_positions[:, 0]]
-            positions_2d = current_positions[:, 1:3].astype(float)
-
-        elif aspect == "dict":
-            if isinstance(current_positions, np.ndarray):
-                data_interface = DataInterface([("id", int), ("x", int), ("y", int)])
-                current_positions = data_interface.convert(current_positions)
-
-            # Normalize IDs consistently
-            object_ids = [normalize_id(obj_id) for obj_id in current_positions["id"]]
-            positions_2d = np.column_stack([current_positions["x"], current_positions["y"]])
-
-        else:
-            raise GraphCreationError("Aspect must be 'array' or 'dict'")
-
-        # Get proximity connections
-        proximity_indices = get_distance(positions_2d, proximity_thresh, metric)
-
-        # Convert indices to object IDs
-        current_connections = {}
-        for i, nearby_indices in enumerate(proximity_indices):
-            obj_id = object_ids[i]
-            connected_ids = [object_ids[j] for j in nearby_indices]
-            current_connections[obj_id] = connected_ids
-
-        # Ensure all objects are represented (even those with no connections)
-        for obj_id in object_ids:
-            if obj_id not in current_connections:
-                current_connections[obj_id] = []
-
-        # Update memory manager
-        memory_manager.add_connections(current_connections)
-
-        return current_connections
-
-    except Exception as e:
-        raise GraphCreationError(f"Failed to update memory from proximity: {str(e)}")
-
 
 def update_memory_from_graph(graph: Any, memory_manager: MemoryManager) -> Dict[str, List[str]]:
     """Update memory manager from any igraph Graph object
@@ -346,7 +311,7 @@ def update_memory_from_graph(graph: Any, memory_manager: MemoryManager) -> Dict[
         memory_manager: MemoryManager instance to update
 
     Returns:
-        Current connections dictionary
+        Current connections dictionary (normalized IDs)
     """
     try:
         if graph is None:
@@ -354,23 +319,23 @@ def update_memory_from_graph(graph: Any, memory_manager: MemoryManager) -> Dict[
         if memory_manager is None:
             raise GraphCreationError("Memory manager cannot be None")
 
-        # Extract connections from the graph
+        # Extract connections from the graph with consistent normalization
         current_connections = {}
 
-        # Initialize all vertices with empty connections
+        # Initialize all vertices with empty connections (normalized IDs)
         for vertex in graph.vs:
-            obj_id = normalize_id(vertex["id"])  # FIXED: Added normalization
+            obj_id = normalize_id(vertex["id"])
             current_connections[obj_id] = []
 
-        # Add edges as bidirectional connections
+        # Add edges as bidirectional connections (normalized IDs)
         for edge in graph.es:
-            vertex1_id = normalize_id(graph.vs[edge.tuple[0]]["id"])  # FIXED: Added normalization
-            vertex2_id = normalize_id(graph.vs[edge.tuple[1]]["id"])  # FIXED: Added normalization
+            vertex1_id = normalize_id(graph.vs[edge.tuple[0]]["id"])
+            vertex2_id = normalize_id(graph.vs[edge.tuple[1]]["id"])
 
             current_connections[vertex1_id].append(vertex2_id)
             current_connections[vertex2_id].append(vertex1_id)
 
-        # Update memory manager
+        # Update memory manager (normalization happens inside add_connections)
         memory_manager.add_connections(current_connections)
 
         return current_connections
@@ -379,51 +344,7 @@ def update_memory_from_graph(graph: Any, memory_manager: MemoryManager) -> Dict[
         raise GraphCreationError(f"Failed to update memory from graph: {str(e)}")
 
 
-def update_memory_from_delaunay(current_positions: Union[np.ndarray, Dict[str, Any]],
-                                memory_manager: MemoryManager,
-                                aspect: str = "array",
-                                dimension: Tuple[int, int] = (1200, 1200)) -> Dict[str, List[str]]:
-    """Update memory manager with Delaunay triangulation connections
-
-    Args:
-        current_positions: Current positions
-        memory_manager: MemoryManager instance to update
-        aspect: Data format
-        dimension: Canvas dimensions for triangulation
-
-    Returns:
-        Current Delaunay connections dictionary
-    """
-    try:
-        # Create temporary graph for Delaunay triangulation
-        if aspect == "array":
-            temp_graph = create_graph_array(current_positions)
-            pos_array = np.stack((
-                current_positions[:, 1],  # x positions
-                current_positions[:, 2]  # y positions
-            ), axis=1)
-        elif aspect == "dict":
-            if isinstance(current_positions, np.ndarray):
-                data_interface = DataInterface([("id", int), ("x", int), ("y", int)])
-                current_positions = data_interface.convert(current_positions)
-            temp_graph = create_graph_dict(current_positions)
-            pos_array = np.column_stack([current_positions["x"], current_positions["y"]])
-        else:
-            raise GraphCreationError("Aspect must be 'array' or 'dict'")
-
-        # Create Delaunay triangulation
-        subdiv = make_subdiv(pos_array, dimension)
-        tri_list = subdiv.getTriangleList()
-        delaunay_graph = graph_delaunay(temp_graph, subdiv, tri_list)
-
-        # Update memory from the Delaunay graph
-        return update_memory_from_graph(delaunay_graph, memory_manager)
-
-    except Exception as e:
-        raise GraphCreationError(f"Failed to update memory from Delaunay: {str(e)}")
-
-
-def update_memory_from_custom_function(current_positions: Union[np.ndarray, Dict[str, Any]],
+def update_memory_from_custom_function(data_points: Union[np.ndarray, Dict[str, Any]],
                                        memory_manager: MemoryManager,
                                        connection_function: callable,
                                        aspect: str = "array",
@@ -431,56 +352,48 @@ def update_memory_from_custom_function(current_positions: Union[np.ndarray, Dict
     """Update memory using a custom connection function
 
     Args:
-        current_positions: Current positions
+        data_points: Point data in specified aspect format
         memory_manager: MemoryManager instance to update
-        connection_function: Function that takes positions and returns connections
-        aspect: Data format
-        **kwargs: Additional arguments for the connection function
+        connection_function: Function that returns connections as iterable of (id1, id2) pairs
+        aspect: Data format ("array" or "dict")
+        **kwargs: Additional arguments passed to connection_function
 
     Returns:
-        Current connections dictionary
+        Dict[str, List[str]]: Current connections dictionary (normalized IDs)
     """
     try:
         # Call the custom function to get connections
-        custom_connections = connection_function(current_positions, **kwargs)
+        raw_connections = connection_function(data_points, **kwargs)
 
-        # Handle different return types from custom function
-        if hasattr(custom_connections, 'vs'):  # It's an igraph object
-            return update_memory_from_graph(custom_connections, memory_manager)
+        # Convert connections to our standard format
+        connections_dict = {}
 
-        elif isinstance(custom_connections, (list, tuple)):  # List of (id1, id2) tuples
-            # Convert connections list to connection dictionary
-            connections_dict = {}
+        # Initialize all objects with empty connections
+        if aspect == "array":
+            if not isinstance(data_points, np.ndarray):
+                raise GraphCreationError("Expected numpy array for 'array' aspect")
+            for obj_id in data_points[:, 0]:
+                connections_dict[normalize_id(obj_id)] = []
+        elif aspect == "dict":
+            if isinstance(data_points, dict):
+                for obj_id in data_points["id"]:
+                    connections_dict[normalize_id(obj_id)] = []
+            else:
+                raise GraphCreationError("Expected dictionary for 'dict' aspect")
 
-            # Initialize all object IDs
-            if aspect == "array":
-                all_ids = [normalize_id(obj_id) for obj_id in current_positions[:, 0]]
-            else:  # dict aspect
-                all_ids = [normalize_id(obj_id) for obj_id in current_positions["id"]]
+        # Add connections from custom function
+        for connection in raw_connections:
+            if len(connection) >= 2:
+                id1, id2 = normalize_id(connection[0]), normalize_id(connection[1])
+                if id1 in connections_dict:
+                    connections_dict[id1].append(id2)
+                if id2 in connections_dict:
+                    connections_dict[id2].append(id1)
 
-            for obj_id in all_ids:
-                connections_dict[obj_id] = []
+        # Update memory manager
+        memory_manager.add_connections(connections_dict)
 
-            # Add connections from the list
-            for connection in custom_connections:
-                if len(connection) >= 2:
-                    id1 = normalize_id(connection[0])
-                    id2 = normalize_id(connection[1])
-
-                    if id1 in connections_dict and id2 in connections_dict:
-                        connections_dict[id1].append(id2)
-                        connections_dict[id2].append(id1)
-
-            # Update memory manager
-            memory_manager.add_connections(connections_dict)
-            return connections_dict
-
-        elif isinstance(custom_connections, dict):  # Already a connections dictionary
-            memory_manager.add_connections(custom_connections)
-            return custom_connections
-
-        else:
-            raise GraphCreationError(f"Custom function returned unsupported type: {type(custom_connections)}")
+        return connections_dict
 
     except Exception as e:
         raise GraphCreationError(f"Failed to update memory from custom function: {str(e)}")
@@ -498,39 +411,48 @@ def example_memory_graph_usage():
         [4, 400, 100],  # Object D at (400, 100)
     ])
 
-    # Example memory connections (historical proximities)
+    # Example memory connections (historical proximities) - mixed ID types
     memory_connections = {
-        "1": ["3", "4"],  # A was connected to C and D
-        "2": [],  # B has no memory connections
-        "3": ["1"],  # C was connected to A
-        "4": ["1"],  # D was connected to A
+        1: [3, 4],  # Integer IDs (will be normalized to strings)
+        "2": [],  # String ID
+        3: ["1"],  # Mixed types (will be normalized)
+        "4": [1],  # Mixed types (will be normalized)
     }
 
-    # Create memory graph
+    # Create memory graph (automatic normalization)
     graph = create_memory_graph(current_positions, memory_connections, aspect="array")
 
     print(f"Memory graph: {graph.vcount()} vertices, {graph.ecount()} edges")
 
     # Using with MemoryManager
-    memory_mgr = MemoryManager(max_memory_size=50, max_iterations=10)
+    memory_mgr = MemoryManager(max_memory_size=50, max_iterations=10, track_edge_ages=True)
 
-    # Simulate multiple iterations
+    # Simulate multiple iterations with mixed ID types
     for iteration in range(5):
-        # Simulate changing proximity connections each iteration
+        # Simulate changing proximity connections each iteration (mixed ID types)
         proximity_connections = {
-            "1": ["2"] if iteration % 2 == 0 else ["3"],
-            "2": ["1"] if iteration % 2 == 0 else [],
-            "3": ["1"] if iteration % 2 == 1 else ["4"],
-            "4": ["3"] if iteration % 2 == 1 else [],
+            1: [2] if iteration % 2 == 0 else [3],  # Integer IDs
+            "2": ["1"] if iteration % 2 == 0 else [],  # String IDs
+            3: [1] if iteration % 2 == 1 else [4],  # Mixed types
+            "4": ["3"] if iteration % 2 == 1 else [],  # String IDs
         }
 
         memory_mgr.add_connections(proximity_connections)
 
-    # Get final memory state
+    # Get final memory state (all normalized)
     final_memory = memory_mgr.get_current_memory_graph()
     final_graph = create_memory_graph(current_positions, final_memory, aspect="array")
 
     stats = memory_mgr.get_memory_stats()
     print(f"Final memory stats: {stats}")
 
+    # Show edge age information
+    edge_ages = memory_mgr.get_edge_ages()
+    print(f"Edge ages: {edge_ages}")
+
     return final_graph
+
+
+if __name__ == "__main__":
+    # Test the corrected memory system
+    example_memory_graph_usage()

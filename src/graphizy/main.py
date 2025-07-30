@@ -36,6 +36,7 @@ import time
 import timeit
 from typing import Union, Dict, Any, List, Tuple, Optional
 import numpy as np
+from networkx.algorithms.clique import make_max_clique_graph
 
 from graphizy.config import GraphizyConfig, DrawingConfig, GraphConfig
 from graphizy.exceptions import (
@@ -48,8 +49,7 @@ from graphizy.algorithms import (
     create_minimum_spanning_tree, create_knn_graph, create_gabriel_graph,
 )
 from graphizy.memory import (
-    create_memory_graph, MemoryManager, update_memory_from_custom_function,
-    update_memory_from_graph, update_memory_from_delaunay, update_memory_from_proximity
+    create_memory_graph, MemoryManager, update_memory_from_graph, update_memory_from_custom_function
 )
 from graphizy.drawing import Visualizer
 
@@ -301,6 +301,314 @@ class Graphing:
             return graph
         except Exception as e:
             raise GraphCreationError(f"Failed to identify graph: {str(e)}")
+
+    def set_graph_type(self, graph_type: Union[str, List[str], Tuple[str]], **default_kwargs):
+        """
+        Set the type(s) of graph to generate automatically during updates.
+
+        This method configures the Graphing object to automatically create specific
+        graph types when update_graphs() is called with new data. Supports single
+        or multiple graph types with default parameters.
+
+        Args:
+            graph_type: Graph type(s) to generate automatically. Can be:
+                       - str: Single graph type (e.g., 'delaunay')
+                       - List[str]: Multiple graph types (e.g., ['delaunay', 'proximity'])
+                       - Tuple[str]: Multiple graph types as tuple
+            **default_kwargs: Default parameters for graph creation, applied to all types.
+                             Type-specific parameters can be set using update_graph_params().
+
+        Raises:
+            ValueError: If any graph_type is not recognized.
+            GraphCreationError: If configuration fails.
+
+        Examples:
+            >>> # Set single graph type
+            >>> grapher.set_graph_type('delaunay')
+
+            >>> # Set multiple graph types
+            >>> grapher.set_graph_type(['delaunay', 'proximity', 'knn'])
+
+            >>> # Set with default parameters
+            >>> grapher.set_graph_type('proximity', proximity_thresh=50.0, metric='euclidean')
+
+            >>> # Set multiple types with defaults
+            >>> grapher.set_graph_type(['knn', 'gabriel'], k=6)  # k applies only to knn
+        """
+        try:
+            # Normalize input to list
+            if isinstance(graph_type, str):
+                self.graph_types = [graph_type]
+            elif isinstance(graph_type, (list, tuple)):
+                self.graph_types = list(graph_type)
+            else:
+                raise ValueError(f"graph_type must be str, list, or tuple, got {type(graph_type)}")
+
+            # Validate all graph types are recognized
+            available_types = set(self.list_graph_types().keys())
+            for gtype in self.graph_types:
+                if gtype not in available_types:
+                    raise ValueError(f"Unknown graph type '{gtype}'. Available: {sorted(available_types)}")
+
+            # Store default parameters for each graph type
+            self.graph_type_params = {}
+            for gtype in self.graph_types:
+                self.graph_type_params[gtype] = default_kwargs.copy()
+
+            # Store current graphs (will be populated by update_graphs)
+            self.current_graphs = {}
+
+            logging.info(f"Graph types set to: {self.graph_types}")
+            if default_kwargs:
+                logging.info(f"Default parameters: {default_kwargs}")
+
+        except Exception as e:
+            raise GraphCreationError(f"Failed to set graph type: {str(e)}")
+
+    def clear_graph_types(self):
+        """
+        Clear all configured graph types and current graphs.
+        """
+        self.graph_types = []
+        self.graph_type_params = {}
+        self.current_graphs = {}
+        logging.info("Cleared all graph types")
+
+    def get_graph_type_info(self) -> Dict[str, Any]:
+        """
+        Get information about current graph type configuration.
+
+        Returns:
+            Dict[str, Any]: Configuration information including types, parameters, and status.
+        """
+        if not hasattr(self, 'graph_types'):
+            return {'configured': False, 'message': 'No graph types configured'}
+
+        return {
+            'configured': True,
+            'graph_types': self.graph_types.copy(),
+            'parameters': self.graph_type_params.copy(),
+            'current_graphs_available': {
+                gtype: (graph is not None)
+                for gtype, graph in getattr(self, 'current_graphs', {}).items()
+            }
+        }
+
+    def update_graph_params(self, graph_type: str, **kwargs):
+        """
+        Update parameters for a specific graph type.
+
+        Args:
+            graph_type: The graph type to update parameters for.
+            **kwargs: Parameters to set for this graph type.
+
+        Examples:
+            >>> grapher.set_graph_type(['proximity', 'knn'])
+            >>> grapher.update_graph_params('proximity', proximity_thresh=75.0, metric='manhattan')
+            >>> grapher.update_graph_params('knn', k=8)
+        """
+        if not hasattr(self, 'graph_types') or graph_type not in self.graph_types:
+            raise ValueError(f"Graph type '{graph_type}' not in current types: {getattr(self, 'graph_types', [])}")
+
+        self.graph_type_params[graph_type].update(kwargs)
+        logging.info(f"Updated parameters for '{graph_type}': {kwargs}")
+
+    def update_graphs(self, data_points: Union[np.ndarray, Dict[str, Any]],
+                      update_memory: Optional[bool] = None, use_memory: Optional[bool] = None,
+                      **override_kwargs) -> Dict[str, Any]:
+        """
+        Update all configured graph types with new data using smart memory defaults.
+
+        This method automatically creates graphs of all types specified by set_graph_type()
+        using the provided data. Optionally updates memory manager and returns all
+        generated graphs. Uses the same smart memory defaults as make_graph().
+
+        Args:
+            data_points: New point data in the format specified by self.aspect.
+            update_memory: Whether to update memory manager with new graphs.
+                          If None and memory manager exists, defaults based on use_memory.
+                          Only works if memory_manager is initialized.
+            use_memory: Whether to create memory-enhanced graphs from existing connections.
+                       If None and memory manager exists, defaults to True.
+                       Only works if memory_manager is initialized.
+            **override_kwargs: Parameters that override defaults for this update only.
+
+        Returns:
+            Dict[str, Any]: Dictionary mapping graph type names to generated graph objects.
+
+        Smart Defaults:
+            - If memory_manager exists and use_memory=None → use_memory=True
+            - If use_memory=True and update_memory=None → update_memory=True
+            - If no memory_manager → both default to False
+
+        Examples:
+            >>> # Set up automatic graph generation
+            >>> grapher.set_graph_type(['delaunay', 'proximity', 'knn'])
+            >>> grapher.update_graph_params('proximity', proximity_thresh=60.0)
+            >>> grapher.update_graph_params('knn', k=5)
+
+            >>> # Basic update - uses smart memory defaults
+            >>> new_data = np.random.rand(100, 3) * 100
+            >>> graphs = grapher.update_graphs(new_data)  # Memory automatic if available
+
+            >>> # Explicit memory control
+            >>> graphs = grapher.update_graphs(new_data, use_memory=False)  # Force no memory
+            >>> graphs = grapher.update_graphs(new_data, use_memory=True, update_memory=False)  # Use but don't update
+
+            >>> # Parameter overrides
+            >>> graphs = grapher.update_graphs(new_data, k=8)  # Override k for knn
+
+            >>> # Memory + parameter overrides
+            >>> graphs = grapher.update_graphs(new_data, use_memory=True, proximity_thresh=75.0)
+        """
+        try:
+            if not hasattr(self, 'graph_types'):
+                raise GraphCreationError("No graph types set. Call set_graph_type() first.")
+
+            # Apply smart defaults based on memory manager state (same logic as make_graph)
+            if self.memory_manager is not None:
+                # Memory manager exists - default to using memory
+                if use_memory is None:
+                    use_memory = True
+                # If using memory, default to updating it too (continuous learning)
+                if use_memory and update_memory is None:
+                    update_memory = True
+            else:
+                # No memory manager - default to no memory operations
+                if use_memory is None:
+                    use_memory = False
+                if update_memory is None:
+                    update_memory = False
+
+            timer_start = time.time()
+            updated_graphs = {}
+
+            # Generate each configured graph type
+            for graph_type in self.graph_types:
+                try:
+                    # Get stored parameters for this graph type
+                    graph_params = self.graph_type_params[graph_type].copy()
+
+                    # Create the graph using make_graph with smart memory defaults
+                    graph = self.make_graph(
+                        graph_type=graph_type,
+                        data_points=data_points,
+                        graph_params=graph_params,
+                        update_memory=update_memory,  # Pass computed smart default
+                        use_memory=use_memory,  # Pass computed smart default
+                        **override_kwargs  # These override graph_params
+                    )
+                    updated_graphs[graph_type] = graph
+
+                    logging.debug(f"Updated {graph_type} graph successfully")
+
+                except Exception as e:
+                    logging.error(f"Failed to update {graph_type} graph: {e}")
+                    updated_graphs[graph_type] = None
+
+            # Store current graphs
+            self.current_graphs = updated_graphs
+
+            elapsed_ms = round((time.time() - timer_start) * 1000, 3)
+            successful_updates = sum(1 for g in updated_graphs.values() if g is not None)
+
+            # Enhanced logging with memory info
+            memory_status = ""
+            if self.memory_manager is not None:
+                memory_status = f" (memory: use={use_memory}, update={update_memory})"
+
+            logging.info(
+                f"Updated {successful_updates}/{len(self.graph_types)} graphs in {elapsed_ms}ms{memory_status}")
+
+            return updated_graphs
+
+        except Exception as e:
+            raise GraphCreationError(f"Failed to update graphs: {str(e)}")
+
+
+    def update_graphs_memory_only(self, data_points: Union[np.ndarray, Dict[str, Any]],
+                                  **override_kwargs) -> Dict[str, Any]:
+        """
+        Convenience method to update graphs using only memory (no current data learning).
+
+        This creates graphs purely from accumulated memory connections without updating
+        the memory with current data. Useful for seeing what the "remembered" graph
+        structure looks like.
+
+        Args:
+            data_points: Current point data (positions only, connections from memory).
+            **override_kwargs: Parameter overrides for graph creation.
+
+        Returns:
+            Dict[str, Any]: Dictionary of memory-based graphs.
+
+        Examples:
+            >>> # Build up memory over time
+            >>> grapher.update_graphs(data1)  # Learn from data1
+            >>> grapher.update_graphs(data2)  # Learn from data2
+
+            >>> # See what the accumulated memory looks like
+            >>> memory_graphs = grapher.update_graphs_memory_only(current_data)
+        """
+        return self.update_graphs(
+            data_points=data_points,
+            use_memory=True,
+            update_memory=False,  # Don't learn from current
+            **override_kwargs
+        )
+
+    def update_graphs_learning_only(self, data_points: Union[np.ndarray, Dict[str, Any]],
+                                    **override_kwargs) -> Dict[str, Any]:
+        """
+        Convenience method to create regular graphs and update memory (no memory usage).
+
+        This creates graphs from current data and adds the connections to memory
+        for future use, but doesn't use existing memory for the current graphs.
+
+        Args:
+            data_points: Current point data.
+            **override_kwargs: Parameter overrides for graph creation.
+
+        Returns:
+            Dict[str, Any]: Dictionary of current graphs (memory updated as side effect).
+
+        Examples:
+            >>> # Build up memory without using it yet
+            >>> grapher.update_graphs_learning_only(data1)  # Add data1 to memory
+            >>> grapher.update_graphs_learning_only(data2)  # Add data2 to memory
+
+            >>> # Now use accumulated memory
+            >>> memory_graphs = grapher.update_graphs_memory_only(current_data)
+        """
+        return self.update_graphs(
+            data_points=data_points,
+            use_memory=False,  # Don't use existing memory
+            update_memory=True,  # But learn from current
+            **override_kwargs
+        )
+
+
+    def get_current_graphs(self) -> Dict[str, Any]:
+        """
+        Get the most recently generated graphs.
+
+        Returns:
+            Dict[str, Any]: Dictionary of current graphs by type name.
+        """
+        return getattr(self, 'current_graphs', {})
+
+    def get_current_graph(self, graph_type: str) -> Any:
+        """
+        Get the most recent graph of a specific type.
+
+        Args:
+            graph_type: The type of graph to retrieve.
+
+        Returns:
+            Any: The igraph Graph object, or None if not available.
+        """
+        current_graphs = self.get_current_graphs()
+        return current_graphs.get(graph_type, None)
 
     def _get_data_as_array(self, data_points: Union[np.ndarray, Dict[str, Any]]) -> np.ndarray:
         """
@@ -708,14 +1016,16 @@ class Graphing:
     # PLUGIN SYSTEM METHODS
     # ============================================================================
 
-    def make_graph(self, graph_type: str, data_points: Union[np.ndarray, Dict[str, Any]], **kwargs) -> Any:
+    def make_graph(self, graph_type: str, data_points: Union[np.ndarray, Dict[str, Any]],
+                   graph_params: Optional[Dict] = None,
+                   update_memory: Optional[bool] = None, use_memory: Optional[bool] = None, **kwargs) -> Any:
         """
-        Create a graph using the extensible plugin system.
+        Create a graph using the extensible plugin system with intelligent memory defaults.
 
         This method provides access to both built-in and community-contributed
         graph types through a unified interface. It automatically handles data
         format conversion and passes the appropriate parameters to the graph
-        creation algorithm.
+        creation algorithm. Optionally integrates with memory system using smart defaults.
 
         Args:
             graph_type: Name of the graph type to create. Built-in types include:
@@ -724,57 +1034,152 @@ class Graphing:
             data_points: Point data in the format specified by self.aspect:
                         - For "array": NumPy array with shape (n, 3) containing [id, x, y]
                         - For "dict": Dictionary with keys "id", "x", "y" as lists/arrays
-            **kwargs: Graph-type specific parameters. These vary by graph type:
-                     - proximity: proximity_thresh, metric
-                     - knn: k (number of neighbors)
-                     - mst: metric
-                     - memory: memory_connections
-                     - Custom plugins may have their own parameters
+            graph_params: Dictionary of parameters specific to the graph type.
+                         If None, uses empty dict. These are the algorithm-specific parameters:
+                         - proximity: {'proximity_thresh': 50.0, 'metric': 'euclidean'}
+                         - knn: {'k': 5}
+                         - mst: {'metric': 'euclidean'}
+                         - etc.
+            update_memory: Whether to update memory manager with the created graph.
+                          If None and memory manager exists, defaults based on use_memory.
+                          Only works if memory_manager is initialized.
+            use_memory: Whether to create a memory-enhanced graph from existing connections.
+                       If None and memory manager exists, defaults to True.
+                       Only works if memory_manager is initialized.
+            **kwargs: Additional graph-type specific parameters that override graph_params.
+                     These are merged with graph_params, with kwargs taking precedence.
 
         Returns:
-            Any: igraph Graph object of the specified type.
+            Any: igraph Graph object of the specified type, optionally memory-enhanced.
 
         Raises:
             ValueError: If graph_type is not found in the registry.
             GraphCreationError: If graph creation fails due to invalid parameters
                                or computation errors.
 
+        Smart Defaults:
+            - If memory_manager exists and use_memory=None → use_memory=True
+            - If use_memory=True and update_memory=None → update_memory=True
+            - If no memory_manager → both default to False
+
         Examples:
-            >>> # Create built-in graph types
-            >>> delaunay_graph = grapher.make_graph('delaunay', data)
-            >>> proximity_graph = grapher.make_graph('proximity', data, proximity_thresh=60.0)
+            >>> # Simple direct usage (most common)
+            >>> graph = grapher.make_graph('delaunay', data)
+            >>> connections = grapher.make_graph('proximity', data, proximity_thresh=80.0)
             >>> knn_graph = grapher.make_graph('knn', data, k=5)
-            >>> mst_graph = grapher.make_graph('mst', data, metric='manhattan')
 
-            >>> # Example with custom plugin (hypothetical)
-            >>> voronoi_graph = grapher.make_graph('voronoi', data, boundary_mode='reflect')
+            >>> # Using graph_params dictionary (for complex configs)
+            >>> prox_params = {'proximity_thresh': 75.0, 'metric': 'manhattan'}
+            >>> graph = grapher.make_graph('proximity', data, graph_params=prox_params)
 
-            >>> # Check available graph types
-            >>> available_types = grapher.list_graph_types()
-            >>> print(available_types.keys())
+            >>> # Mixed usage - kwargs override graph_params
+            >>> graph = grapher.make_graph('proximity', data,
+            ...                          graph_params={'proximity_thresh': 50.0},
+            ...                          proximity_thresh=100.0)  # This wins
+
+            >>> # Memory control with direct parameters
+            >>> graph = grapher.make_graph('knn', data, k=8, use_memory=False, update_memory=True)
+
+            >>> # Both styles work seamlessly
+            >>> algorithm_params = {'proximity_thresh': 60.0, 'metric': 'euclidean'}
+            >>> graph1 = grapher.make_graph('proximity', data, graph_params=algorithm_params)
+            >>> graph2 = grapher.make_graph('proximity', data, proximity_thresh=60.0, metric='euclidean')
+            >>> # graph1 and graph2 are equivalent
 
         Note:
-            - Plugin system allows for extensibility without modifying core code
-            - Built-in graph types are always available
-            - Community plugins may have additional dependencies
-            - Use list_graph_types() to see all available graph types
-            - Use get_graph_info() to see parameters for specific graph types
+            - Direct kwargs are the most convenient: make_graph('proximity', data, proximity_thresh=80.0)
+            - graph_params provides clean organization for complex configurations
+            - kwargs override graph_params for convenient parameter overrides
+            - Both styles can be mixed: graph_params for base config, kwargs for overrides
+            - Smart defaults make memory usage automatic when memory_manager exists
+            - Explicit parameters always override defaults
+            - use_memory=True: Uses EXISTING memory connections from previous calls
+            - update_memory=True: Adds current graph connections to memory for future use
+            - Memory creates historical connection patterns for temporal analysis
         """
+
+        # Handle graph_params - merge with kwargs (kwargs take precedence)
+        if graph_params is None:
+            graph_params = {}
+
+        # Merge graph_params with kwargs, with kwargs taking precedence
+        final_params = graph_params.copy()
+        final_params.update(kwargs)
+
+        # Apply smart defaults based on memory manager state
+        if self.memory_manager is not None:
+            # Memory manager exists - default to using memory
+            if use_memory is None:
+                use_memory = True
+            # If using memory, default to updating it too (continuous learning)
+            if use_memory and update_memory is None:
+                update_memory = True
+        else:
+            # No memory manager - default to no memory operations
+            if use_memory is None:
+                use_memory = False
+            if update_memory is None:
+                update_memory = False
+
         try:
             from .plugins_logic import get_graph_registry
 
             # Centralize data conversion BEFORE calling the plugin system
             data_array = self._get_data_as_array(data_points)
-
             registry = get_graph_registry()
-            # Pass the standardized array to the registry.
-            # The 'aspect' parameter is no longer needed by the plugin's create_graph method.
-            return registry.create_graph(
+
+            # Handle memory-enhanced graph creation
+            if use_memory and self.memory_manager is not None:
+
+                if not update_memory:
+                    # Pure memory: use only existing connections, don't learn from current
+                    memory_graph = self.make_memory_graph(data_points)
+                    logging.debug(f"Created pure memory {graph_type} from existing connections")
+                    return memory_graph
+
+                else:
+                    # Memory + Learning: use existing memory, then learn from current
+                    # Step 1: Create memory graph from EXISTING connections
+                    existing_memory_graph = self.make_memory_graph(data_points)
+
+                    # Step 2: Create current graph to learn from
+                    current_graph = registry.create_graph(
+                        graph_type=graph_type,
+                        data_points=data_array,
+                        dimension=self.dimension,
+                        **final_params
+                    )
+
+                    # Step 3: Update memory with current graph for future use
+                    self.update_memory_with_graph(current_graph)
+
+                    # Step 4: Return the memory-based graph (not the current one)
+                    logging.debug(f"Created memory {graph_type} from existing connections, learned from current")
+                    return existing_memory_graph
+
+            elif use_memory and self.memory_manager is None:
+                # User wants memory but it's not initialized - helpful warning
+                logging.warning("use_memory=True but no memory manager initialized. "
+                                "Creating regular graph. Call init_memory_manager() first.")
+
+            # Create regular graph (default path or fallback)
+            graph = registry.create_graph(
                 graph_type=graph_type,
                 data_points=data_array,
                 dimension=self.dimension,
-                **kwargs
+                **final_params
             )
+
+            # Update memory if requested (for building up memory without using it yet)
+            if update_memory and self.memory_manager is not None:
+                self.update_memory_with_graph(graph)
+                logging.debug(f"Created {graph_type} graph and updated memory")
+            elif update_memory and self.memory_manager is None:
+                logging.warning("update_memory=True but no memory manager initialized. "
+                                "Call init_memory_manager() first.")
+
+            return graph
+
         except Exception as e:
             raise GraphCreationError(f"Failed to create {graph_type} graph: {str(e)}")
 
@@ -875,6 +1280,29 @@ class Graphing:
         except Exception as e:
             raise DrawingError(f"Failed to draw graph: {e}") from e
 
+    def draw_all_graphs(self, **kwargs) -> Dict[str, np.ndarray]:
+        """
+        Draw all current graphs to image arrays.
+
+        Args:
+            **kwargs: Drawing parameters passed to draw_graph().
+
+        Returns:
+            Dict[str, np.ndarray]: Dictionary mapping graph types to image arrays.
+        """
+        images = {}
+        current_graphs = self.get_current_graphs()
+
+        for graph_type, graph in current_graphs.items():
+            if graph is not None:
+                try:
+                    images[graph_type] = self.draw_graph(graph, **kwargs)
+                except Exception as e:
+                    logging.error(f"Failed to draw {graph_type} graph: {e}")
+                    images[graph_type] = None
+
+        return images
+
     def draw_memory_graph(self, graph: Any, **kwargs) -> np.ndarray:
         """
         Draw a memory graph with optional age-based coloring.
@@ -944,6 +1372,20 @@ class Graphing:
             self.visualizer.show_graph(image_graph, title, **kwargs)
         except Exception as e:
             raise DrawingError(f"Failed to show graph: {e}") from e
+
+    def show_all_graphs(self, **kwargs):
+        """
+        Display all current graphs in separate windows.
+
+        Args:
+            **kwargs: Parameters passed to show_graph().
+        """
+        images = self.draw_all_graphs()
+
+        for graph_type, image in images.items():
+            if image is not None:
+                title = kwargs.get('title', f"Graphizy - {graph_type.title()}")
+                self.show_graph(image, title=title)
 
     def save_graph(self, image_graph: np.ndarray, filename: str) -> None:
         """
@@ -1021,6 +1463,13 @@ class Graphing:
         except Exception as e:
             raise GraphCreationError(f"Failed to initialize memory manager: {str(e)}")
 
+    def _ensure_memory_integration(self, operation_name: str):
+        """Helper to check memory manager state before operations"""
+        if self.memory_manager is None:
+            logging.warning(f"{operation_name} called but no memory manager initialized")
+            return False
+        return True
+
     def make_memory_graph(self,
                          data_points: Union[np.ndarray, Dict[str, Any]],
                          memory_connections: Optional[Dict] = None) -> Any:
@@ -1081,119 +1530,8 @@ class Graphing:
         except Exception as e:
             raise GraphCreationError(f"Failed to create memory graph: {str(e)}")
 
-    def update_memory_with_proximity(self,
-                                   data_points: Union[np.ndarray, Dict[str, Any]],
-                                   proximity_thresh: float = None) -> None:
-        """
-        Update memory manager with current proximity-based connections.
 
-        This method computes proximity connections for the current data and
-        adds them to the memory manager's historical record. Over time, this
-        builds up a picture of which points are frequently close to each other.
-
-        Args:
-            data_points: Current point data in the format specified by self.aspect:
-                        - For "array": NumPy array with shape (n, 3) containing [id, x, y]
-                        - For "dict": Dictionary with keys "id", "x", "y" as lists/arrays
-            proximity_thresh: Distance threshold for connections. If None, uses
-                            config.graph.proximity_threshold.
-
-        Raises:
-            GraphCreationError: If memory manager is not initialized or update fails.
-
-        Examples:
-            >>> # Initialize memory tracking
-            >>> grapher.init_memory_manager(max_memory_size=500)
-            >>>
-            >>> # Simulate temporal data and track proximity over time
-            >>> for timestep in range(50):
-            ...     # Get data for current timestep (your implementation)
-            ...     current_data = simulate_moving_points(timestep)
-            ...
-            ...     # Update memory with current proximity connections
-            ...     grapher.update_memory_with_proximity(current_data, proximity_thresh=25.0)
-            >>>
-            >>> # Analyze accumulated memory
-            >>> stats = grapher.get_memory_stats()
-            >>> print(f"Total connections remembered: {stats['total_connections']}")
-
-            >>> # Create memory graph showing persistent connections
-            >>> memory_graph = grapher.make_memory_graph(current_data)
-
-        Note:
-            - Must call init_memory_manager() first
-            - Each call adds current proximity connections to memory
-            - Memory manager automatically handles size limits and aging
-            - Frequent calls with similar data will strengthen connection memories
-        """
-        try:
-            if self.memory_manager is None:
-                raise GraphCreationError("Memory manager not initialized. Call init_memory_manager() first")
-
-            if proximity_thresh is None:
-                proximity_thresh = self.config.graph.proximity_threshold
-
-            return update_memory_from_proximity(
-                data_points,
-                proximity_thresh,
-                self.memory_manager,
-                self.config.graph.distance_metric,
-                self.aspect
-            )
-        except Exception as e:
-            raise GraphCreationError(f"Failed to update memory with proximity: {str(e)}")
-
-    def update_memory_with_delaunay(self, data_points: Union[np.ndarray, Dict[str, Any]]) -> None:
-        """
-        Update memory manager with Delaunay triangulation connections.
-
-        This method computes Delaunay triangulation for the current data and
-        adds the resulting connections to memory. This is useful for tracking
-        natural neighbor relationships over time.
-
-        Args:
-            data_points: Point data in the format specified by self.aspect:
-                        - For "array": NumPy array with shape (n, 3) containing [id, x, y]
-                        - For "dict": Dictionary with keys "id", "x", "y" as lists/arrays
-
-        Raises:
-            GraphCreationError: If memory manager is not initialized or update fails.
-
-        Examples:
-            >>> # Track Delaunay connections over time for moving points
-            >>> grapher.init_memory_manager(max_memory_size=300)
-            >>>
-            >>> # Simulate points moving and track neighbor changes
-            >>> for t in range(20):
-            ...     # Move points according to some dynamics
-            ...     data = update_point_positions(data, t)
-            ...
-            ...     # Track which points remain Delaunay neighbors
-            ...     grapher.update_memory_with_delaunay(data)
-            >>>
-            >>> # Create graph of persistent neighbor relationships
-            >>> persistent_neighbors = grapher.make_memory_graph(data)
-
-        Note:
-            - Delaunay connections change as points move
-            - Memory tracks which pairs were ever Delaunay neighbors
-            - Useful for understanding local neighborhood stability
-            - Combines well with other memory update methods
-        """
-        try:
-            if self.memory_manager is None:
-                raise GraphCreationError("Memory manager not initialized")
-
-            return update_memory_from_delaunay(
-                data_points,
-                self.memory_manager,
-                self.aspect,
-                self.dimension
-            )
-        except Exception as e:
-            raise GraphCreationError(f"Failed to update memory with Delaunay: {str(e)}")
-
-    def update_memory_with_graph(self, graph: Any) -> None:
+    def update_memory_with_graph(self, graph: Any) -> Dict[str, List[str]]:
         """
         Update memory manager from any existing graph object.
 

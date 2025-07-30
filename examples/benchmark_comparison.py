@@ -72,18 +72,24 @@ def benchmark_delaunay_triangulation():
         tri = Delaunay(positions)
         G = nx.Graph()
 
-        # Add nodes with spatial coordinates as attributes
-        for i, pos in enumerate(positions):
-            G.add_node(i, x=pos[0], y=pos[1])
+        G.add_nodes_from((i, {'x': pos[0], 'y': pos[1]}) for i, pos in enumerate(positions))
 
-        # Add edges from triangulation
+        # Extract all unique edges from triangulation
+        edges_set = set()
         for simplex in tri.simplices:
             for i in range(3):
                 for j in range(i + 1, 3):
-                    # Calculate edge length for spatial awareness
-                    p1, p2 = positions[simplex[i]], positions[simplex[j]]
-                    dist = np.linalg.norm(p1 - p2)
-                    G.add_edge(simplex[i], simplex[j], weight=dist)
+                    a, b = sorted((simplex[i], simplex[j]))
+                    edges_set.add((a, b))
+
+        # Create weighted edge list using NumPy vectorization
+        edges = [
+            (i, j, {'weight': np.linalg.norm(positions[i] - positions[j])})
+            for i, j in edges_set
+        ]
+
+        # Add all edges to the graph at once
+        G.add_edges_from(edges)
 
         networkx_construction_time = (time.perf_counter() - start_construction) * 1000
 
@@ -209,15 +215,22 @@ def benchmark_proximity_graphs():
 
         # Create NetworkX graph
         G = nx.Graph()
-        for i, pos in enumerate(positions):
-            G.add_node(i, x=pos[0], y=pos[1])
+        # Add nodes with positions
+        G.add_nodes_from((i, {'x': pos[0], 'y': pos[1]}) for i, pos in enumerate(positions))
 
-        # Add edges using same logic as Graphizy
-        for i, row in enumerate(square_dist):
-            nearby_indices = np.where((row < threshold) & (row > 0))[0]
-            for j in nearby_indices:
-                if i < j:  # Avoid duplicates
-                    G.add_edge(i, j, weight=row[j])
+        # Use upper triangle of the distance matrix to avoid duplicate edges
+        i_idx, j_idx = np.triu_indices_from(square_dist, k=1)
+
+        # Apply threshold to filter valid edges
+        mask = (square_dist[i_idx, j_idx] < threshold) & (square_dist[i_idx, j_idx] > 0)
+        i_idx, j_idx = i_idx[mask], j_idx[mask]
+        weights = square_dist[i_idx, j_idx]
+
+        # Build edge list with weights
+        edges = [(i, j, {'weight': w}) for i, j, w in zip(i_idx, j_idx, weights)]
+
+        # Add all edges at once
+        G.add_edges_from(edges)
 
         networkx_construction_time = (time.perf_counter() - start_construction) * 1000
 
@@ -335,14 +348,21 @@ def benchmark_mst_graphs():
 
         # Create complete graph with distances
         G_complete = nx.Graph()
-        for i, pos in enumerate(positions):
-            G_complete.add_node(i, x=pos[0], y=pos[1])
+        # Add nodes with positions
+        G_complete.add_nodes_from((i, {'x': pos[0], 'y': pos[1]}) for i, pos in enumerate(positions))
 
-        # Add all edges with weights
-        for i in range(n_nodes):
-            for j in range(i + 1, n_nodes):
-                dist = np.linalg.norm(positions[i] - positions[j])
-                G_complete.add_edge(i, j, weight=dist)
+        # Compute pairwise distances using pdist
+        dists = squareform(pdist(positions))  # shape (n_nodes, n_nodes)
+
+        # Get upper triangle indices (i < j) to avoid duplicates
+        i_idx, j_idx = np.triu_indices_from(dists, k=1)
+        weights = dists[i_idx, j_idx]
+
+        # Create edge list with weights
+        edges = [(i, j, {'weight': w}) for i, j, w in zip(i_idx, j_idx, weights)]
+
+        # Add all edges at once
+        G_complete.add_edges_from(edges)
 
         # Get minimum spanning tree
         G = nx.minimum_spanning_tree(G_complete)

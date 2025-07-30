@@ -56,8 +56,8 @@ def test_graphing_memory_integration(grapher, sample_array_data):
     assert grapher.memory_manager is not None
 
     # Update memory
-    grapher.update_memory_with_proximity(sample_array_data, proximity_thresh=50.0)
-    grapher.update_memory_with_proximity(sample_array_data, proximity_thresh=110.0)
+    grapher.make_graph("proximity", sample_array_data, proximity_thresh=50.0, update_memory=True)
+    grapher.make_graph("proximity", sample_array_data, proximity_thresh=110.0, update_memory=True)
 
     # Create memory graph
     mem_graph = grapher.make_memory_graph(sample_array_data)

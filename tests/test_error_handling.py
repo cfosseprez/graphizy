@@ -232,11 +232,11 @@ class TestMemorySystemErrors:
 
         # Invalid data format
         with pytest.raises(GraphCreationError):
-            grapher.update_memory_with_proximity("invalid_data", 50.0)
+            grapher.update_memory_with_graph("invalid_data")
 
         # Empty data
         with pytest.raises(GraphCreationError):
-            grapher.update_memory_with_proximity(np.array([]).reshape(0, 3), 50.0)
+            grapher.update_memory_with_graph(np.array([]).reshape(0, 3))
 
 
 class TestRuntimeErrors:

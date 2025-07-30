@@ -1,31 +1,25 @@
 """
-Improved Interactive Brownian Motion Viewer for Graphizy
+Simplified Interactive Brownian Motion Viewer for Graphizy
 
-This version treats memory as a MODIFIER that can be applied to any graph type,
-including the new Minimum Spanning Tree (MST) graph type.
+This version uses the new graph update system to dramatically simplify the code.
+Memory is now handled automatically by the update system.
 
 Graph Types:
     1 - Proximity Graph
     2 - Delaunay Triangulation
     3 - Gabriel Graph
-    4 - Minimum Spanning Tree (NEW!)
+    4 - Minimum Spanning Tree
     5 - Combined View (All graphs)
 
-Memory Modifier:
-    --memory / -m - Apply memory tracking to the selected graph type
-
 Examples:
-    python improved_brownian.py 1          # Proximity graph (no memory)
-    python improved_brownian.py 1 --memory # Proximity graph WITH memory
-    python improved_brownian.py 4 --memory # MST WITH memory
-    python improved_brownian.py 5 --memory # All graphs WITH memory
+    python simplified_brownian.py 1          # Proximity graph (no memory)
+    python simplified_brownian.py 1 --memory # Proximity graph WITH memory
+    python simplified_brownian.py 4 --memory # MST WITH memory
+    python simplified_brownian.py 5 --memory # All graphs WITH memory
 
 Controls:
-    ESC - Exit
-    SPACE - Pause/Resume
-    R - Reset simulation
-    M - Toggle memory on/off during simulation
-    1-5 - Switch graph type
+    ESC - Exit, SPACE - Pause/Resume, R - Reset simulation
+    M - Toggle memory on/off, 1-5 - Switch graph type
     + / - - Increase/decrease memory size
 
 .. moduleauthor:: Charles Fosseprez
@@ -42,17 +36,12 @@ import time
 import cv2
 from typing import Optional, Dict, List, Tuple, Any
 
-from graphizy import (
-    Graphing, GraphizyConfig, generate_positions
-)
-
-
+from graphizy import Graphing, GraphizyConfig, generate_positions
 
 
 class BrownianSimulator:
     """
-    Brownian motion simulation with easy control
-
+    Brownian motion simulation using the new graph update system
     """
 
     def __init__(self, width: int = 800, height: int = 600, num_particles: int = 50,
@@ -68,24 +57,30 @@ class BrownianSimulator:
         self.diffusion_coefficient = 15.0
         self.boundary_buffer = 20
         self.proximity_threshold = 100.0
-        self.delaunay_update_frequency = 3
 
         # Display parameters
-        self.window_name = "Graphizy - Interactive (Press m to toggle memory / 1-5 to change graph type)"
+        self.window_name = "Graphizy - Simplified (Press m to toggle memory / 1-5 to change graph type)"
         self.paused = False
         self.current_graph_type = 1
 
-        # Graph type definitions (memory is NOT a separate type)
+        # Graph type definitions
         self.graph_type_names = {
             1: "Proximity Graph",
             2: "Delaunay Triangulation",
             3: "Gabriel Graph",
-            4: "Minimum Spanning Tree",  # NEW!
+            4: "Minimum Spanning Tree",
             5: "Combined View"
         }
 
-        print("Initializing Improved Brownian simulation with MST support...")
-        print("Memory is treated as a MODIFIER that can be applied to any graph type")
+        # Map numbers to graph type strings
+        self.type_map = {
+            1: 'proximity',
+            2: 'delaunay',
+            3: 'gabriel',
+            4: 'mst'
+        }
+
+        print("Initializing Simplified Brownian simulation...")
         print(f"Memory {'ENABLED' if use_memory else 'DISABLED'}")
         print("Controls: ESC=Exit, SPACE=Pause, R=Reset, M=Toggle Memory, 1-5=Graph Type, +/-=Memory Size")
 
@@ -103,40 +98,44 @@ class BrownianSimulator:
         print(f"Initialized {self.num_particles} particles.")
 
     def _setup_graphers(self):
-        """Setup graphers for different visualization styles"""
-        base_config = GraphizyConfig()
-        base_config.graph.dimension = (self.width, self.height)
-        base_config.drawing.point_radius = 8
-        base_config.drawing.line_thickness = 2
+        """Setup graphers using the new update system"""
+        # Create distinct colored graphers for each type
+        self.graphers = {}
 
-        # Create graphers with distinct colors for each base type
-        self.graphers = {
-            'proximity': self._create_grapher(base_config, (0, 0, 255), (255, 255, 255)),  # Red
-            'delaunay': self._create_grapher(base_config, (0, 255, 0), (255, 255, 0)),  # Green
-            'gabriel': self._create_grapher(base_config, (255, 100, 0), (100, 255, 255)),  # Blue
-            'mst': self._create_grapher(base_config, (255, 0, 255), (255, 255, 100)),  # Purple (NEW!)
+        colors = {
+            'proximity': {'line': (0, 0, 255), 'point': (255, 255, 255)},    # Red
+            'delaunay': {'line': (0, 255, 0), 'point': (255, 255, 0)},       # Green
+            'gabriel': {'line': (255, 100, 0), 'point': (100, 255, 255)},    # Blue
+            'mst': {'line': (255, 0, 255), 'point': (255, 255, 100)}         # Purple
         }
 
-        # Initialize memory managers for each grapher if memory is enabled
-        if self.use_memory:
-            self._initialize_memory_managers()
+        for graph_type, color_config in colors.items():
+            # Create grapher with specific colors
+            config = GraphizyConfig()
+            config.graph.dimension = (self.width, self.height)
+            config.drawing.point_radius = 8
+            config.drawing.line_thickness = 2
+            config.drawing.line_color = color_config['line']
+            config.drawing.point_color = color_config['point']
 
-    def _initialize_memory_managers(self):
-        """Initialize memory managers for all graphers"""
-        for grapher in self.graphers.values():
-            grapher = grapher.init_memory_manager(
-                max_memory_size=self.memory_size,
-                max_iterations=None,  # Keep all history
-                track_edge_ages=True
-            )
-        print(f"Memory managers initialized with size {self.memory_size}")
+            grapher = Graphing(config=config)
 
-    def _create_grapher(self, base_config: GraphizyConfig, line_color: tuple, point_color: tuple) -> Graphing:
-        """Create a styled Graphing instance"""
-        config = base_config.copy()
-        config.drawing.line_color = line_color
-        config.drawing.point_color = point_color
-        return Graphing(config=config)
+            # Configure the graph type using the new system
+            if graph_type == 'proximity':
+                grapher.set_graph_type('proximity', proximity_thresh=self.proximity_threshold)
+            else:
+                grapher.set_graph_type(graph_type)
+
+            # Initialize memory if enabled
+            if self.use_memory:
+                grapher.init_memory_manager(
+                    max_memory_size=self.memory_size,
+                    track_edge_ages=True
+                )
+
+            self.graphers[graph_type] = grapher
+
+        print(f"Graphers initialized with graph update system")
 
     def _setup_opencv(self):
         """Setup OpenCV window"""
@@ -163,102 +162,31 @@ class BrownianSimulator:
         self.particle_stack[:, 2] = np.clip(self.particle_stack[:, 2], self.boundary_buffer,
                                             self.height - self.boundary_buffer)
 
-    def create_base_graph(self, graph_type: str) -> Any:
-        """Create base graph of specified type (without memory)"""
-        grapher = self.graphers[graph_type]
-
-        if graph_type == 'proximity':
-            return grapher.make_proximity(self.particle_stack, proximity_thresh=self.proximity_threshold)
-
-        elif graph_type == 'delaunay':
-            # Update Delaunay less frequently for performance
-            if self.iteration % self.delaunay_update_frequency == 0:
-                graph = grapher.make_delaunay(self.particle_stack)
-                setattr(self, f'_last_{graph_type}', graph)
-                return graph
-            else:
-                return getattr(self, f'_last_{graph_type}', None)
-
-        elif graph_type == 'gabriel':
-            # Create gabriel graph
-            return self._create_gabriel_graph(grapher)
-
-        elif graph_type == 'mst':
-            # Create Minimum Spanning Tree graph (NEW!)
-            return self._create_mst_graph(grapher)
-
-        return None
-
-    def create_memory_enhanced_graph(self, graph_type: str) -> Any:
-        """Create graph with memory enhancement"""
-        grapher = self.graphers[graph_type]
-
-        # First create the base graph
-        base_graph = self.create_base_graph(graph_type)
-
-        if base_graph is None or grapher.memory_manager is None:
-            return base_graph
-
-        # Update memory with current base graph connections
-        grapher.update_memory_with_graph(base_graph)
-
-        # Create memory-enhanced graph (current positions + memory connections)
-        memory_graph = grapher.make_memory_graph(self.particle_stack)
-
-        return memory_graph
-
-    def _create_gabriel_graph(self, grapher: Graphing) -> Any:
-        """Create Gabriel graph"""
-        try:
-            # Use the new MST functionality from the main Graphing class
-            return grapher.make_gabriel(self.particle_stack)
-
-        except Exception as e:
-            print(f"Gabriel creation failed: {e}, using proximity fallback")
-            # Fallback to proximity if MST fails
-            return grapher.make_proximity(self.particle_stack, proximity_thresh=self.proximity_threshold * 0.8)
-
-    def _create_mst_graph(self, grapher: Graphing) -> Any:
-        """Create Minimum Spanning Tree graph"""
-        try:
-            # Use the new MST functionality from the main Graphing class
-            return grapher.make_mst(self.particle_stack)
-
-        except Exception as e:
-            print(f"MST creation failed: {e}, using proximity fallback")
-            # Fallback to proximity if MST fails
-            return grapher.make_proximity(self.particle_stack, proximity_thresh=self.proximity_threshold * 0.8)
-
     def create_visualization(self, graph_type: int) -> Optional[np.ndarray]:
-        """Create visualization for specified graph type (with or without memory)"""
+        """Create visualization using the simplified update system"""
         if graph_type == 5:  # Combined view
             return self._create_combined_view()
 
-        # Map graph type number to string
-        type_map = {1: 'proximity', 2: 'delaunay', 3: 'gabriel', 4: 'mst'}
-        graph_type_str = type_map.get(graph_type)
-
+        # Get the graph type string
+        graph_type_str = self.type_map.get(graph_type)
         if not graph_type_str:
             return None
 
-        # Create graph with or without memory
-        if self.use_memory:
-            graph = self.create_memory_enhanced_graph(graph_type_str)
-        else:
-            graph = self.create_base_graph(graph_type_str)
+        grapher = self.graphers[graph_type_str]
 
+        # Update the graphs
+        graphs = grapher.update_graphs(self.particle_stack, update_memory=self.use_memory)
+
+        # Get the generated graph
+        graph = graphs.get(graph_type_str)
         if graph is None:
             return None
 
-        # Draw the graph
-        grapher = self.graphers[graph_type_str]
-
-        # Special drawing for memory-enhanced graphs
+        # Draw the graph (automatically handles memory visualization)
         if self.use_memory and grapher.memory_manager is not None:
             try:
                 return grapher.draw_memory_graph(graph, use_age_colors=True, alpha_range=(0.3, 1.0))
             except:
-                # Fallback to regular drawing
                 return grapher.draw_graph(graph)
         else:
             return grapher.draw_graph(graph)
@@ -325,7 +253,12 @@ class BrownianSimulator:
         self.use_memory = not self.use_memory
 
         if self.use_memory:
-            self._initialize_memory_managers()
+            # Initialize memory for all graphers
+            for grapher in self.graphers.values():
+                grapher.init_memory_manager(
+                    max_memory_size=self.memory_size,
+                    track_edge_ages=True
+                )
             print(f"Memory ENABLED (size: {self.memory_size})")
         else:
             # Clear memory managers
@@ -341,7 +274,12 @@ class BrownianSimulator:
         new_size = max(5, self.memory_size + delta)  # Minimum size of 5
         if new_size != self.memory_size:
             self.memory_size = new_size
-            self._initialize_memory_managers()  # Reinitialize with new size
+            # Reinitialize memory managers with new size
+            for grapher in self.graphers.values():
+                grapher.init_memory_manager(
+                    max_memory_size=self.memory_size,
+                    track_edge_ages=True
+                )
             print(f"Memory size adjusted to: {self.memory_size}")
 
     def handle_keyboard_input(self, key: int) -> bool:
@@ -355,7 +293,12 @@ class BrownianSimulator:
             self._initialize_particles()
             self.iteration = 0
             if self.use_memory:
-                self._initialize_memory_managers()
+                # Clear and reinitialize memory
+                for grapher in self.graphers.values():
+                    grapher.init_memory_manager(
+                        max_memory_size=self.memory_size,
+                        track_edge_ages=True
+                    )
             print("Simulation reset")
         elif key == ord('m') or key == ord('M'):  # Toggle memory
             self.toggle_memory()
@@ -406,3 +349,56 @@ class BrownianSimulator:
 
         print(f"Simulation finished after {self.iteration} iterations.")
         cv2.destroyAllWindows()
+
+
+def main():
+    """Main function with command line argument parsing"""
+    parser = argparse.ArgumentParser(description='Simplified Interactive Brownian Motion with Graphizy')
+    parser.add_argument('graph_type', type=int, nargs='?', default=1,
+                        help='Graph type: 1=Proximity, 2=Delaunay, 3=Gabriel, 4=MST, 5=Combined')
+    parser.add_argument('--memory', '-m', action='store_true',
+                        help='Enable memory tracking')
+    parser.add_argument('--memory-size', type=int, default=25,
+                        help='Memory size (default: 25)')
+    parser.add_argument('--particles', '-p', type=int, default=50,
+                        help='Number of particles (default: 50)')
+    parser.add_argument('--width', type=int, default=800,
+                        help='Window width (default: 800)')
+    parser.add_argument('--height', type=int, default=600,
+                        help='Window height (default: 600)')
+    parser.add_argument('--fps', type=int, default=30,
+                        help='Target FPS (default: 30)')
+    parser.add_argument('--iterations', type=int, default=1000,
+                        help='Max iterations (default: 1000)')
+
+    args = parser.parse_args()
+
+    if args.graph_type not in [1, 2, 3, 4, 5]:
+        print("Error: Graph type must be 1-5")
+        print("1=Proximity, 2=Delaunay, 3=Gabriel, 4=MST, 5=Combined")
+        sys.exit(1)
+
+    # Create and run simulator
+    simulator = BrownianSimulator(
+        width=args.width,
+        height=args.height,
+        num_particles=args.particles,
+        use_memory=args.memory,
+        memory_size=args.memory_size
+    )
+
+    try:
+        simulator.run_simulation(
+            graph_type=args.graph_type,
+            max_iterations=args.iterations,
+            fps=args.fps
+        )
+    except KeyboardInterrupt:
+        print("\nSimulation interrupted by user")
+    except Exception as e:
+        print(f"Simulation error: {e}")
+        logging.error(f"Simulation failed: {e}", exc_info=True)
+
+
+if __name__ == "__main__":
+    main()

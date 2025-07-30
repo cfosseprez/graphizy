@@ -95,11 +95,12 @@ class TestCompleteWorkflows:
                 data[:, 1:3] = positions
 
             # Update memory with current proximity
-            connections = grapher.update_memory_with_proximity(data, proximity_thresh=80.0)
+            graph = grapher.make_graph(graph_type="proximity", data_points=data , proximity_thresh=80.0)
+            connections = grapher.update_memory_with_graph(graph)
             assert isinstance(connections, dict)
 
             # Create regular graph and update memory
-            current_graph = grapher.make_graph("delaunay", data)
+            current_graph = grapher.make_graph(graph_type="delaunay", data_points=data)
             grapher.update_memory_with_graph(current_graph)
 
         # 4. Create final memory graph
@@ -415,7 +416,8 @@ class TestErrorRecoveryWorkflows:
 
         # Should handle memory limits gracefully
         for i in range(10):  # More iterations than max_iterations
-            connections = grapher.update_memory_with_proximity(data, proximity_thresh=30.0)
+            graph = grapher.make_graph("proximity", data, proximity_thresh=30.0, update_memory=True)
+            connections = grapher.update_memory_with_graph(graph)
             assert isinstance(connections, dict)
 
         # Memory should be constrained
