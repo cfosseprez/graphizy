@@ -20,6 +20,7 @@ from graphizy.memory import (
 from graphizy.positions import (
 generate_positions, format_positions, generate_and_format_positions
 )
+from graphizy.weight import WeightComputer
 from graphizy.drawing import (
     draw_point, draw_line, draw_delaunay, show_graph, save_graph,
     draw_memory_graph_with_aging, create_memory_graph_image
@@ -79,10 +80,10 @@ __all__ = [
     # Memory functions
     "MemoryManager",
     "create_memory_graph",
-    "update_memory_from_proximity",
     "update_memory_from_graph",
-    "update_memory_from_delaunay",
-    "update_memory_from_custom_function",
+
+    # Weight functions
+    "WeightComputer",
 
     # Drawing functions
     "draw_point",

@@ -51,6 +51,7 @@ from graphizy.algorithms import (
 from graphizy.memory import (
     create_memory_graph, MemoryManager, update_memory_from_graph, update_memory_from_custom_function
 )
+from graphizy.weight import WeightComputer
 from graphizy.drawing import Visualizer
 from graphizy.plugins_logic import get_graph_registry
 
@@ -179,6 +180,10 @@ class Graphing:
 
             # Initialize memory manager as None (created on-demand)
             self.memory_manager = None
+
+            # Initialize weight manager as None (created on-demand)
+            self.weight_computer = None
+            self.auto_compute_weights = False
 
             # Initialize the visualizer
             self.visualizer = Visualizer(self.config.drawing, self.config.graph.dimension)
@@ -1019,7 +1024,10 @@ class Graphing:
 
     def make_graph(self, graph_type: str, data_points: Union[np.ndarray, Dict[str, Any]],
                    graph_params: Optional[Dict] = None,
-                   update_memory: Optional[bool] = None, use_memory: Optional[bool] = None, **kwargs) -> Any:
+                   update_memory: Optional[bool] = None,
+                   use_memory: Optional[bool] = None,
+                   compute_weights: Optional[bool] = None,
+                   **kwargs) -> Any:
         """
         Create a graph using the extensible plugin system with intelligent memory defaults.
 
@@ -1047,6 +1055,7 @@ class Graphing:
             use_memory: Whether to create a memory-enhanced graph from existing connections.
                        If None and memory manager exists, defaults to True.
                        Only works if memory_manager is initialized.
+            compute_weights: Whether to compute edges weights. Only works if weight_computer is initialized.
             **kwargs: Additional graph-type specific parameters that override graph_params.
                      These are merged with graph_params, with kwargs taking precedence.
 
@@ -1099,71 +1108,33 @@ class Graphing:
             - Memory creates historical connection patterns for temporal analysis
         """
 
-        # Handle graph_params - merge with kwargs (kwargs take precedence)
+        # Handle parameters
         if graph_params is None:
             graph_params = {}
-
-        # Merge graph_params with kwargs, with kwargs taking precedence
         final_params = graph_params.copy()
         final_params.update(kwargs)
 
-        # Apply smart defaults based on memory manager state
+        # Smart defaults for memory
         if self.memory_manager is not None:
-            # Memory manager exists - default to using memory
             if use_memory is None:
                 use_memory = True
-            # If using memory, default to updating it too (continuous learning)
             if use_memory and update_memory is None:
                 update_memory = True
         else:
-            # No memory manager - default to no memory operations
             if use_memory is None:
                 use_memory = False
             if update_memory is None:
                 update_memory = False
 
+        # Smart defaults for weights
+        if compute_weights is None:
+            compute_weights = self.auto_compute_weights
+
         try:
-
-
-            # Centralize data conversion BEFORE calling the plugin system
             data_array = self._get_data_as_array(data_points)
+
+            # STEP 1: Create base graph
             registry = get_graph_registry()
-
-            # Handle memory-enhanced graph creation
-            if use_memory and self.memory_manager is not None:
-
-                if not update_memory:
-                    # Pure memory: use only existing connections, don't learn from current
-                    memory_graph = self.make_memory_graph(data_points)
-                    logging.debug(f"Created pure memory {graph_type} from existing connections")
-                    return memory_graph
-
-                else:
-                    # Memory + Learning: use existing memory, then learn from current
-                    # Step 1: Create memory graph from EXISTING connections
-                    existing_memory_graph = self.make_memory_graph(data_points)
-
-                    # Step 2: Create current graph to learn from
-                    current_graph = registry.create_graph(
-                        graph_type=graph_type,
-                        data_points=data_array,
-                        dimension=self.dimension,
-                        **final_params
-                    )
-
-                    # Step 3: Update memory with current graph for future use
-                    self.update_memory_with_graph(current_graph)
-
-                    # Step 4: Return the memory-based graph (not the current one)
-                    logging.debug(f"Created memory {graph_type} from existing connections, learned from current")
-                    return existing_memory_graph
-
-            elif use_memory and self.memory_manager is None:
-                # User wants memory but it's not initialized - helpful warning
-                logging.warning("use_memory=True but no memory manager initialized. "
-                                "Creating regular graph. Call init_memory_manager() first.")
-
-            # Create regular graph (default path or fallback)
             graph = registry.create_graph(
                 graph_type=graph_type,
                 data_points=data_array,
@@ -1171,20 +1142,19 @@ class Graphing:
                 **final_params
             )
 
-            # Update memory if requested (for building up memory without using it yet)
-            if update_memory and self.memory_manager is not None:
-                self.update_memory_with_graph(graph)
-                logging.debug(f"Created {graph_type} graph and updated memory")
-            elif update_memory and self.memory_manager is None:
-                logging.warning("update_memory=True but no memory manager initialized. "
-                                "Call init_memory_manager() first.")
+            # STEP 2: Apply memory processing (modifies graph structure)
+            graph = self._maybe_apply_memory(graph, data_points, use_memory, update_memory)
+
+            # STEP 3: Compute weights (adds attributes to existing edges)
+            graph = self._maybe_compute_weights(graph, data_array, compute_weights)
 
             return graph
 
         except Exception as e:
             raise GraphCreationError(f"Failed to create {graph_type} graph: {str(e)}")
 
-    @staticmethod
+
+@staticmethod
     def list_graph_types(category: Optional[str] = None) -> Dict[str, Any]:
         """
         List all available graph types in the plugin registry.
@@ -1471,6 +1441,35 @@ class Graphing:
             return False
         return True
 
+
+    def _maybe_apply_memory(self, graph: Any, data_points: Union[np.ndarray, Dict[str, Any]],
+                            use_memory: bool, update_memory: bool) -> Any:
+        """
+        Apply memory processing to modify graph structure.
+
+        This is where memory can:
+        - Add historical connections
+        - Remove transient connections
+        - Modify the graph topology based on temporal patterns
+        """
+        if not self.memory_manager:
+            return graph
+
+        if update_memory:
+            # Learn from current graph
+            self.update_memory_with_graph(graph)
+            logging.debug("Updated memory with current graph connections")
+
+        if use_memory:
+            # Create memory-enhanced graph
+            # This could replace or augment the current graph with historical connections
+            memory_graph = self.make_memory_graph(data_points)
+            logging.debug("Created memory-enhanced graph from historical connections")
+            return memory_graph
+
+        return graph
+
+
     def make_memory_graph(self,
                          data_points: Union[np.ndarray, Dict[str, Any]],
                          memory_connections: Optional[Dict] = None) -> Any:
@@ -1711,7 +1710,29 @@ class Graphing:
             return {"error": f"Failed to get memory analysis: {str(e)}"}
 
     # ============================================================================
-    # Networkx bridge
+    # WEIGHT COMPUTATION METHODS
+    # ============================================================================
+
+    def init_weight_computer(self, weight_computer: 'WeightComputer',
+                            auto_compute: bool = True) -> None:
+        """Set weight computer with optional auto-computation"""
+        self.weight_computer = weight_computer
+        self.auto_compute_weights = auto_compute
+
+    def compute_weights(self, graph: Any, data_points: np.ndarray) -> Any:
+        """Manually compute weights for a graph"""
+        if self.weight_computer is None:
+            raise ValueError("No WeightComputer set. Call set_weight_computer() first.")
+        return self.weight_computer.compute_weights(graph, data_points)
+
+    def _maybe_compute_weights(self, graph: Any, data_points: np.ndarray) -> Any:
+        """Internal method to auto-compute weights if enabled"""
+        if self.auto_compute_weights and self.weight_computer is not None:
+            return self.weight_computer.compute_weights(graph, data_points)
+        return graph
+
+    # ============================================================================
+    # NETWORKX BRIDGE
     # ============================================================================
 
     def get_networkx_analyzer(self) -> 'NetworkXAnalyzer':

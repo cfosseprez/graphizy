@@ -73,6 +73,16 @@ class MemoryConfig:
         if self.max_iterations is not None and self.max_iterations <= 0:
             raise ValueError("max_iterations must be positive or None")
 
+
+@dataclass
+class WeightConfig:
+    """Configuration for weight computation"""
+    auto_compute: bool = False
+    weight_method: str = "distance"  # "distance", "custom", "inverse_distance"
+    normalize_weights: bool = True
+    weight_range: Tuple[float, float] = (0.0, 1.0)
+
+
 @dataclass
 class GenerationConfig:
     """Configuration for position generation"""
@@ -117,6 +127,7 @@ class GraphizyConfig:
     generation: GenerationConfig = field(default_factory=GenerationConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
+    weight: WeightConfig = field(default_factory=WeightConfig)
 
     def __init__(self, **kwargs):
         graph_kwargs = {k: kwargs.pop(k) for k in list(kwargs.keys()) if k in GraphConfig.__dataclass_fields__}
@@ -124,12 +135,14 @@ class GraphizyConfig:
         gen_kwargs = {k: kwargs.pop(k) for k in list(kwargs.keys()) if k in GenerationConfig.__dataclass_fields__}
         logging_kwargs = {k: kwargs.pop(k) for k in list(kwargs.keys()) if k in LoggingConfig.__dataclass_fields__}
         memory_kwargs = {k: kwargs.pop(k) for k in list(kwargs.keys()) if k in MemoryConfig.__dataclass_fields__}
+        weight_kwargs = {k: kwargs.pop(k) for k in list(kwargs.keys()) if k in WeightConfig.__dataclass_fields__}
 
         self.graph = GraphConfig(**graph_kwargs)
         self.drawing = DrawingConfig(**drawing_kwargs)
         self.generation = GenerationConfig(**gen_kwargs)
         self.logging = LoggingConfig(**logging_kwargs)
         self.memory = MemoryConfig(**memory_kwargs)
+        self.weight = WeightConfig(**weight_kwargs)
 
         if kwargs:
             raise ValueError(f"Unknown configuration keys: {list(kwargs.keys())}")
