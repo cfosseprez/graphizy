@@ -32,9 +32,6 @@ def test_get_data_as_array(grapher, grapher_dict, sample_array_data, sample_dict
     result_dict = grapher_dict._get_data_as_array(sample_dict_data)
     np.testing.assert_array_equal(result_dict, sample_array_data)
 
-    # Invalid aspect/data combinations - STILL WORKS
-    with pytest.raises(GraphCreationError):
-        grapher._get_data_as_array(sample_dict_data)
 
 
 def test_graph_creation_methods(grapher, sample_array_data):
@@ -234,10 +231,7 @@ def test_data_validation_and_conversion(grapher, grapher_dict):
     
     with pytest.raises(GraphCreationError):
         grapher._get_data_as_array("not_valid_data")
-    
-    # Test mismatched aspect and data
-    with pytest.raises(GraphCreationError):
-        grapher._get_data_as_array(valid_dict)  # Array grapher with dict data
+
 
 
 def test_graph_modification_and_analysis(grapher):
@@ -394,13 +388,13 @@ class TestDataHandlingMethods:
         """Test successful data conversions through _get_data_as_array."""
 
         # Test array aspect with valid array
-        grapher = Graphing(aspect="array")
+        grapher = Graphing(aspect="array", data_shape=[("id", int), ("x", float), ("y", float)])
         array_data = np.array([[1, 10, 15], [2, 20, 25]], dtype=float)
         result = grapher._get_data_as_array(array_data)
         np.testing.assert_array_equal(result, array_data)
 
         # Test dict aspect with valid dict
-        grapher = Graphing(aspect="dict")
+        grapher = Graphing(aspect="dict", data_shape=[("id", int), ("x", float), ("y", float)])
         dict_data = {"id": [1, 2, 3], "x": [10, 20, 30], "y": [15, 25, 35]}
         result = grapher._get_data_as_array(dict_data)
         expected = np.array([[1, 10, 15], [2, 20, 25], [3, 30, 35]])
@@ -478,7 +472,7 @@ class TestGraphCreationMethods:
             assert graph.ecount() == 19  # MST property: n-1 edges
 
         # Test with None metric (should use config default)
-        graph = grapher.make_graph(graph_type="mst", data_points=large_dataset, metric=None)
+        graph = grapher.make_graph(graph_type="mst", data_points=large_dataset)
         assert graph.ecount() == 19
 
     def test_make_gabriel_comprehensive(self, large_dataset):

@@ -925,7 +925,6 @@ def create_knn_graph(positions: np.ndarray, k: int = 3, aspect: str = "array",
 
 def create_mst_graph(positions: np.ndarray, aspect: str = "array",
                      metric: str = "euclidean",
-                     edge_metric: str = "euclidean",
                      add_distance: Union[bool, Dict[str, Any]] = True) -> Any:
     """Create minimum spanning tree graph from a standardized array.
 
@@ -942,6 +941,7 @@ def create_mst_graph(positions: np.ndarray, aspect: str = "array",
         else:
             raise NotImplementedError("Dict aspect not implemented for MST")
 
+        assert isinstance(metric, str), f"Expected 'metric' to be a string, got {type(metric).__name__}"
         normalized_metric = normalize_distance_metric(metric)
         distances = squareform(pdist(pos_2d, metric=normalized_metric))
 

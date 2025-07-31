@@ -36,7 +36,7 @@ def default_config():
 @pytest.fixture
 def grapher(default_config):
     """Provides a default Graphing instance configured for array aspect."""
-    return Graphing(config=default_config)
+    return Graphing(config=default_config, data_shape=[("id", int), ("x", float), ("y", float)])
 
 @pytest.fixture
 def grapher_dict(default_config):

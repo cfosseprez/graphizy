@@ -44,7 +44,7 @@ class TestDataInterface:
 
         # Test with missing keys
         incomplete_dict = {"id": [1, 2], "x": [10, 20]}  # Missing 'y'
-        with pytest.raises(InvalidPointArrayError, match="required keys"):
+        with pytest.raises(InvalidPointArrayError, match="Dict data must contain"):
             dinter.to_array(incomplete_dict)
 
         # Test with mismatched lengths

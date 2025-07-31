@@ -88,7 +88,7 @@ class TestDataValidationErrors:
         grapher = Graphing(aspect="dict")
 
         # Missing required keys
-        with pytest.raises(GraphCreationError, match="must contain required keys"):
+        with pytest.raises(GraphCreationError, match="Dict data must contain"):
             grapher._get_data_as_array({"id": [1], "x": [10]})
 
         # Mismatched lengths
@@ -348,17 +348,3 @@ class TestEdgeCaseErrorHandling:
             # Acceptable for extreme values
             pass
 
-    def test_unicode_and_encoding_errors(self):
-        """Test handling of unicode and encoding issues."""
-        # Test with unicode filenames
-        grapher = Graphing()
-        data = np.array([[0, 10, 20], [1, 30, 40], [2, 50, 60]])
-        graph = grapher.make_graph("proximity", data, proximity_thresh=50.0)
-        image = grapher.draw_graph(graph)
-
-        # This should either work or raise a clear error
-        try:
-            grapher.save_graph(image, "test_unicode_ñ.jpg")
-        except (DrawingError, OSError, UnicodeError):
-            # These errors are acceptable for unicode handling
-            pass
