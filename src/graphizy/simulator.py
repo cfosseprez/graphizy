@@ -175,7 +175,9 @@ class BrownianSimulator:
         grapher = self.graphers[graph_type_str]
 
         # Update the graphs
+        start_time_graph_update = time.perf_counter()
         graphs = grapher.update_graphs(self.particle_stack, update_memory=self.use_memory)
+        end_time_graph_update = time.perf_counter() - start_time_graph_update
 
         # Get the generated graph
         graph = graphs.get(graph_type_str)
@@ -185,18 +187,18 @@ class BrownianSimulator:
         # Draw the graph (automatically handles memory visualization)
         if self.use_memory and grapher.memory_manager is not None:
             try:
-                return grapher.draw_memory_graph(graph, use_age_colors=True, alpha_range=(0.3, 1.0))
+                return grapher.draw_memory_graph(graph, use_age_colors=True, alpha_range=(0.3, 1.0)), end_time_graph_update
             except:
-                return grapher.draw_graph(graph)
+                return grapher.draw_graph(graph), end_time_graph_update
         else:
-            return grapher.draw_graph(graph)
+            return grapher.draw_graph(graph), end_time_graph_update
 
     def _create_combined_view(self) -> Optional[np.ndarray]:
         """Create combined view showing all graph types (2x2 grid)"""
         images = []
 
         for graph_type in [1, 2, 3, 4]:  # proximity, delaunay, gabriel, mst
-            img = self.create_visualization(graph_type)
+            img, _ = self.create_visualization(graph_type)
             if img is not None:
                 images.append(img)
             else:
@@ -219,7 +221,7 @@ class BrownianSimulator:
 
         return combined
 
-    def add_info_overlay(self, image: np.ndarray, graph_type: int) -> np.ndarray:
+    def add_info_overlay(self, image: np.ndarray, graph_type: int, time_graph_update: Optional[float] = None) -> np.ndarray:
         """Add information overlay to the image"""
         if image is None:
             return image
@@ -233,7 +235,7 @@ class BrownianSimulator:
         cv2.putText(img_with_overlay, title, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
         # Iteration counter
-        cv2.putText(img_with_overlay, f"Iteration: {self.iteration}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+        cv2.putText(img_with_overlay, f"Iteration: {self.iteration} / Took: {time_graph_update*1000:.1f}ms", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
                     (255, 255, 255), 2)
 
         # Memory info
@@ -330,10 +332,10 @@ class BrownianSimulator:
                 self.update_positions()
 
                 # Create visualization
-                image = self.create_visualization(self.current_graph_type)
+                image, time_graph_update = self.create_visualization(self.current_graph_type)
 
                 if image is not None:
-                    display_image = self.add_info_overlay(image, self.current_graph_type)
+                    display_image = self.add_info_overlay(image, self.current_graph_type, time_graph_update)
                     cv2.imshow(self.window_name, display_image)
 
                 self.iteration += 1

@@ -705,7 +705,7 @@ class Graphing:
                    update_memory: Optional[bool] = None,
                    use_memory: Optional[bool] = None,
                    compute_weights: Optional[bool] = None,
-                   do_timing: bool = False,
+                   do_timing: bool = True,
                    **kwargs) -> Any:
         """
         Create a graph using the extensible plugin system with intelligent memory defaults.

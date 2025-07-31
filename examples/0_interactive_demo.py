@@ -62,15 +62,15 @@ def main():
     # Memory modifier
     parser.add_argument('--memory', '-m', action='store_true',
                         help='Enable memory tracking for the selected graph type')
-    parser.add_argument('--memory-size', type=int, default=25,
+    parser.add_argument('--memory-size', type=int, default=3,
                         help='Memory buffer size (default: 25)')
 
     # Simulation parameters
     parser.add_argument('--iterations', '-i', type=int, default=100000,
                         help='Maximum iterations (default: 1000)')
-    parser.add_argument('--particles', '-p', type=int, default=50,
+    parser.add_argument('--particles', '-p', type=int, default=500,
                         help='Number of particles (default: 50)')
-    parser.add_argument('--size', nargs=2, type=int, default=[800, 600],
+    parser.add_argument('--size', nargs=2, type=int, default=[800, 800],
                         help='Canvas size [width height] (default: 800 600)')
     parser.add_argument('--fps', type=int, default=30,
                         help='Display FPS (default: 30)')

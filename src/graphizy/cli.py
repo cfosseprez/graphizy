@@ -273,7 +273,7 @@ def cmd_proximity(args) -> None:
 
         # Show if requested
         if args.show:
-            grapher.show_graph(image, f"Proximity Graph (threshold={args.threshold})")
+            grapher.show_graph(image, f"Proximity Graph (proximity threshold={args.threshold})")
 
     except Exception as e:
         logging.error(f"Failed to create proximity graph: {e}")
@@ -382,7 +382,7 @@ def cmd_both(args) -> None:
         # Show if requested
         if args.show:
             grapher.show_graph(del_image, "Delaunay Triangulation")
-            grapher.show_graph(prox_image, f"Proximity Graph (threshold={args.threshold})")
+            grapher.show_graph(prox_image, f"Proximity Graph (proximity threshold={args.threshold})")
 
     except Exception as e:
         logging.error(f"Failed to create graphs: {e}")

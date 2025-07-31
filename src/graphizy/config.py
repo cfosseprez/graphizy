@@ -62,7 +62,7 @@ class GraphConfig:
 @dataclass
 class MemoryConfig:
     """Configuration for memory graph parameters"""
-    max_memory_size: int = 5
+    max_memory_size: int = 3
     max_iterations: Optional[int] = None
     auto_update_from_proximity: bool = True
     memory_decay_factor: float = 1.0  # Future: for weighted memory decay
