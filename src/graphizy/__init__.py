@@ -11,9 +11,10 @@ from graphizy.main import Graphing
 from graphizy.config import GraphizyConfig, DrawingConfig, GraphConfig, GenerationConfig, LoggingConfig, MemoryConfig
 from graphizy.algorithms import (
     make_subdiv, make_delaunay, get_delaunay,
-    get_distance, graph_distance, create_graph_array, create_graph_dict, DataInterface,
+    get_distance, graph_distance, create_graph_array, create_graph_dict,
     call_igraph_method, create_mst_graph, create_knn_graph, create_gabriel_graph
 )
+from graphizy.data_interface import DataInterface
 from graphizy.memory import (
     create_memory_graph, MemoryManager, update_memory_from_graph
 )

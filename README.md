@@ -83,11 +83,11 @@ config = GraphizyConfig(dimension=(IMAGE_WIDTH, IMAGE_HEIGHT))
 grapher = Graphing(config=config)
 
 # 3. Create different graph types
-delaunay_graph = grapher.make_delaunay(data)
-proximity_graph = grapher.make_proximity(data, proximity_thresh=50.0)
-knn_graph = grapher.make_knn(data, k=4)
-mst_graph = grapher.make_mst(data)
-gabriel_graph = grapher.make_gabriel(data)
+ delaunay_graph = grapher.make_graph("delaunay", data)
+ proximity_graph = grapher.make_graph("proximity", data, proximity_thresh=50.0)
+ knn_graph = grapher.make_graph("knn", data, k=4)
+ mst_graph = grapher.make_graph("mst", data)
+ gabriel_graph = grapher.make_graph("gabriel", data)
 
 # 4. Visualize and save results
 delaunay_image = grapher.draw_graph(delaunay_graph)
@@ -95,10 +95,36 @@ grapher.save_graph(delaunay_image, "delaunay.jpg")
 grapher.show_graph(delaunay_image, "Delaunay Triangulation", block=False)
 
 # 5. Analyze graph metrics
+# Basic graph properties using updated methods
 info = grapher.get_graph_info(delaunay_graph)
-print(f"Graph: {info['vertex_count']} vertices, {info['edge_count']} edges")
-print(f"Density: {info['density']:.3f}, Connected: {info['is_connected']}")
+print(f"Density: {info['density']:.3f}")
+print(f"Average path length: {info['average_path_length']:.2f}")
+print(f"Clustering coefficient: {info['transitivity']:.3f}")
+print(f"Is connected: {info['is_connected']}")
+
+# Node centrality measures using the Igraph call_method_safe interface
+degree_centrality = grapher.call_method_safe(delaunay_graph, 'degree')
+betweenness = grapher.call_method_safe(delaunay_graph, 'betweenness')
+closeness = grapher.call_method_safe(delaunay_graph, 'closeness')
+
+# Find most central nodes
+if isinstance(betweenness, dict):
+    central_nodes = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:5]
+    print(f"Top 5 central nodes: {central_nodes}")
+
+# Advanced igraph methods with error handling
+try:
+    components = grapher.call_method_raw(delaunay_graph, 'connected_components')
+    diameter = grapher.call_method_raw(delaunay_graph, 'diameter')
+    print(f"Connected components: {len(components) if components else 'N/A'}")
+    print(f"Graph diameter: {diameter}")
+except Exception as e:
+    print(f"Advanced analysis failed: {e}")
 ```
+
+
+### Graph Creation For a Seie of frames
+
 
 ### 🧠 Memory-Enhanced Graphs
 
@@ -128,7 +154,7 @@ for iteration in range(100):
     data[:, 1:3] += np.random.normal(0, 2, (len(data), 2))
     
     # Create current graph and update memory
-    current_graph = grapher.make_proximity(data, proximity_thresh=60.0)
+    current_graph = grapher.make_graph("proximity", data, proximity_thresh=60.0)
     grapher.update_memory_with_graph(current_graph)
     
     # Create memory-enhanced graph (current + historical connections)
@@ -302,12 +328,12 @@ for size in [50, 100, 200, 500]:
     data = np.column_stack((np.arange(size), positions))
     
     # Compare graph types
-    for graph_type, create_func in [
-        ('delaunay', lambda d: grapher.make_delaunay(d)),
-        ('proximity', lambda d: grapher.make_proximity(d, 60)),
-        ('mst', lambda d: grapher.make_mst(d)),
-        ('gabriel', lambda d: grapher.make_gabriel(d))
-    ]:
+     for graph_type, create_func in [
+         ('delaunay', lambda d: grapher.make_graph('delaunay', d)),
+         ('proximity', lambda d: grapher.make_graph('proximity', d, proximity_thresh=60)),
+         ('mst', lambda d: grapher.make_graph('mst', d)),
+         ('gabriel', lambda d: grapher.make_graph('gabriel', d))
+     ]:
         graph = create_func(data)
         info = grapher.get_graph_info(graph)
         results.append({
@@ -366,6 +392,7 @@ plt.show()
 - OpenCV >= 4.5.0  
 - python-igraph >= 0.9.0
 - SciPy >= 1.7.0 (for KNN and MST)
+- networkx >= 3.0 (for NetworkX bridge)
 
 ### Running Tests
 
@@ -416,14 +443,11 @@ GPL-2.0-or-later License - see [LICENSE](LICENSE) file for details.
 
 ## 📈 Changelog
 
-### v0.1.5 (Current)
+### v0.1.16 (Current)
 -  Added Minimum Spanning Tree (MST) graph type
 -  Added K-Nearest Neighbors (KNN) graph type  
 -  Enhanced memory system with age-based visualization
--  Interactive Brownian motion simulator
--  Fixed configuration initialization issues
--  Comprehensive documentation improvements
--  Added MST and memory functionality tests
+-  Enhanced weight system
 
 
 

@@ -317,7 +317,7 @@ def cmd_memory(args):
         memory_graph = grapher.make_memory_graph(particle_stack)
 
         # Get statistics
-        stats = grapher.get_memory_stats()
+        stats = grapher.get_memory_analysis()
         graph_info = grapher.get_graph_info(memory_graph)
 
         print(f"\nMemory Graph Results:")

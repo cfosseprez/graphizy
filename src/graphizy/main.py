@@ -44,10 +44,11 @@ from graphizy.exceptions import (
     IgraphMethodError, DrawingError
 )
 from graphizy.algorithms import (
-    create_graph_array, create_graph_dict, DataInterface, call_igraph_method,
+    create_graph_array, create_graph_dict, call_igraph_method,
     create_delaunay_graph, create_proximity_graph,
     create_mst_graph, create_knn_graph, create_gabriel_graph,
 )
+from graphizy.data_interface import DataInterface
 from graphizy.memory import (
     create_memory_graph, MemoryManager, update_memory_from_graph, update_memory_from_custom_function
 )
@@ -423,6 +424,18 @@ class Graphing:
         logging.info(f"Updated parameters for '{graph_type}': {kwargs}")
 
     # ============================================================================
+    # CONVENIENT CONVERSION
+    # ============================================================================
+    def _get_data_as_array(self, data_points: Union[np.ndarray, Dict[str, Any]]) -> np.ndarray:
+        """
+        Internal helper that delegates to DataInterface for all conversions.
+        """
+        try:
+            return self.data_interface.to_array(data_points)
+        except Exception as e:
+            raise GraphCreationError(f"Failed to convert data to array format: {str(e)}")
+
+    # ============================================================================
     # CORE UPDATES FUNCTIONS
     # ============================================================================
 
@@ -677,372 +690,6 @@ class Graphing:
         current_graphs = self.get_current_graphs()
         return current_graphs.get(graph_type, None)
 
-
-    # def make_delaunay(self, data_points: Union[np.ndarray, Dict[str, Any]]) -> Any:
-    #     """
-    #     Create a Delaunay triangulation graph from point data.
-    #
-    #     Delaunay triangulation connects points such that no point lies inside the
-    #     circumcircle of any triangle in the triangulation. This creates a graph
-    #     where nearby points are connected while avoiding overly long connections.
-    #
-    #     The resulting graph has useful properties:
-    #     - Maximizes the minimum angle of triangles
-    #     - Forms the dual of the Voronoi diagram
-    #     - Connects each point to its natural neighbors
-    #
-    #     Args:
-    #         data_points: Point data in the format specified by self.aspect:
-    #                     - For "array": NumPy array with shape (n, 3) containing [id, x, y]
-    #                     - For "dict": Dictionary with keys "id", "x", "y" as lists/arrays
-    #
-    #     Returns:
-    #         Any: igraph Graph object representing the Delaunay triangulation.
-    #              Contains vertices with attributes: id, x, y, name
-    #              Contains edges connecting Delaunay neighbors.
-    #
-    #     Raises:
-    #         GraphCreationError: If input data is invalid, aspect mismatch occurs,
-    #                            or triangulation computation fails.
-    #
-    #     Examples:
-    #         >>> # Array format
-    #         >>> data = np.array([[1, 10.0, 20.0], [2, 30.0, 40.0], [3, 50.0, 60.0]])
-    #         >>> delaunay_graph = grapher.make_delaunay(data)
-    #
-    #         >>> # Dictionary format
-    #         >>> data = {"id": [1, 2, 3], "x": [10.0, 30.0, 50.0], "y": [20.0, 40.0, 60.0]}
-    #         >>> grapher.aspect = "dict"
-    #         >>> delaunay_graph = grapher.make_delaunay(data)
-    #
-    #     Note:
-    #         - Requires at least 3 non-collinear points for meaningful triangulation
-    #         - Points with string/object IDs are not supported in array format
-    #         - Performance: O(n log n) for n points
-    #     """
-    #     try:
-    #         timer0 = time.time()
-    #         # Use the new helper method
-    #         data_array = self._get_data_as_array(data_points)
-    #         graph = create_delaunay_graph(data_array, aspect="array", dimension=self.dimension)
-    #         elapsed_ms = round((time.time() - timer0) * 1000, 3)
-    #         logging.debug(f"Delaunay triangulation completed in {elapsed_ms}ms")
-    #         return graph
-    #     except Exception as e:
-    #         raise GraphCreationError(f"Failed to create Delaunay graph: {str(e)}")
-    #
-    # def make_proximity(self,
-    #                   data_points: Union[np.ndarray, Dict[str, Any]],
-    #                   proximity_thresh: float = None,
-    #                   metric: str = None) -> Any:
-    #     """
-    #     Create a proximity graph connecting points within a distance threshold.
-    #
-    #     Proximity graphs connect all pairs of points that are closer than a specified
-    #     threshold distance. This creates dense local connections while maintaining
-    #     sparsity for distant points.
-    #
-    #     Args:
-    #         data_points: Point data in the format specified by self.aspect:
-    #                     - For "array": NumPy array with shape (n, 3) containing [id, x, y]
-    #                     - For "dict": Dictionary with keys "id", "x", "y" as lists/arrays
-    #         proximity_thresh: Maximum distance for connecting points. If None, uses
-    #                         config.graph.proximity_threshold. Smaller values create
-    #                         sparser graphs, larger values create denser graphs.
-    #         metric: Distance metric to use. If None, uses config.graph.distance_metric.
-    #                Common options: 'euclidean', 'manhattan', 'chebyshev'.
-    #
-    #     Returns:
-    #         Any: igraph Graph object representing the proximity graph.
-    #              Contains vertices with attributes: id, x, y, name
-    #              Contains edges between all point pairs within threshold distance.
-    #
-    #     Raises:
-    #         GraphCreationError: If input data is invalid, aspect mismatch occurs,
-    #                            or proximity computation fails.
-    #
-    #     Examples:
-    #         >>> # Basic proximity graph with default threshold
-    #         >>> data = np.random.rand(100, 3) * 100  # Scale for meaningful distances
-    #         >>> prox_graph = grapher.make_proximity(data)
-    #
-    #         >>> # Custom threshold and metric
-    #         >>> prox_graph = grapher.make_proximity(
-    #         ...     data,
-    #         ...     proximity_thresh=25.0,
-    #         ...     metric='manhattan'
-    #         ... )
-    #
-    #         >>> # Adaptive threshold based on data
-    #         >>> # Use ~10% of data range as threshold
-    #         >>> data_range = np.ptp(data[:, 1:3])  # Range of x,y coordinates
-    #         >>> adaptive_thresh = data_range * 0.1
-    #         >>> prox_graph = grapher.make_proximity(data, proximity_thresh=adaptive_thresh)
-    #
-    #     Note:
-    #         - Performance: O(n²) for distance computation, can be expensive for large datasets
-    #         - Threshold selection significantly affects graph connectivity
-    #         - Very small thresholds may result in disconnected graphs
-    #         - Very large thresholds may result in nearly complete graphs
-    #     """
-    #     try:
-    #         if proximity_thresh is None:
-    #             proximity_thresh = self.config.graph.proximity_threshold
-    #         if metric is None:
-    #             metric = self.config.graph.distance_metric
-    #
-    #         timer_prox = time.time()
-    #         # Use the new helper method
-    #         data_array = self._get_data_as_array(data_points)
-    #         graph = create_proximity_graph(data_array, proximity_thresh, aspect="array", metric=metric)
-    #         elapsed_ms = round((time.time() - timer_prox) * 1000, 3)
-    #         logging.debug(f"Proximity graph (thresh={proximity_thresh}, metric={metric}) "
-    #                       f"completed in {elapsed_ms}ms")
-    #         return graph
-    #     except Exception as e:
-    #         raise GraphCreationError(f"Failed to create proximity graph: {str(e)}")
-    #
-    # def make_knn(self, data_points: Union[np.ndarray, Dict[str, Any]], k: int = 4) -> Any:
-    #     """
-    #     Create a k-nearest neighbors graph.
-    #
-    #     k-NN graphs connect each point to its k closest neighbors, creating a graph
-    #     where each vertex has exactly k outgoing edges (or fewer if there are fewer
-    #     than k other points). This creates locally dense connections while maintaining
-    #     a controlled edge count.
-    #
-    #     Args:
-    #         data_points: Point data in the format specified by self.aspect:
-    #                     - For "array": NumPy array with shape (n, 3) containing [id, x, y]
-    #                     - For "dict": Dictionary with keys "id", "x", "y" as lists/arrays
-    #         k: Number of nearest neighbors to connect to each point. Must be positive
-    #            and less than the total number of points. Typical values: 3-8 for
-    #            most applications.
-    #
-    #     Returns:
-    #         Any: igraph Graph object representing the k-NN graph.
-    #              Contains vertices with attributes: id, x, y, name
-    #              Contains directed edges from each point to its k nearest neighbors.
-    #
-    #     Raises:
-    #         GraphCreationError: If input data is invalid, k is invalid,
-    #                            aspect mismatch occurs, or k-NN computation fails.
-    #
-    #     Examples:
-    #         >>> # Basic k-NN with default k=4
-    #         >>> data = np.random.rand(50, 3) * 100
-    #         >>> knn_graph = grapher.make_knn(data)
-    #
-    #         >>> # Higher connectivity with k=8
-    #         >>> knn_graph = grapher.make_knn(data, k=8)
-    #
-    #         >>> # Low connectivity for sparse graph
-    #         >>> knn_graph = grapher.make_knn(data, k=2)
-    #
-    #         >>> # Dictionary format
-    #         >>> data_dict = {
-    #         ...     "id": list(range(100)),
-    #         ...     "x": np.random.rand(100) * 100,
-    #         ...     "y": np.random.rand(100) * 100
-    #         ... }
-    #         >>> grapher.aspect = "dict"
-    #         >>> knn_graph = grapher.make_knn(data_dict, k=6)
-    #
-    #     Note:
-    #         - Performance: O(n² log k) with naive implementation, O(n log n) with efficient structures
-    #         - Resulting graph may be directed (A→B doesn't imply B→A)
-    #         - For undirected k-NN, consider post-processing to make edges mutual
-    #         - k should be much smaller than total number of points for meaningful results
-    #         - Larger k values increase connectivity but may include distant neighbors
-    #     """
-    #     try:
-    #         timer_knn = timeit.default_timer()
-    #
-    #         if k <= 0:
-    #             raise GraphCreationError("k must be positive")
-    #
-    #         # Centralize data conversion
-    #         data_array = self._get_data_as_array(data_points)
-    #
-    #         if k >= len(data_array):
-    #             raise GraphCreationError(f"k ({k}) must be less than number of points ({len(data_array)})")
-    #
-    #         # Call simplified algorithm function (aspect no longer needed)
-    #         graph = create_knn_graph(data_array, k=k)
-    #
-    #         elapsed_ms = round((timeit.default_timer() - timer_knn) * 1000, 3)
-    #         logging.debug(f"k-NN graph (k={k}) completed in {elapsed_ms}ms")
-    #
-    #         return graph
-    #
-    #     except Exception as e:
-    #         raise GraphCreationError(f"Failed to create k-NN graph: {str(e)}")
-    #
-    # def make_gabriel(self, data_points: Union[np.ndarray, Dict[str, Any]]) -> Any:
-    #     """
-    #     Create a Gabriel graph from point data.
-    #
-    #     A Gabriel graph connects two points if and only if the circle having these
-    #     two points as diameter endpoints contains no other points. This creates a
-    #     subset of the Delaunay triangulation with interesting geometric properties
-    #     and tends to connect points that have a "clear line of sight" to each other.
-    #
-    #     Gabriel graphs are useful for:
-    #     - Network topology design where interference matters
-    #     - Computational geometry applications
-    #     - Sparse geometric graph construction
-    #     - Path planning with obstacle avoidance concepts
-    #
-    #     Args:
-    #         data_points: Point data in the format specified by self.aspect:
-    #                     - For "array": NumPy array with shape (n, 3) containing [id, x, y]
-    #                     - For "dict": Dictionary with keys "id", "x", "y" as lists/arrays
-    #
-    #     Returns:
-    #         Any: igraph Graph object representing the Gabriel graph.
-    #              Contains vertices with attributes: id, x, y, name
-    #              Contains edges between Gabriel-connected points.
-    #
-    #     Raises:
-    #         GraphCreationError: If input data is invalid, aspect mismatch occurs,
-    #                            or Gabriel graph computation fails.
-    #
-    #     Examples:
-    #         >>> # Basic Gabriel graph
-    #         >>> data = np.array([[1, 10, 10], [2, 20, 10], [3, 15, 20], [4, 30, 30]])
-    #         >>> gabriel_graph = grapher.make_gabriel(data)
-    #
-    #         >>> # Gabriel graph from random points
-    #         >>> np.random.seed(42)
-    #         >>> data = np.column_stack([
-    #         ...     range(50),  # IDs
-    #         ...     np.random.rand(50) * 100,  # X coordinates
-    #         ...     np.random.rand(50) * 100   # Y coordinates
-    #         ... ])
-    #         >>> gabriel_graph = grapher.make_gabriel(data)
-    #
-    #         >>> # Dictionary format
-    #         >>> data_dict = {
-    #         ...     "id": [1, 2, 3, 4],
-    #         ...     "x": [10, 20, 15, 30],
-    #         ...     "y": [10, 10, 20, 30]
-    #         ... }
-    #         >>> grapher.aspect = "dict"
-    #         >>> gabriel_graph = grapher.make_gabriel(data_dict)
-    #
-    #     Note:
-    #         - Gabriel graphs are always subgraphs of Delaunay triangulations
-    #         - Generally sparser than Delaunay triangulations
-    #         - Maintains good connectivity while avoiding "long" edges
-    #         - Performance: O(n³) naive implementation, O(n² log n) with optimizations
-    #         - Results in undirected graphs
-    #         - May produce disconnected components for certain point distributions
-    #     """
-    #     try:
-    #         timer_gabriel = timeit.default_timer()
-    #
-    #         # Centralize data conversion
-    #         data_array = self._get_data_as_array(data_points)
-    #
-    #         # Call simplified algorithm function (aspect no longer needed)
-    #         graph = create_gabriel_graph(data_array)
-    #
-    #         elapsed_ms = round((timeit.default_timer() - timer_gabriel) * 1000, 3)
-    #         logging.debug(f"Gabriel graph completed in {elapsed_ms}ms")
-    #
-    #         return graph
-    #
-    #     except Exception as e:
-    #         raise GraphCreationError(f"Failed to create Gabriel graph: {str(e)}")
-    #
-    # def make_mst(self,
-    #             data_points: Union[np.ndarray, Dict[str, Any]],
-    #             metric: str = None) -> Any:
-    #     """
-    #     Create a Minimum Spanning Tree (MST) graph from point data.
-    #
-    #     An MST connects all points with the minimum total edge weight (distance)
-    #     while maintaining connectivity. This creates a tree structure (no cycles)
-    #     that spans all vertices with the smallest possible total edge cost.
-    #
-    #     MSTs are useful for:
-    #     - Network design with minimum cost connectivity
-    #     - Hierarchical clustering visualization
-    #     - Finding natural data structure
-    #     - Creating sparse connected graphs
-    #
-    #     Args:
-    #         data_points: Point data in the format specified by self.aspect:
-    #                     - For "array": NumPy array with shape (n, 3) containing [id, x, y]
-    #                     - For "dict": Dictionary with keys "id", "x", "y" as lists/arrays
-    #         metric: Distance metric for edge weights. If None, uses
-    #                config.graph.distance_metric. Options include:
-    #                - 'euclidean': Standard Euclidean distance (default)
-    #                - 'manhattan': Sum of absolute differences
-    #                - 'chebyshev': Maximum coordinate difference
-    #
-    #     Returns:
-    #         Any: igraph Graph object representing the MST.
-    #              Contains vertices with attributes: id, x, y, name
-    #              Contains exactly (n-1) edges forming a tree structure.
-    #              Edge weights represent distances between connected points.
-    #
-    #     Raises:
-    #         GraphCreationError: If input data is invalid, aspect mismatch occurs,
-    #                            or MST computation fails.
-    #
-    #     Examples:
-    #         >>> # Basic MST with default Euclidean distance
-    #         >>> data = np.random.rand(20, 3) * 100
-    #         >>> mst_graph = grapher.make_mst(data)
-    #
-    #         >>> # MST with Manhattan distance
-    #         >>> mst_graph = grapher.make_mst(data, metric='manhattan')
-    #
-    #         >>> # MST from clustered data to see natural groupings
-    #         >>> # Create two clusters
-    #         >>> cluster1 = np.column_stack([range(25), np.random.rand(25)*20, np.random.rand(25)*20])
-    #         >>> cluster2 = np.column_stack([range(25,50), np.random.rand(25)*20+50, np.random.rand(25)*20+50])
-    #         >>> data = np.vstack([cluster1, cluster2])
-    #         >>> mst_graph = grapher.make_mst(data)
-    #
-    #         >>> # Dictionary format
-    #         >>> data_dict = {
-    #         ...     "id": list(range(30)),
-    #         ...     "x": np.random.rand(30) * 100,
-    #         ...     "y": np.random.rand(30) * 100
-    #         ... }
-    #         >>> grapher.aspect = "dict"
-    #         >>> mst_graph = grapher.make_mst(data_dict)
-    #
-    #     Note:
-    #         - Always produces exactly (n-1) edges for n vertices
-    #         - Guaranteed to be connected (single component)
-    #         - No cycles by definition
-    #         - Unique if all edge weights are distinct
-    #         - Performance: O(E log V) with efficient algorithms (Kruskal's/Prim's)
-    #         - Sensitive to distance metric choice
-    #     """
-    #     try:
-    #         if metric is None:
-    #             metric = self.config.graph.distance_metric
-    #
-    #         timer_mst = timeit.default_timer()
-    #
-    #         # Centralize data conversion
-    #         data_array = self._get_data_as_array(data_points)
-    #
-    #         # Call simplified algorithm function (aspect no longer needed)
-    #         graph = create_mst_graph(data_array, metric=metric)
-    #
-    #         elapsed_ms = round((timeit.default_timer() - timer_mst) * 1000, 3)
-    #         logging.debug(f"MST computation completed in {elapsed_ms}ms")
-    #
-    #         return graph
-    #
-    #     except Exception as e:
-    #         raise GraphCreationError(f"Failed to create MST graph: {str(e)}")
-
     # ============================================================================
     # PLUGIN SYSTEM METHODS
     # ============================================================================
@@ -1171,7 +818,7 @@ class Graphing:
             graph = self._maybe_apply_memory(graph, data_points, use_memory, update_memory)
 
             # STEP 3: Compute weights (adds attributes to existing edges)
-            graph = self._maybe_compute_weights(graph, data_array, compute_weights)
+            graph = self._maybe_compute_weights(graph, data_array)
 
             return graph
 

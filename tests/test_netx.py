@@ -43,7 +43,7 @@ def grapher():
 def sample_igraph(grapher, sample_data):
     """Sample igraph with edges and attributes"""
     # Create a proximity graph with known structure
-    graph = grapher.make_proximity(sample_data, proximity_thresh=50.0)
+    graph = grapher.make_graph(graph_type="proximity", data_points=sample_data, proximity_thresh=50.0)
 
     # Add some test attributes
     if graph.ecount() > 0:
@@ -131,7 +131,7 @@ class TestNetworkXConversion:
         from graphizy.networkx_bridge import to_networkx
 
         # Create a directed graph (knn creates directed edges)
-        igraph_directed = grapher.make_knn(sample_data, k=2)
+        igraph_directed = grapher.make_graph(graph_type="knn", data_points=sample_data, k=2)
 
         # Convert preserving direction
         nx_directed = to_networkx(igraph_directed, directed=True)
@@ -147,7 +147,7 @@ class TestNetworkXConversion:
 
         # Create empty graph
         empty_data = np.array([[1, 10.0, 20.0]])  # Single point, no edges
-        empty_graph = grapher.make_proximity(empty_data, proximity_thresh=1.0)  # Very small threshold
+        empty_graph = grapher.make_graph(graph_type="proximity", data_points=empty_data, proximity_thresh=1.0)  # Very small threshold
 
         nx_graph = to_networkx(empty_graph)
         assert nx_graph.number_of_nodes() == 1
@@ -239,7 +239,7 @@ class TestNetworkXAnalyzer:
         """Test getting NetworkX graph from manual igraph"""
         from graphizy.networkx_bridge import NetworkXAnalyzer
 
-        manual_graph = grapher.make_proximity(sample_data, proximity_thresh=50.0)
+        manual_graph = grapher.make_graph(graph_type="proximity", data_points=sample_data, proximity_thresh=50.0)
         analyzer = NetworkXAnalyzer(grapher)
 
         nx_graph = analyzer.get_networkx(igraph_graph=manual_graph)
@@ -251,7 +251,7 @@ class TestNetworkXAnalyzer:
         from graphizy.networkx_bridge import NetworkXAnalyzer
 
         # Create a well-connected graph for analysis
-        graph = grapher.make_proximity(sample_data, proximity_thresh=100.0)  # Higher threshold for connections
+        graph = grapher.make_graph(graph_type="proximity", data_points=sample_data, proximity_thresh=100.0)  # Higher threshold for connections
         analyzer = NetworkXAnalyzer(grapher)
 
         analysis = analyzer.analyze(igraph_graph=graph)
@@ -272,7 +272,7 @@ class TestNetworkXAnalyzer:
 
         # Very small graph
         small_data = np.array([[1, 10.0, 20.0], [2, 30.0, 40.0]])
-        small_graph = grapher.make_proximity(small_data, proximity_thresh=50.0)
+        small_graph = grapher.make_graph(graph_type="proximity", data_points=small_data, proximity_thresh=50.0)
 
         analyzer = NetworkXAnalyzer(grapher)
         analysis = analyzer.analyze(igraph_graph=small_graph)
@@ -320,7 +320,7 @@ class TestMainClassIntegration:
     def test_to_networkx_method(self, grapher, sample_data):
         """Test to_networkx method in main class"""
         # Create a graph
-        prox_graph = grapher.make_proximity(sample_data, proximity_thresh=50.0)
+        prox_graph = grapher.make_graph(graph_type="proximity", data_points=sample_data, proximity_thresh=50.0)
 
         # Convert using main class method
         nx_graph = grapher.to_networkx(igraph_graph=prox_graph)
@@ -390,7 +390,7 @@ class TestPerformanceAspects:
         large_data = np.random.rand(100, 3) * 100
         large_data[:, 0] = np.arange(100)  # Set IDs
 
-        large_graph = grapher.make_proximity(large_data, proximity_thresh=20.0)
+        large_graph = grapher.make_graph(graph_type="proximity", data_points=large_data, proximity_thresh=20.0)
 
         from graphizy.networkx_bridge import to_networkx
 

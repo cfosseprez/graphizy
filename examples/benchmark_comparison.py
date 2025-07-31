@@ -42,7 +42,7 @@ def benchmark_delaunay_triangulation():
         # Graph construction
         start_construction = time.perf_counter()
         grapher = Graphing()
-        graph = grapher.make_delaunay(data)
+        graph = grapher.make_graph(graph_type="delaunay", data_points=data)
         graphizy_construction_time = (time.perf_counter() - start_construction) * 1000
 
         # Graph metrics computation using enhanced call_method
@@ -178,7 +178,7 @@ def benchmark_proximity_graphs():
         # Graph construction
         start_construction = time.perf_counter()
         grapher = Graphing()
-        graph = grapher.make_proximity(data, proximity_thresh=threshold)
+        graph = grapher.make_graph(graph_type="proximity", data_points=data, proximity_thresh=threshold)
         graphizy_construction_time = (time.perf_counter() - start_construction) * 1000
 
         # Clustering and connectivity analysis
@@ -316,7 +316,7 @@ def benchmark_mst_graphs():
         # Graph construction
         start_construction = time.perf_counter()
         grapher = Graphing()
-        graph = grapher.make_mst(data)
+        graph = grapher.make_graph(graph_type="mst", data_points=data)
         graphizy_construction_time = (time.perf_counter() - start_construction) * 1000
 
         # Network analysis
@@ -441,7 +441,7 @@ def benchmark_memory_system():
             start = time.perf_counter()
 
             # Update memory with current proximity graph
-            current_graph = grapher.make_proximity(data, proximity_thresh=80.0)
+            current_graph = grapher.make_graph(graph_type="proximity", data_points=data, proximity_thresh=80.0)
             grapher.update_memory_with_graph(current_graph)
 
             # Create memory-enhanced graph
@@ -452,7 +452,7 @@ def benchmark_memory_system():
         avg_time_per_update = total_time / n_timesteps
 
         # Get memory statistics
-        memory_stats = grapher.get_memory_stats()
+        memory_stats = grapher.get_memory_analysis()
 
         results.append({
             'nodes': n_nodes,
@@ -584,4 +584,3 @@ if __name__ == "__main__":
         json.dump(results, f, indent=2)
 
     print(f"\nBenchmark complete! Results saved to 'benchmark_results.json'")
-    print(f"Use these results in your JOSS paper performance section.")

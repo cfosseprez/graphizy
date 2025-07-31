@@ -11,7 +11,6 @@ from graphizy.exceptions import (
 )
 from graphizy.algorithms import (
     create_graph_array,
-    DataInterface,
     create_graph_dict,
     normalize_id,
     get_distance,
@@ -19,7 +18,7 @@ from graphizy.algorithms import (
     graph_delaunay,
     add_edge_distances_square,
 )
-
+from graphizy.data_interface import DataInterface
 
 class MemoryManager:
     """Manages memory connections between objects with optional edge aging support"""

@@ -63,5 +63,5 @@ def test_graphing_memory_integration(grapher, sample_array_data):
     mem_graph = grapher.make_memory_graph(sample_array_data)
     assert mem_graph.ecount() > 0
 
-    stats = grapher.get_memory_stats()
+    stats = grapher.get_memory_analysis()
     assert stats["current_iteration"] == 2

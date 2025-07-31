@@ -108,7 +108,7 @@ class TestCompleteWorkflows:
         assert memory_graph.vcount() == 15
 
         # 5. Get memory statistics - adjust expectation based on actual behavior
-        stats = grapher.get_memory_stats()
+        stats = grapher.get_memory_analysis()
         # The current_iteration might be tracking all operations, not just our loop
         assert stats["current_iteration"] >= 5
         assert stats["total_objects"] == 15
@@ -421,5 +421,5 @@ class TestErrorRecoveryWorkflows:
             assert isinstance(connections, dict)
 
         # Memory should be constrained
-        stats = grapher.get_memory_stats()
+        stats = grapher.get_memory_analysis()
         assert stats["total_objects"] <= 20  # Should respect limits

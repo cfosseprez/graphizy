@@ -21,6 +21,7 @@ from graphizy.exceptions import (
     GraphCreationError, PositionGenerationError, DependencyError,
     IgraphMethodError
 )
+from graphizy.data_interface import DataInterface
 from .exceptions import handle_subdivision_bounds_error, InvalidDataShapeError
 
 try:
@@ -764,8 +765,8 @@ def create_delaunay_graph(data_points: Union[np.ndarray, Dict[str, Any]],
                 pos_array = np.stack((data_points["x"], data_points["y"]), axis=1)
             elif isinstance(data_points, np.ndarray):
                 # Convert array to dict format first
-                dinter = DataInterface()  # Use default data shape
-                data_points = dinter.convert(data_points)
+                data_interface = DataInterface()  # Use default data shape
+                data_points = data_interface.to_array(data_points)
                 graph = create_graph_dict(data_points)
                 pos_array = np.stack((data_points["x"], data_points["y"]), axis=1)
             else:
@@ -837,8 +838,8 @@ def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
                 graph = create_graph_dict(data_points)
                 pos_array = np.stack((data_points["x"], data_points["y"]), axis=1)
             elif isinstance(data_points, np.ndarray):
-                dinter = DataInterface()
-                data_points = dinter.convert(data_points)
+                data_interface = DataInterface()
+                data_points = data_interface.to_array(data_points)
                 graph = create_graph_dict(data_points)
                 pos_array = np.stack((data_points["x"], data_points["y"]), axis=1)
             else:
@@ -877,6 +878,13 @@ def create_knn_graph(positions: np.ndarray, k: int = 3, aspect: str = "array",
         add_distance: Whether to add distance attributes
     """
     try:
+        # Validate k parameter
+        if k <= 0:
+            raise GraphCreationError("k must be positive")
+
+        if k >= len(positions):
+            raise GraphCreationError(f"k ({k}) must be less than number of points ({len(data_points)})")
+
         if aspect == "array":
             graph = create_graph_array(positions)
             pos_2d = positions[:, 1:3]

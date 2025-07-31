@@ -27,7 +27,7 @@ from graphizy.exceptions import (
 class DataInterface:
     """Interface for handling different data formats"""
 
-    def __init__(self, data_shape: List[Tuple[str, type]]):
+    def __init__(self, data_shape: Optional[List[Tuple[str, type]]] = None):
         """Initialize data interface
 
         Args:
@@ -39,6 +39,10 @@ class DataInterface:
 
 
         try:
+            # Set default data shape if none provided
+            if data_shape is None:
+                data_shape = [('id', int), ('x', float), ('y', float)]
+
             # Validate data_shape
             if not isinstance(data_shape, list):
                 raise InvalidDataShapeError("Data shape input should be a list")
@@ -80,51 +84,98 @@ class DataInterface:
         """Get index of y position column"""
         return self.data_idx["y"]
 
-    def to_array(self, data_points: Union[np.ndarray, Dict[str, Any]], aspect: str) -> np.ndarray:
+    def validate_array(self, point_array: np.ndarray) -> None:
+        """
+        Validate that array has the correct structure for this data interface.
+
+        Args:
+            point_array: Array to validate
+
+        Raises:
+            InvalidPointArrayError: If array structure is invalid
+        """
+        try:
+            if point_array is None or point_array.size == 0:
+                raise InvalidPointArrayError("Point array cannot be None or empty")
+            if point_array.ndim != 2:
+                raise InvalidPointArrayError("Point array must be 2D")
+
+            required_cols = max(self.getidx_id(), self.getidx_xpos(), self.getidx_ypos()) + 1
+            if point_array.shape[1] < required_cols:
+                raise InvalidPointArrayError(
+                    f"Point array doesn't have enough columns. "
+                    f"Need at least {required_cols}, got {point_array.shape[1]}"
+                )
+
+            # Additional type validations could go here
+            # e.g., check if ID column contains the expected type
+
+        except Exception as e:
+            if isinstance(e, InvalidPointArrayError):
+                raise
+            raise InvalidPointArrayError(f"Array validation failed: {str(e)}")
+
+    def to_array(self, data_points: Union[np.ndarray, Dict[str, Any]]) -> np.ndarray:
         """
         Convert data points to standardized array format.
 
+        Automatically detects input format and converts accordingly.
+
         Args:
             data_points: Input data in array or dict format
-            aspect: Expected input format ("array" or "dict")
 
         Returns:
             np.ndarray: Data in standardized array format
+
+        Raises:
+            InvalidPointArrayError: If conversion fails or data is invalid
         """
-        if aspect == "array":
-            if not isinstance(data_points, np.ndarray):
-                raise InvalidPointArrayError("Expected numpy array for 'array' aspect")
+        try:
+            if isinstance(data_points, np.ndarray):
+                # Already an array - just validate and return
+                # Validate data types - reject string/object IDs for consistency
+                if data_points.dtype.kind in ['U', 'S', 'O']:
+                    raise InvalidPointArrayError("Array format requires numeric IDs, not string/object types")
 
-            # Validate array structure
-            self.convert(data_points)  # This validates the array
-            return data_points
+                # Validate array structure
+                self.validate_array(data_points)
+                return data_points
 
-        elif aspect == "dict":
-            if isinstance(data_points, dict):
+            elif isinstance(data_points, dict):
+                # Convert dictionary to array
                 required_keys = ["id", "x", "y"]
                 if not all(k in data_points for k in required_keys):
                     raise InvalidPointArrayError(f"Dict data must contain keys: {required_keys}")
 
-                if len(set(len(v) for v in data_points.values())) > 1:
+                # Check all values are lists/arrays of same length
+                lengths = [len(v) for v in data_points.values()]
+                if len(set(lengths)) > 1:
                     raise InvalidPointArrayError("All dict values must have same length")
 
+                if lengths[0] == 0:
+                    raise InvalidPointArrayError("Data cannot be empty")
+
                 # Convert to array format
-                array_data = np.zeros((len(data_points["id"]), len(self.data_shape)))
+                n_points = lengths[0]
+                n_cols = len(self.data_shape)
+                array_data = np.zeros((n_points, n_cols))
+
                 array_data[:, self.getidx_id()] = data_points["id"]
                 array_data[:, self.getidx_xpos()] = data_points["x"]
                 array_data[:, self.getidx_ypos()] = data_points["y"]
 
                 return array_data
 
-            elif isinstance(data_points, np.ndarray):
-                # Validate and return
-                self.convert(data_points)  # Validates structure
-                return data_points
             else:
-                raise InvalidPointArrayError("Invalid data type for dict aspect")
-        else:
-            raise InvalidPointArrayError(f"Unknown aspect: {aspect}")
+                raise InvalidPointArrayError(
+                    f"Invalid data type: {type(data_points)}. "
+                    f"Expected numpy array or dictionary."
+                )
 
+        except Exception as e:
+            if isinstance(e, InvalidPointArrayError):
+                raise
+            raise InvalidPointArrayError(f"Failed to convert data to array format: {str(e)}")
 
     def to_dict(self, point_array: np.ndarray) -> Dict[str, Any]:
         """Convert point array to dictionary format
