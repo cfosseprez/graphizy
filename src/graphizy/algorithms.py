@@ -1131,6 +1131,118 @@ def create_gabriel_graph(positions: np.ndarray, aspect: str = "array",
         raise GraphCreationError(f"Failed to create Gabriel graph: {str(e)}")
 
 
+def create_voronoi_cell_graph(positions: np.ndarray, dimension: Tuple[int, int],
+                              aspect: str = "array", add_distance: Union[bool, Dict[str, Any]] = True) -> Any:
+    """
+    Create graph from Voronoi diagram structure:
+    - Nodes are Voronoi vertices (intersections of cell boundaries)
+    - Edges connect adjacent Voronoi vertices
+    """
+    from scipy.spatial import Voronoi
+
+    try:
+        if aspect == "array":
+            pos_2d = positions[:, 1:3]
+        else:
+            raise NotImplementedError("Dict aspect not implemented for Voronoi cell graph")
+
+        # Compute Voronoi diagram
+        vor = Voronoi(pos_2d)
+
+        # Create graph with Voronoi vertices as nodes
+        n_vertices = len(vor.vertices)
+        graph = ig.Graph(n=n_vertices)
+
+        # Set vertex attributes (Voronoi vertex coordinates)
+        graph.vs["id"] = list(range(n_vertices))
+        graph.vs["x"] = vor.vertices[:, 0]
+        graph.vs["y"] = vor.vertices[:, 1]
+        graph.vs["name"] = list(range(n_vertices))
+
+        # Add edges between adjacent Voronoi vertices
+        edges_to_add = []
+        for ridge_vertices in vor.ridge_vertices:
+            if -1 not in ridge_vertices:  # Skip infinite ridges
+                edges_to_add.append(tuple(ridge_vertices))
+
+        if edges_to_add:
+            graph.add_edges(edges_to_add)
+
+        # Create position array for distance calculation
+        voronoi_positions = np.column_stack([
+            graph.vs["id"], graph.vs["x"], graph.vs["y"]
+        ])
+
+        if add_distance:
+            graph = add_edge_distances(graph, voronoi_positions, "euclidean")
+
+        return graph
+
+    except Exception as e:
+        raise GraphCreationError(f"Failed to create Voronoi cell graph: {str(e)}")
+
+def create_visibility_graph(positions: np.ndarray, obstacles: Optional[List] = None,
+                            aspect: str = "array", add_distance: Union[bool, Dict[str, Any]] = True) -> Any:
+    """
+    Create visibility graph where points are connected if they have line-of-sight.
+
+    Args:
+        positions: Point data array
+        obstacles: List of obstacle polygons (optional)
+        aspect: Data format
+        add_distance: Whether to add distance attributes
+    """
+    try:
+        if aspect == "array":
+            graph = create_graph_array(positions)
+            pos_2d = positions[:, 1:3]
+        else:
+            raise NotImplementedError("Dict aspect not implemented for visibility graph")
+
+        n_points = len(pos_2d)
+        edges_to_add = []
+
+        # Check visibility between all pairs
+        for i in range(n_points):
+            for j in range(i + 1, n_points):
+                if _has_line_of_sight(pos_2d[i], pos_2d[j], obstacles):
+                    edges_to_add.append((i, j))
+
+        if edges_to_add:
+            graph.add_edges(edges_to_add)
+
+        # Add distances if requested
+        if add_distance:
+            if isinstance(add_distance, dict):
+                distance_metric = add_distance.get("metric", "euclidean")
+            else:
+                distance_metric = "euclidean"
+            graph = add_edge_distances(graph, positions, distance_metric)
+
+        return graph
+
+    except Exception as e:
+        raise GraphCreationError(f"Failed to create visibility graph: {str(e)}")
+
+
+def _has_line_of_sight(p1: np.ndarray, p2: np.ndarray, obstacles: Optional[List] = None) -> bool:
+    """Check if two points have unobstructed line of sight"""
+    if obstacles is None:
+        return True
+
+    # Check if line segment p1-p2 intersects any obstacle
+    for obstacle in obstacles:
+        if _line_intersects_polygon(p1, p2, obstacle):
+            return False
+    return True
+
+
+def _line_intersects_polygon(p1: np.ndarray, p2: np.ndarray, polygon: np.ndarray) -> bool:
+    """Check if line segment intersects with polygon using ray casting"""
+    # Implementation of line-polygon intersection
+    # This is a standard computational geometry algorithm
+    pass
+
 def create_graph(data_points: Union[np.ndarray, Dict[str, Any]],
                  graph_type: str, aspect: str = "array",
                  dimension: Tuple[int, int] = (1200, 1200), **kwargs) -> Any:

@@ -18,7 +18,8 @@ from .plugins_logic import GraphTypePlugin, GraphTypeInfo, register_graph_type
 # Import the core algorithm functions directly, NOT the Graphing class
 from .algorithms import (
     create_delaunay_graph, create_proximity_graph,
-    create_mst_graph, create_gabriel_graph, create_knn_graph
+    create_mst_graph, create_gabriel_graph, create_knn_graph,
+    create_visibility_graph, create_voronoi_cell_graph
 )
 
 
@@ -105,6 +106,37 @@ class KNNPlugin(GraphTypePlugin):
         """Create k-NN graph by calling the algorithm directly."""
         k = kwargs.get("k", 4)
         return create_knn_graph(data_points, k=k)
+
+
+
+class VisibilityGraphPlugin(GraphTypePlugin):
+    @property
+    def info(self) -> GraphTypeInfo:
+        return GraphTypeInfo(
+            name="visibility",
+            description="Graph connecting points with unobstructed line-of-sight",
+            parameters={
+                "obstacles": {"type": "list", "default": None, "description": "List of obstacle polygons"}
+            },
+            category="built-in"
+        )
+
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
+        return create_visibility_graph(data_points, **kwargs)
+
+
+class VoronoiCellGraphPlugin(GraphTypePlugin):
+    @property
+    def info(self) -> GraphTypeInfo:
+        return GraphTypeInfo(
+            name="voronoi_cells",
+            description="Graph of Voronoi diagram structure (vertices and ridges)",
+            parameters={},
+            category="built-in"
+        )
+
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
+        return create_voronoi_cell_graph(data_points, dimension, **kwargs)
 
 
 # Register all built-in plugins

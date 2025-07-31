@@ -4,6 +4,30 @@ graphizy package
 Submodules
 ----------
 
+graphizy.main module
+--------------------
+
+.. automodule:: graphizy.main
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+graphizy.builtin_plugins module
+--------------------
+
+.. automodule:: graphizy.builtin_plugins
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+graphizy.plugins_logic module
+--------------------
+
+.. automodule:: graphizy.plugins_logic
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 graphizy.algorithms module
 --------------------------
 
@@ -44,14 +68,6 @@ graphizy.exceptions module
    :undoc-members:
    :show-inheritance:
 
-graphizy.main module
---------------------
-
-.. automodule:: graphizy.main
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 graphizy.utils module
 ---------------------
 
@@ -59,6 +75,15 @@ graphizy.utils module
    :members:
    :undoc-members:
    :show-inheritance:
+
+graphizy.streaming module
+-------------------------
+
+ .. automodule:: graphizy.streaming
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------

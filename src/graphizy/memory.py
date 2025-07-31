@@ -17,6 +17,7 @@ from graphizy.algorithms import (
     get_distance,
     make_subdiv,
     graph_delaunay,
+    add_edge_distances_square,
 )
 
 
@@ -245,42 +246,41 @@ def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
         GraphCreationError: If graph creation fails
     """
     try:
-        # Normalize memory connections first for consistency
-        normalized_memory = normalize_memory_connections(memory_connections)
-
-        # Create basic graph with positions
+        # 1. Standardize input data to a NumPy array for consistency
         if aspect == "array":
             if not isinstance(current_positions, np.ndarray):
                 raise GraphCreationError("Expected numpy array for 'array' aspect")
-            graph = create_graph_array(current_positions)
-
+            data_array = current_positions
         elif aspect == "dict":
-            if isinstance(current_positions, np.ndarray):
-                # Convert array to dict format if needed
-                data_interface = DataInterface([("id", int), ("x", int), ("y", int)])
-                current_positions = data_interface.convert(current_positions)
-
-            if not isinstance(current_positions, dict):
-                raise GraphCreationError("Expected dictionary for 'dict' aspect")
-            graph = create_graph_dict(current_positions)
+            if isinstance(current_positions, dict):
+                required_keys = ["id", "x", "y"]
+                if not all(k in current_positions for k in required_keys):
+                    raise GraphCreationError(f"Dict data must contain required keys: {required_keys}")
+                data_array = np.column_stack(tuple(current_positions[k] for k in required_keys))
+            elif isinstance(current_positions, np.ndarray):
+                data_array = current_positions  # Allow array even if aspect is 'dict'
+            else:
+                raise GraphCreationError("Dict aspect requires a dictionary or NumPy array as input")
         else:
-            raise GraphCreationError("Aspect must be 'array' or 'dict'")
+            raise GraphCreationError(f"Unknown aspect '{aspect}'. Use 'array' or 'dict'")
 
-        # Create mapping from normalized object ID to vertex index
-        id_to_vertex = {}
-        for i, obj_id in enumerate(graph.vs["id"]):
-            normalized_id = normalize_id(obj_id)
-            id_to_vertex[normalized_id] = i
+        # Create basic graph from the standardized array
+        graph = create_graph_array(data_array)
 
-        # Add memory-based edges using normalized connections
-        edges_to_add = []
+        # Normalize memory connections for consistency
+        normalized_memory = normalize_memory_connections(memory_connections)
+
+        # Create a mapping from normalized object ID to its vertex index
+        id_to_vertex = {normalize_id(v_id): v.index for v, v_id in zip(graph.vs, graph.vs["id"])}
+
+        # Add memory-based edges
+        edges_to_add = set()  # Use a set to automatically handle duplicates
         for obj_id, connected_ids in normalized_memory.items():
             if obj_id not in id_to_vertex:
                 logging.warning(f"Object {obj_id} in memory but not in current positions")
                 continue
 
             vertex_from = id_to_vertex[obj_id]
-
             for connected_id in connected_ids:
                 if connected_id not in id_to_vertex:
                     logging.warning(f"Connected object {connected_id} in memory but not in current positions")
@@ -290,19 +290,17 @@ def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
 
                 # Avoid self-loops and ensure consistent edge ordering
                 if vertex_from != vertex_to:
-                    edge = tuple(sorted([vertex_from, vertex_to]))
-                    edges_to_add.append(edge)
+                    edge = tuple(sorted((vertex_from, vertex_to)))
+                    edges_to_add.add(edge)
 
-        # Remove duplicates and add edges
-        unique_edges = list(set(edges_to_add))
-        if unique_edges:
-            graph.add_edges(unique_edges)
-            # Add memory attribute to edges
-            graph.es["memory_based"] = [True] * len(unique_edges)
+        # Add unique edges to the graph
+        if edges_to_add:
+            graph.add_edges(list(edges_to_add))
+            graph.es["memory_based"] = [True] * len(edges_to_add)
 
         logging.debug(f"Created memory graph with {graph.vcount()} vertices and {graph.ecount()} memory-based edges")
 
-        # Early return if no distances needed or no edges
+        # Early return if no distances needed or no edges to calculate them for
         if not add_distance or graph.ecount() == 0:
             return graph
 
@@ -312,51 +310,21 @@ def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
         else:
             distance_metric = "euclidean"
 
-        # Extract current coordinates efficiently
-        if aspect == "array":
-            # Create fast lookup: {id: [x, y]}
-            coord_lookup = {int(current_positions[i, 0]): current_positions[i, 1:3]
-                            for i in range(len(current_positions))}
+        # Add distances using the robust, vectorized function from algorithms.py
+        try:
+            # This function is more efficient and handles the logic internally
+            graph = add_edge_distances_square(graph, data_array, edge_metric=distance_metric)
+            logging.debug(f"Added '{distance_metric}' distances to memory graph edges.")
+        except Exception as dist_error:
+            # As requested, wrap this in a try-except block for resilience
+            logging.warning(f"Could not compute edge distances for memory graph: {dist_error}. "
+                            "Returning graph without 'distance' attribute.")
+            # The graph is still valid, just without the distance attribute.
 
-        elif aspect == "dict":
-            coord_lookup = {
-                current_positions["id"][i]: np.array([current_positions["x"][i], current_positions["y"][i]])
-                for i in range(len(current_positions["id"]))}
-
-        # Compute current distances for each memory edge
-        current_distances = []
-        for edge in graph.es:
-            source_id = graph.vs[edge.source]["id"]
-            target_id = graph.vs[edge.target]["id"]
-
-            if source_id in coord_lookup and target_id in coord_lookup:
-                source_coords = coord_lookup[source_id]
-                target_coords = coord_lookup[target_id]
-
-                # Fast distance calculation
-                if distance_metric == "euclidean":
-                    dist = np.sqrt(np.sum((source_coords - target_coords) ** 2))
-                elif distance_metric == "manhattan":
-                    dist = np.sum(np.abs(source_coords - target_coords))
-                elif distance_metric == "chebyshev":
-                    dist = np.max(np.abs(source_coords - target_coords))
-                else:
-                    # Fallback to scipy for other metrics
-                    dist = cdist([source_coords], [target_coords], metric=distance_metric)[0, 0]
-
-                current_distances.append(dist)
-            else:
-                # Fallback if position not found
-                current_distances.append(0.0)
-
-        # Add current distances to edges
-        graph.es["distance"] = current_distances
-
-
-        logging.debug(f"Created memory graph with current distances: {graph.vcount()} vertices, {graph.ecount()} edges")
         return graph
 
     except Exception as e:
+        # Catch any other errors during graph creation and wrap them
         raise GraphCreationError(f"Failed to create memory graph: {str(e)}")
 
 

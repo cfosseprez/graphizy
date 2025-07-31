@@ -52,6 +52,7 @@ from graphizy.memory import (
     create_memory_graph, MemoryManager, update_memory_from_graph, update_memory_from_custom_function
 )
 from graphizy.drawing import Visualizer
+from graphizy.plugins_logic import get_graph_registry
 
 
 class Graphing:
@@ -1122,7 +1123,7 @@ class Graphing:
                 update_memory = False
 
         try:
-            from .plugins_logic import get_graph_registry
+
 
             # Centralize data conversion BEFORE calling the plugin system
             data_array = self._get_data_as_array(data_points)
@@ -1759,6 +1760,22 @@ class Graphing:
             raise ValueError(f"Graph type '{graph_type}' not found")
 
         return to_networkx(current_graphs[graph_type])
+
+    # ============================================================================
+    # ASYNC STEAM METHOD
+    # ============================================================================
+
+    def create_stream_manager(self, buffer_size: int = 1000,
+                              update_interval: float = 0.1,
+                              auto_memory: bool = True) -> 'StreamManager':
+        """Create a stream manager for real-time data processing"""
+        from .streaming import StreamManager
+        return StreamManager(self, buffer_size, update_interval, auto_memory)
+
+    def create_async_stream_manager(self, buffer_size: int = 1000) -> 'AsyncStreamManager':
+        """Create async stream manager for high-performance streaming"""
+        from .streaming import AsyncStreamManager
+        return AsyncStreamManager(self, buffer_size)
 
     # ============================================================================
     # GRAPH ANALYSIS AND METRICS METHODS
