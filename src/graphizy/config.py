@@ -8,7 +8,7 @@ Configuration module for graphizy
 """
 
 from dataclasses import dataclass, field
-from typing import Tuple, Union, Any, Optional
+from typing import Tuple, Union, Any, Optional, Dict
 import logging
 
 
@@ -77,10 +77,27 @@ class MemoryConfig:
 @dataclass
 class WeightConfig:
     """Configuration for weight computation"""
-    auto_compute: bool = False
-    weight_method: str = "distance"  # "distance", "custom", "inverse_distance"
+    auto_compute_weights: bool = True
+    weight_method: str = "distance"  # "distance", "age", "formula", "function", "combined"
     normalize_weights: bool = True
     weight_range: Tuple[float, float] = (0.0, 1.0)
+    distance_metric: str = "euclidean"
+    weight_attribute: str = "weight"
+    distance_attribute: str = "distance"
+
+    # Formula-specific settings
+    weight_formula: Optional[str] = None  # e.g., "1/(distance + 0.1)"
+
+    # Advanced settings
+    epsilon: float = 1e-10  # Prevent division by zero
+    default_value: float = 1.0  # Fallback for failed calculations
+
+    # Age-based settings (if using memory system)
+    age_mode: str = "exponential"  # "direct", "inverse", "exponential"
+    decay_rate: float = 0.1
+
+    # Combined weight settings
+    weight_factors: Dict[str, float] = field(default_factory=lambda: {"distance": 1.0})
 
 
 @dataclass

@@ -52,7 +52,7 @@ from graphizy.data_interface import DataInterface
 from graphizy.memory import (
     create_memory_graph, MemoryManager, update_memory_from_graph, update_memory_from_custom_function
 )
-from graphizy.weight import WeightComputer
+from graphizy.weight import (WeightComputer, setup_realtime_weight_computer)
 from graphizy.drawing import Visualizer
 from graphizy.plugins_logic import get_graph_registry
 
@@ -178,13 +178,19 @@ class Graphing:
             # Initialize data interface for handling different data formats
             self.data_interface = DataInterface(self.config.graph.data_shape)
 
+            # Get the graph registry
+            self.registry = get_graph_registry()
 
             # Initialize memory manager as None (created on-demand)
             self.memory_manager = None
 
             # Initialize weight manager as None (created on-demand)
             self.weight_computer = None
-            self.auto_compute_weights = False
+            self.fast_computer = None
+            if self.config.weight.auto_compute_weights:
+                logging.info("Adding the auto computation of weights")
+                self.init_weight_computer()
+
 
             # Initialize the visualizer
             self.visualizer = Visualizer(self.config.drawing, self.config.graph.dimension)
@@ -541,7 +547,7 @@ class Graphing:
 
             # Apply smart defaults for weight computation
             if compute_weights is None:
-                compute_weights = self.auto_compute_weights
+                compute_weights = self.config.weight.auto_compute_weights
 
             timer_start = time.time()
             updated_graphs = {}
@@ -699,6 +705,7 @@ class Graphing:
                    update_memory: Optional[bool] = None,
                    use_memory: Optional[bool] = None,
                    compute_weights: Optional[bool] = None,
+                   do_timing: bool = True,
                    **kwargs) -> Any:
         """
         Create a graph using the extensible plugin system with intelligent memory defaults.
@@ -707,6 +714,7 @@ class Graphing:
         graph types through a unified interface. It automatically handles data
         format conversion and passes the appropriate parameters to the graph
         creation algorithm. Optionally integrates with memory system using smart defaults.
+        do_timing: Whether to print the performances
 
         Args:
             graph_type: Name of the graph type to create. Built-in types include:
@@ -800,25 +808,36 @@ class Graphing:
 
         # Smart defaults for weights
         if compute_weights is None:
-            compute_weights = self.auto_compute_weights
+            compute_weights = self.config.weight.auto_compute_weights
 
         try:
             data_array = self.data_interface.to_array(data_points)
 
             # STEP 1: Create base graph
-            registry = get_graph_registry()
-            graph = registry.create_graph(
+            if do_timing:
+                start_time_graph = time.perf_counter()
+            graph = self.registry.create_graph(
                 graph_type=graph_type,
                 data_points=data_array,
                 dimension=self.dimension,
                 **final_params
             )
-
+            if do_timing:
+                end_time_graph = time.perf_counter() - start_time_graph
+                start_time_memory = time.perf_counter()
             # STEP 2: Apply memory processing (modifies graph structure)
             graph = self._maybe_apply_memory(graph, data_points, use_memory, update_memory)
-
+            if do_timing:
+                end_time_memory = time.perf_counter() - start_time_memory
+                start_time_weights = time.perf_counter()
             # STEP 3: Compute weights (adds attributes to existing edges)
-            graph = self._maybe_compute_weights(graph, data_array)
+            graph = self._maybe_compute_weights(graph)
+            if do_timing:
+                end_time_weights = time.perf_counter() - start_time_weights
+                print(
+                    f"Graph '{graph_type}' with data shape: {data_array.shape} > {end_time_graph*1000:.1f} /"
+                    f" memory >{end_time_memory*1000}/"
+                    f" weights >{end_time_weights*1000}.")
 
             return graph
 
@@ -1359,22 +1378,39 @@ class Graphing:
     # WEIGHT COMPUTATION METHODS
     # ============================================================================
 
-    def init_weight_computer(self, weight_computer: 'WeightComputer',
-                            auto_compute: bool = True) -> None:
-        """Set weight computer with optional auto-computation"""
-        self.weight_computer = weight_computer
-        self.auto_compute_weights = auto_compute
+    def init_weight_computer(self, **kwargs):
+        """Initialize flexible weight computer."""
+        self.weight_computer = WeightComputer(**kwargs)
+        self.config.weight.auto_compute_weights = True
 
-    def compute_weights(self, graph: Any, data_points: np.ndarray) -> Any:
-        """Manually compute weights for a graph"""
-        if self.weight_computer is None:
-            raise ValueError("No WeightComputer set. Call set_weight_computer() first.")
-        return self.weight_computer.compute_weights(graph, data_points)
+    def compute_edge_attribute(self, graph, attribute_name, method="formula", **kwargs):
+        """Compute any edge attribute."""
+        if not hasattr(self, 'weight_computer'):
+            self.weight_computer = WeightComputer()
 
-    def _maybe_compute_weights(self, graph: Any, data_points: np.ndarray) -> Any:
+        return self.weight_computer.compute_attribute(
+            graph, attribute_name, method=method, **kwargs
+        )
+
+    def setup_fast_attributes(self, **config):
+        """Setup fast attribute computer for real-time use."""
+        self.fast_computer = setup_realtime_weight_computer(**config)
+
+    def compute_all_attributes_fast(self, graph):
+        """Compute all pre-configured attributes quickly."""
+        if hasattr(self, 'fast_computer'):
+            return self.fast_computer.compute_multiple_attributes_fast(
+                graph, self.fast_computer._default_config
+            )
+        return graph
+
+    def _maybe_compute_weights(self, graph: Any) -> Any:
         """Internal method to auto-compute weights if enabled"""
-        if self.auto_compute_weights and self.weight_computer is not None:
-            return self.weight_computer.compute_weights(graph, data_points)
+
+        if self.fast_computer:
+            self.compute_all_attributes_fast(graph)
+        if self.config.weight.auto_compute_weights and self.weight_computer is not None:
+            return self.weight_computer.compute_weights(graph)
         return graph
 
     def get_weight_analysis(self) -> Dict[str, Any]:
