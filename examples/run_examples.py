@@ -51,9 +51,16 @@ def get_examples():
         },
         {
             'id': 5,
-            'file': '5.add_new_graph_type.py',
+            'file': '5_add_new_graph_type.py',
             'name': 'Add custom graph',
             'description': 'Example of custom graph addition',
+            'duration': '~5-10 minutes',
+        },
+        {
+            'id': 6,
+            'file': '6_stream_example.py',
+            'name': 'Stream example',
+            'description': 'Example of stream',
             'duration': '~5-10 minutes',
         }
     ]

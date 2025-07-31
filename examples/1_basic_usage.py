@@ -82,7 +82,7 @@ def example_delaunay_triangulation():
 
         # This is the core step: generate the Delaunay graph from our particle data.
         print("Creating the Delaunay triangulation...")
-        delaunay_graph = grapher.make_delaunay(particle_stack)
+        delaunay_graph = grapher.make_graph(graph_type="delaunay", data_points=particle_stack)
 
         # --- Analysis ---
         # Get and display key statistics about the generated graph.
@@ -156,8 +156,7 @@ def example_proximity_graph(particle_stack):
         # --- Graph Creation ---
         # Create the graph. Any two points closer than THRESHOLD pixels will be connected.
         print(f"Creating proximity graph with a distance threshold of {THRESHOLD} pixels...")
-        proximity_graph = grapher.make_proximity(
-            particle_stack,
+        proximity_graph = grapher.make_graph(graph_type="proximity", data_points=particle_stack,
             proximity_thresh=THRESHOLD,
             metric='euclidean'  # Use standard straight-line distance.
         )
@@ -216,7 +215,7 @@ def example_k_nearest_neighbors(particle_stack):
 
     try:
         # This example shows using an algorithm directly from the package.
-        from graphizy.algorithms import create_k_nearest_graph
+        from graphizy.algorithms import create_knn_graph
 
         # --- Configuration ---
         # 'K' is the number of nearest neighbors to connect to for each point.
@@ -238,7 +237,7 @@ def example_k_nearest_neighbors(particle_stack):
         print(f"Creating k-nearest neighbors graph with K={K}...")
         # Note: A->B being a nearest neighbor doesn't mean B->A is. The graph
         # is initially "directed". For analysis, we treat connections as two-way.
-        knn_graph = create_k_nearest_graph(particle_stack, k=K, aspect="array")
+        knn_graph = create_knn_graph(particle_stack, k=K, aspect="array")
 
         # --- Analysis ---
         info = grapher.get_graph_info(knn_graph)
@@ -355,7 +354,7 @@ def example_configuration_showcase():
         IMAGE_WIDTH, IMAGE_HEIGHT = 400, 400
         NUM_PARTICLES = 30
 
-        positions = generate_positions(IMAGE_WIDTH, IMAGE_HEIGHT, NUM_PARTICLES)
+        positions = generate_and_format_positions(IMAGE_WIDTH, IMAGE_HEIGHT, NUM_PARTICLES)
         particle_ids = np.arange(len(positions))
         particle_stack = np.column_stack((particle_ids, positions))
 
@@ -402,7 +401,7 @@ def example_configuration_showcase():
             # Create a grapher with this specific config.
             grapher = Graphing(config=config)
             # We'll use a Delaunay graph for all style examples.
-            graph = grapher.make_delaunay(particle_stack)
+            graph = grapher.make_graph(graph_type="delaunay", data_points=particle_stack)
 
             # Draw the graph and save it with a descriptive filename.
             image = grapher.draw_graph(graph)

@@ -399,6 +399,10 @@ class WeightComputer:
 
     def _compute_distance_values(self, graph: Any) -> List[float]:
         """Compute actual distance values (not weights)."""
+        # Handle graphs with no edges gracefully
+        if graph.ecount() == 0:
+            return []
+
         # Force distance computation if not present
         if DEFAULT_DISTANCE_KEY not in graph.es.attributes():
             graph = add_edge_distances(
@@ -406,6 +410,12 @@ class WeightComputer:
                 metric=self.distance_metric,
                 attribute=DEFAULT_DISTANCE_KEY
             )
+
+        # This check is now safe because we know there are edges
+        if DEFAULT_DISTANCE_KEY not in graph.es.attributes():
+             # This can happen if add_edge_distances fails silently
+             logging.warning("Distance attribute still missing after computation attempt.")
+             return [0.0] * graph.ecount()
 
         return list(graph.es[DEFAULT_DISTANCE_KEY])
 
@@ -804,7 +814,8 @@ def create_age_weight_computer(age_mode: str = "exponential",
         method="age",
         normalize=normalize,
         age_mode=age_mode,
-        decay_rate=decay_rate
+        decay_rate=decay_rate,
+        target_attribute="weight"
     )
 
 
@@ -844,65 +855,6 @@ def linear_combination_weight_computer(alpha: float = 0.5) -> WeightComputer:
         weights={'distance': alpha, 'age': 1 - alpha}
     )
 
-
-# ============================================================================
-# LEGACY COMPATIBILITY FUNCTIONS
-# ============================================================================
-
-def compute_edge_weights(graph: Any, weight_fn: Union[str, Callable],
-                        attribute: str = DEFAULT_WEIGHT_KEY) -> Any:
-    """
-    Legacy function for backward compatibility.
-    DEPRECATED: Use WeightComputer class or fast functions instead.
-    """
-    logging.warning("compute_edge_weights is deprecated. Use WeightComputer class or fast functions instead.")
-
-    if isinstance(weight_fn, str):
-        if weight_fn in ("1/distance", "inverse_distance"):
-            computer = WeightComputer(method="formula", formula="1/(distance + 1e-10)", target_attribute=attribute)
-        elif weight_fn == "age":
-            computer = WeightComputer(method="age", target_attribute=attribute)
-        else:
-            computer = WeightComputer(method="formula", formula=weight_fn, target_attribute=attribute)
-    else:
-        computer = WeightComputer(method="function", custom_function=weight_fn, target_attribute=attribute)
-
-    return computer.compute_weights(graph, np.array([]))
-
-
-def apply_distance_weights(graph: Any) -> Any:
-    """Legacy convenience wrapper for distance-based weights."""
-    logging.warning("apply_distance_weights is deprecated. Use WeightComputer class instead.")
-    computer = WeightComputer(method="formula", formula="1/(distance + 1e-10)", target_attribute=DEFAULT_WEIGHT_KEY)
-    return computer.compute_weights(graph, np.array([]))
-
-
-def apply_age_weights(graph: Any) -> Any:
-    """Legacy convenience wrapper for age-based weights."""
-    logging.warning("apply_age_weights is deprecated. Use WeightComputer class instead.")
-    computer = WeightComputer(method="age", target_attribute=DEFAULT_WEIGHT_KEY)
-    return computer.compute_weights(graph, np.array([]))
-
-
-def normalize_weights(graph: Any, attribute: str = DEFAULT_WEIGHT_KEY) -> Any:
-    """
-    Normalize weights to [0, 1] based on their min/max.
-    """
-    if attribute not in graph.es.attributes():
-        logging.warning(f"No '{attribute}' attribute found on edges")
-        return graph
-
-    weights = np.array(graph.es[attribute], dtype=np.float64)
-    min_w, max_w = np.nanmin(weights), np.nanmax(weights)
-
-    if max_w > min_w:
-        normalized = (weights - min_w) / (max_w - min_w)
-        graph.es[attribute] = normalized.tolist()
-    else:
-        logging.info("All weights are equal, setting to 0.5")
-        graph.es[attribute] = [0.5] * len(weights)
-
-    return graph
 
 
 def describe_weight_options() -> None:

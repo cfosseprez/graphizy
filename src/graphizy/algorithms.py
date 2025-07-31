@@ -734,7 +734,7 @@ def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
         metric: Distance metric to use for the graph construction
 
     Returns:
-        igraph Graph object with proximity connections and optional distances
+        igraph Graph object with proximity connections and distance attributes
 
     Raises:
         GraphCreationError: If proximity graph creation fails
@@ -766,10 +766,8 @@ def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
         else:
             raise GraphCreationError("Graph data interface could not be understood")
 
-        # Create proximity connections
-        graph = graph_distance(graph, pos_array, proximity_thresh, metric=metric)
-
-
+        # Create proximity connections with optimized vectorized approach
+        graph = graph_distance_optimized(graph, pos_array, proximity_thresh, metric=metric)
 
         end_prox = timeit.default_timer()
         logging.debug(f"Distance calculation took {round((end_prox - timer_prox) * 1000, 3)}ms")
@@ -778,6 +776,81 @@ def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
 
     except Exception as e:
         raise GraphCreationError(f"Failed to create proximity graph: {str(e)}")
+
+
+def graph_distance_optimized(graph: Any, position2d: np.ndarray, proximity_thresh: float,
+                             metric: str = "euclidean") -> Any:
+    """Construct a distance graph using optimized vectorized operations
+
+    Args:
+        graph: igraph Graph object
+        position2d: 2D position array
+        proximity_thresh: Distance threshold
+        metric: Distance metric
+
+    Returns:
+        Modified graph with distance attributes on edges
+
+    Raises:
+        GraphCreationError: If distance graph creation fails
+    """
+    try:
+        if graph is None:
+            raise GraphCreationError("Graph cannot be None")
+
+        if position2d is None or position2d.size == 0:
+            raise GraphCreationError("Position array cannot be None or empty")
+
+        if position2d.ndim != 2 or position2d.shape[1] != 2:
+            raise GraphCreationError("Position array must be 2D with shape (n, 2)")
+
+        if proximity_thresh <= 0:
+            raise GraphCreationError("Proximity threshold must be positive")
+
+        # Normalize the metric name to scipy-compatible format
+        normalized_metric = normalize_distance_metric(metric)
+
+        # Calculate full distance matrix using scipy's optimized pdist + squareform
+        square_dist = squareform(pdist(position2d, metric=normalized_metric))
+
+        # Use upper triangle indices to avoid duplicate edges (k=1 excludes diagonal)
+        i_idx, j_idx = np.triu_indices_from(square_dist, k=1)
+
+        # Apply threshold filter: distance < threshold AND distance > 0
+        distances = square_dist[i_idx, j_idx]
+        mask = (distances < proximity_thresh) & (distances > 0)
+
+        # Filter valid edges and their weights
+        valid_i = i_idx[mask]
+        valid_j = j_idx[mask]
+        valid_distances = distances[mask]
+
+        # Validate vertex indices against graph
+        max_vertex = graph.vcount()
+        vertex_mask = (valid_i < max_vertex) & (valid_j < max_vertex)
+
+        if not np.all(vertex_mask):
+            logging.warning(f"Some vertices exceed graph vertex count {max_vertex}")
+            valid_i = valid_i[vertex_mask]
+            valid_j = valid_j[vertex_mask]
+            valid_distances = valid_distances[vertex_mask]
+
+        # Create edge list and add all edges at once
+        if len(valid_i) > 0:
+            edges_to_add = list(zip(valid_i, valid_j))
+            graph.add_edges(edges_to_add)
+
+            # Add distance attributes
+            graph.es['distance'] = valid_distances.tolist()
+            graph.es['weight'] = valid_distances.tolist()  # Many algorithms expect 'weight'
+
+        # Simplify graph to remove any potential duplicates
+        graph.simplify()
+
+        return graph
+
+    except Exception as e:
+        raise GraphCreationError(f"Failed to create optimized distance graph: {str(e)}")
 
 
 def create_knn_graph(positions: np.ndarray, k: int = 3, aspect: str = "array",

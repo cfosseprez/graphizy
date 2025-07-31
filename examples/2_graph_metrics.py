@@ -60,18 +60,18 @@ def create_sample_graphs() -> (Dict[str, Any], Graphing, np.ndarray):
     print("Creating various graph types from the same set of nodes...")
 
     # Delaunay graphs are planar and tend to be sparse but well-connected.
-    graphs['delaunay'] = grapher.make_delaunay(particle_stack)
+    graphs['delaunay'] = grapher.make_graph(graph_type="delaunay", data_points=particle_stack)
 
     # Proximity graphs connect nodes based on a distance threshold.
     # A larger threshold creates a denser graph.
-    graphs['proximity_dense'] = grapher.make_proximity(particle_stack, proximity_thresh=100.0)
+    graphs['proximity_dense'] = grapher.make_graph(graph_type="proximity", data_points=particle_stack, proximity_thresh=100.0)
     # A smaller threshold creates a sparser graph, which may be disconnected.
-    graphs['proximity_sparse'] = grapher.make_proximity(particle_stack, proximity_thresh=60.0)
+    graphs['proximity_sparse'] = grapher.make_graph(graph_type="proximity", data_points=particle_stack, proximity_thresh=60.0)
 
     # K-Nearest Neighbor graphs connect each node to its 'k' closest neighbors.
     try:
-        from graphizy.algorithms import create_k_nearest_graph
-        graphs['knn'] = create_k_nearest_graph(particle_stack, k=4, aspect="array")
+        from graphizy.algorithms import create_knn_graph
+        graphs['knn'] = create_knn_graph(particle_stack, k=4, aspect="array")
     except ImportError:
         print("K-nearest graph requires additional dependencies (e.g., scikit-learn). Skipping.")
         graphs['knn'] = None

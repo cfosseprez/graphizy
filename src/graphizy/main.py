@@ -705,7 +705,7 @@ class Graphing:
                    update_memory: Optional[bool] = None,
                    use_memory: Optional[bool] = None,
                    compute_weights: Optional[bool] = None,
-                   do_timing: bool = True,
+                   do_timing: bool = False,
                    **kwargs) -> Any:
         """
         Create a graph using the extensible plugin system with intelligent memory defaults.
@@ -714,7 +714,7 @@ class Graphing:
         graph types through a unified interface. It automatically handles data
         format conversion and passes the appropriate parameters to the graph
         creation algorithm. Optionally integrates with memory system using smart defaults.
-        do_timing: Whether to print the performances
+
 
         Args:
             graph_type: Name of the graph type to create. Built-in types include:
@@ -736,6 +736,7 @@ class Graphing:
                        If None and memory manager exists, defaults to True.
                        Only works if memory_manager is initialized.
             compute_weights: Whether to compute edges weights. Only works if weight_computer is initialized.
+            do_timing: Whether to print the performances
             **kwargs: Additional graph-type specific parameters that override graph_params.
                      These are merged with graph_params, with kwargs taking precedence.
 
@@ -1380,6 +1381,13 @@ class Graphing:
 
     def init_weight_computer(self, **kwargs):
         """Initialize flexible weight computer."""
+        # If no method is passed, use the one from config
+        if 'method' not in kwargs:
+            kwargs['method'] = self.config.weight.weight_method
+        # If no target_attribute is passed, use the one from config
+        if 'target_attribute' not in kwargs:
+            kwargs['target_attribute'] = self.config.weight.weight_attribute
+
         self.weight_computer = WeightComputer(**kwargs)
         self.config.weight.auto_compute_weights = True
 

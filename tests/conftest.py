@@ -49,3 +49,47 @@ def grapher_dict(default_config):
 def blank_image():
     """Provides a blank 100x100 image for drawing tests."""
     return np.zeros((100, 100, 3), dtype=np.uint8)
+
+
+@pytest.fixture(scope="module")
+def weight_test_data():
+    """
+    Creates a simple numpy array of points with predictable distances
+    specifically for testing weight calculations.
+    """
+    # (id, x, y)
+    # distance(0,1) = 5 (3-4-5 triangle)
+    # distance(0,2) = 10
+    # distance(1,2) = 5
+    # distance(0,3) = 10
+    # distance(1,3) = ~8.06
+    # distance(2,3) = ~8.94
+    return np.array(
+        [
+            [0, 0, 0],
+            [1, 3, 4],
+            [2, 6, 8],
+            [3, 10, 0],
+        ],
+        dtype=np.float32,
+    )
+
+@pytest.fixture
+def weight_test_graph(weight_test_data):
+    """Creates a simple igraph.Graph with all edges for weight testing."""
+    import igraph as ig
+    graph = ig.Graph(n=4, directed=False)
+    graph.vs["id"] = weight_test_data[:, 0]
+    graph.vs["x"] = weight_test_data[:, 1]
+    graph.vs["y"] = weight_test_data[:, 2]
+    # Add all possible edges for thorough testing
+    graph.add_edges([(0, 1), (0, 2), (1, 2), (0, 3), (1, 3), (2, 3)])
+    return graph
+
+@pytest.fixture
+def graph_with_age(weight_test_graph):
+    """Creates a graph with a manual 'age' attribute on edges."""
+    graph = weight_test_graph.copy()
+    # Ages for edges (0,1), (0,2), (1,2), (0,3), (1,3), (2,3) respectively
+    graph.es["age"] = [1, 5, 2, 10, 3, 4]
+    return graph
