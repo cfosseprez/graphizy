@@ -2,6 +2,7 @@ import logging
 from typing import List, Tuple, Dict, Any, Union, Optional
 import numpy as np
 from collections import defaultdict, deque
+from scipy.spatial.distance import cdist
 
 from graphizy.exceptions import (
     InvalidPointArrayError, SubdivisionError, TriangulationError,
@@ -88,6 +89,7 @@ class MemoryManager:
         # Clean old iterations if max_iterations is set
         if self.max_iterations:
             self._clean_old_iterations()
+
 
     def _clean_old_iterations(self) -> None:
         """Remove connections older than max_iterations"""
@@ -222,7 +224,8 @@ def normalize_memory_connections(memory_connections: Dict[Any, List[Any]]) -> Di
 
 def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
                         memory_connections: Dict[Any, List[Any]],
-                        aspect: str = "array") -> Any:
+                        aspect: str = "array",
+                        add_distance: Union[bool, Dict[str, Any]] = True) -> Any:
     """Create a graph with current positions and memory-based edges
 
     Args:
@@ -230,9 +233,13 @@ def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
         memory_connections: Memory connections {"obj_id": ["connected_id1", "connected_id2"]}
                            IDs will be automatically normalized
         aspect: Data format ("array" or "dict")
+        add_distance: Whether to add distances. Can be:
+             - True: Add distances using euclidean metric
+             - False: Don't add distances
+             - Dict: {"metric": "euclidean"} for specific distance metric
 
     Returns:
-        igraph Graph object with memory-based edges
+        igraph Graph object with memory-based edges and optional distances
 
     Raises:
         GraphCreationError: If graph creation fails
@@ -290,17 +297,67 @@ def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
         unique_edges = list(set(edges_to_add))
         if unique_edges:
             graph.add_edges(unique_edges)
-
             # Add memory attribute to edges
             graph.es["memory_based"] = [True] * len(unique_edges)
 
         logging.debug(f"Created memory graph with {graph.vcount()} vertices and {graph.ecount()} memory-based edges")
 
+        # Early return if no distances needed or no edges
+        if not add_distance or graph.ecount() == 0:
+            return graph
+
+        # Determine distance metric
+        if isinstance(add_distance, dict):
+            distance_metric = add_distance.get("metric", "euclidean")
+        else:
+            distance_metric = "euclidean"
+
+        # Extract current coordinates efficiently
+        if aspect == "array":
+            # Create fast lookup: {id: [x, y]}
+            coord_lookup = {int(current_positions[i, 0]): current_positions[i, 1:3]
+                            for i in range(len(current_positions))}
+
+        elif aspect == "dict":
+            coord_lookup = {
+                current_positions["id"][i]: np.array([current_positions["x"][i], current_positions["y"][i]])
+                for i in range(len(current_positions["id"]))}
+
+        # Compute current distances for each memory edge
+        current_distances = []
+        for edge in graph.es:
+            source_id = graph.vs[edge.source]["id"]
+            target_id = graph.vs[edge.target]["id"]
+
+            if source_id in coord_lookup and target_id in coord_lookup:
+                source_coords = coord_lookup[source_id]
+                target_coords = coord_lookup[target_id]
+
+                # Fast distance calculation
+                if distance_metric == "euclidean":
+                    dist = np.sqrt(np.sum((source_coords - target_coords) ** 2))
+                elif distance_metric == "manhattan":
+                    dist = np.sum(np.abs(source_coords - target_coords))
+                elif distance_metric == "chebyshev":
+                    dist = np.max(np.abs(source_coords - target_coords))
+                else:
+                    # Fallback to scipy for other metrics
+                    dist = cdist([source_coords], [target_coords], metric=distance_metric)[0, 0]
+
+                current_distances.append(dist)
+            else:
+                # Fallback if position not found
+                current_distances.append(0.0)
+
+        # Add current distances to edges
+        graph.es["distance"] = current_distances
+
+
+        logging.debug(f"Created memory graph with current distances: {graph.vcount()} vertices, {graph.ecount()} edges")
         return graph
 
     except Exception as e:
         raise GraphCreationError(f"Failed to create memory graph: {str(e)}")
-
 
 
 def update_memory_from_graph(graph: Any, memory_manager: MemoryManager) -> Dict[str, List[str]]:

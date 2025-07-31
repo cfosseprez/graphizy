@@ -46,7 +46,7 @@ from graphizy.exceptions import (
 from graphizy.algorithms import (
     create_graph_array, create_graph_dict, DataInterface, call_igraph_method,
     create_delaunay_graph, create_proximity_graph,
-    create_minimum_spanning_tree, create_knn_graph, create_gabriel_graph,
+    create_mst_graph, create_knn_graph, create_gabriel_graph,
 )
 from graphizy.memory import (
     create_memory_graph, MemoryManager, update_memory_from_graph, update_memory_from_custom_function
@@ -1002,7 +1002,7 @@ class Graphing:
             data_array = self._get_data_as_array(data_points)
 
             # Call simplified algorithm function (aspect no longer needed)
-            graph = create_minimum_spanning_tree(data_array, metric=metric)
+            graph = create_mst_graph(data_array, metric=metric)
 
             elapsed_ms = round((timeit.default_timer() - timer_mst) * 1000, 3)
             logging.debug(f"MST computation completed in {elapsed_ms}ms")

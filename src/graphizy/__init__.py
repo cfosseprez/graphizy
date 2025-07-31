@@ -12,7 +12,7 @@ from graphizy.config import GraphizyConfig, DrawingConfig, GraphConfig, Generati
 from graphizy.algorithms import (
     make_subdiv, make_delaunay, get_delaunay,
     get_distance, graph_distance, create_graph_array, create_graph_dict, DataInterface,
-    call_igraph_method, create_minimum_spanning_tree, create_knn_graph, create_gabriel_graph
+    call_igraph_method, create_mst_graph, create_knn_graph, create_gabriel_graph
 )
 from graphizy.memory import (
     create_memory_graph, MemoryManager, update_memory_from_graph
@@ -72,7 +72,7 @@ __all__ = [
     "create_graph_dict",
     "DataInterface",
     "call_igraph_method",
-    "create_minimum_spanning_tree",
+    "create_mst_graph",
     "create_knn_graph",
     "create_gabriel_graph",
 

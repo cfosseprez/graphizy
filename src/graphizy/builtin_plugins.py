@@ -18,7 +18,7 @@ from .plugins_logic import GraphTypePlugin, GraphTypeInfo, register_graph_type
 # Import the core algorithm functions directly, NOT the Graphing class
 from .algorithms import (
     create_delaunay_graph, create_proximity_graph,
-    create_minimum_spanning_tree, create_gabriel_graph, create_knn_graph
+    create_mst_graph, create_gabriel_graph, create_knn_graph
 )
 
 
@@ -72,7 +72,7 @@ class MSTPlugin(GraphTypePlugin):
     def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
         """Create minimum spanning tree graph by calling the algorithm directly."""
         metric = kwargs.get("metric", "euclidean")
-        return create_minimum_spanning_tree(data_points, metric=metric)
+        return create_mst_graph(data_points, metric=metric)
 
 
 class GabrielPlugin(GraphTypePlugin):
