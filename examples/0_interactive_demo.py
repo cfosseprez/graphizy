@@ -63,7 +63,7 @@ def main():
     parser.add_argument('--memory', '-m', action='store_true',
                         help='Enable memory tracking for the selected graph type')
     parser.add_argument('--memory-size', type=int, default=3,
-                        help='Memory buffer size (default: 25)')
+                        help='Memory buffer size (default: 3)')
 
     # Simulation parameters
     parser.add_argument('--iterations', '-i', type=int, default=100000,

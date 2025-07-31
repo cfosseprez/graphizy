@@ -1,453 +1,467 @@
 """
-Optimized Memory System for Graphizy using Vectorized Operations
+Ultra-Simplified Memory System for Graphizy
 
-This implementation leverages NumPy vectorized operations and igraph's
-efficient data structures to significantly improve performance, especially
-for large graphs and frequent memory updates.
+This implementation uses the simplest possible approach:
+1. Store edges as a list (allowing duplicates)
+2. Add all edges to graph (including duplicates)
+3. Use igraph's simplify() to handle deduplication
+4. Minimal overhead, maximum performance
 
-Key optimizations:
-1. Direct extraction of edge data from igraph objects
-2. NumPy arrays for edge storage and manipulation
-3. Vectorized age calculations and filtering
-4. Batch operations for memory updates
-5. Efficient sparse matrix representations
-
-Performance improvements:
-- 5-10x faster edge extraction from igraph
-- 3-5x faster memory updates for large graphs
-- 2-3x faster age calculations and filtering
-- Reduced memory fragmentation
+The key insight: Let igraph's C++ implementation handle the complexity
+instead of managing it in Python.
 """
 
 import logging
 import numpy as np
-from typing import List, Tuple, Dict, Any, Union, Optional, Set
-from collections import defaultdict
+from typing import List, Tuple, Dict, Any, Union, Optional
 import igraph as ig
-from scipy import sparse
-from dataclasses import dataclass
+from collections import deque
 import time
 
-
-@dataclass
-class EdgeMemory:
-    """Vectorized edge memory storage"""
-    edges: np.ndarray  # Shape: (n_edges, 2) - vertex indices
-    ages: np.ndarray  # Shape: (n_edges,) - age in iterations
-    weights: np.ndarray  # Shape: (n_edges,) - optional weights
-    first_seen: np.ndarray  # Shape: (n_edges,) - iteration first seen
-    last_seen: np.ndarray  # Shape: (n_edges,) - iteration last seen
-
-    def __len__(self) -> int:
-        return len(self.edges) if self.edges is not None else 0
+from graphizy.exceptions import GraphCreationError
 
 
 class MemoryManager:
     """
-    High-performance memory manager using vectorized operations
+    Ultra-simplified MemoryManager using igraph's built-in deduplication
 
-    Optimizations:
-    - Direct igraph edge extraction with get_edgelist()
-    - NumPy arrays for all edge data storage
-    - Vectorized age calculations and filtering
-    - Batch memory operations
-    - Optional sparse matrix representation for very large graphs
+    This implementation is radically simplified:
+    - No complex data structures
+    - No manual deduplication
+    - Just store edges and let igraph handle everything
     """
 
     def __init__(self,
-                 max_memory_size: int = 1000,
+                 max_memory_size: int = 10000,
                  max_iterations: int = None,
-                 track_edge_ages: bool = True,
-                 use_sparse: bool = False,
-                 batch_size: int = 10000):
+                 track_edge_ages: bool = True):
         """
-        Initialize vectorized memory manager
+        Initialize simplified memory manager
 
         Args:
-            max_memory_size: Maximum edges to keep in memory
-            max_iterations: Maximum iterations to track (None = unlimited)
-            track_edge_ages: Whether to track detailed edge aging
-            use_sparse: Use sparse matrices for very large graphs (>10k edges)
-            batch_size: Batch size for vectorized operations
+            max_memory_size: Maximum number of edges to store (before cleanup)
+            max_iterations: Not used in this implementation (kept for API compatibility)
+            track_edge_ages: Whether to track when edges were added
         """
         self.max_memory_size = max_memory_size
-        self.max_iterations = max_iterations
+        self.max_iterations = max_iterations  # Kept for API compatibility
         self.track_edge_ages = track_edge_ages
-        self.use_sparse = use_sparse
-        self.batch_size = batch_size
         self.current_iteration = 0
 
-        # Vectorized storage
-        self.memory = EdgeMemory(
-            edges=np.empty((0, 2), dtype=np.int32),
-            ages=np.empty(0, dtype=np.int32),
-            weights=np.empty(0, dtype=np.float32),
-            first_seen=np.empty(0, dtype=np.int32),
-            last_seen=np.empty(0, dtype=np.int32)
-        )
+        # Use deque for efficient, fixed-size storage.
+        # It automatically discards the oldest items when full.
+        self._edges = deque(maxlen=self.max_memory_size)
+        if self.track_edge_ages:
+            self._edge_iterations = deque(maxlen=self.max_memory_size)
+        else:
+            # Keep the attribute for consistent API, even if unused
+            self._edge_iterations = None
 
-        # Vertex ID mapping for consistency
-        self.vertex_id_map = {}  # str_id -> vertex_index
-        self.index_to_id = {}  # vertex_index -> str_id
-        self.next_vertex_index = 0
+        # Compatibility attributes
+        self.all_objects = set()   # Track all vertex IDs seen
 
         # Performance tracking
         self._stats = {
             'update_times': [],
-            'extraction_times': [],
-            'filtering_times': []
+            'graph_creation_times': []
         }
 
-    def add_graph(self, graph: ig.Graph) -> Dict[str, Any]:
+    def add_graph_vectorized(self,
+                           graph: ig.Graph,
+                           return_memory_graph: bool = False) -> Union[Dict[str, Any], ig.Graph]:
         """
-        Add edges from igraph using vectorized operations
+        Add graph edges to memory and optionally return memory-enhanced graph
 
-        This is the main optimization - directly extract edge data
-        from igraph and process in vectorized NumPy operations.
-
-        Args:
-            graph: igraph Graph object
-
-        Returns:
-            Update statistics
+        This is the main method - extremely simplified:
+        1. Extract edges from graph
+        2. Add to our edge list
+        3. If requested, create memory graph using simplify()
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
         self.current_iteration += 1
 
-        # Fast edge extraction from igraph
-        extraction_start = time.time()
-        edges_list = graph.get_edgelist()  # Fast C implementation
-        vertex_ids = [str(v["id"]) for v in graph.vs]
+        # Extract vertex IDs once
+        vertex_ids = graph.vs["id"]
 
-        # Convert to NumPy array in one operation
-        if edges_list:
-            new_edges = np.array(edges_list, dtype=np.int32)
-            n_new_edges = len(new_edges)
+        # Update tracked objects
+        self.all_objects.update(str(vid) for vid in vertex_ids)
+
+        # Extract edges - no deduplication, just collect them
+        edge_count = 0
+        for edge in graph.es:
+            v1_idx, v2_idx = edge.tuple
+            v1_id = str(vertex_ids[v1_idx])
+            v2_id = str(vertex_ids[v2_idx])
+
+            # Store normalized edge (smaller ID first)
+            self._edges.append((min(v1_id, v2_id), max(v1_id, v2_id)))
+
+            if self.track_edge_ages:
+                self._edge_iterations.append(self.current_iteration)
+
+            edge_count += 1
+
+
+        update_time = time.perf_counter() - start_time
+        self._stats['update_times'].append(update_time)
+
+        if return_memory_graph:
+            graph_start = time.perf_counter()
+            memory_graph = self._create_memory_graph_ultra_simple(graph)
+            graph_time = time.perf_counter() - graph_start
+            self._stats['graph_creation_times'].append(graph_time)
+
+            logging.debug(f"Memory update: {update_time*1000:.1f}ms, "
+                         f"Graph creation: {graph_time*1000:.1f}ms")
+            return memory_graph
         else:
-            new_edges = np.empty((0, 2), dtype=np.int32)
-            n_new_edges = 0
+            return {
+                'edges_processed': edge_count,
+                'total_time_ms': update_time * 1000,
+                'memory_size': len(self._edges),
+                'iteration': self.current_iteration
+            }
 
-        extraction_time = time.time() - extraction_start
-        self._stats['extraction_times'].append(extraction_time)
-
-        # Update vertex mapping (vectorized where possible)
-        self._update_vertex_mapping(vertex_ids)
-
-        if n_new_edges == 0:
-            return self._get_update_stats(0, 0, extraction_time, 0)
-
-        # Vectorized duplicate detection and filtering
-        filtering_start = time.time()
-        unique_edges, update_mask = self._find_unique_and_updates(new_edges)
-        filtering_time = time.time() - filtering_start
-        self._stats['filtering_times'].append(filtering_time)
-
-        # Batch memory updates
-        n_added = self._batch_memory_update(unique_edges, update_mask)
-
-        # Vectorized cleanup if needed
-        if len(self.memory) > self.max_memory_size:
-            self._cleanup()
-
-        total_time = time.time() - start_time
-        self._stats['update_times'].append(total_time)
-
-        return self._get_update_stats(n_new_edges, n_added, extraction_time, total_time)
-
-    def _update_vertex_mapping(self, vertex_ids: List[str]) -> None:
-        """Update vertex ID mapping using vectorized operations where possible"""
-        for i, vid in enumerate(vertex_ids):
-            if vid not in self.vertex_id_map:
-                self.vertex_id_map[vid] = self.next_vertex_index
-                self.index_to_id[self.next_vertex_index] = vid
-                self.next_vertex_index += 1
-
-    def _find_unique_and_updates(self, new_edges: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def _create_memory_graph_ultra_simple(self, current_graph: ig.Graph) -> ig.Graph:
         """
-        Vectorized duplicate detection and update identification
+        Create memory graph using igraph's simplify() method
 
-        Returns:
-            unique_edges: New edges not in memory
-            update_mask: Boolean array for edges that need age updates
+        This is the key optimization - we add ALL edges (including duplicates)
+        and let igraph's C++ simplify() method handle deduplication efficiently.
         """
-        if len(self.memory) == 0:
-            return new_edges, np.ones(len(new_edges), dtype=bool)
+        # Copy current graph
+        memory_graph = current_graph.copy()
 
-        # Sort edges for consistent comparison (vectorized)
-        new_edges_sorted = np.sort(new_edges, axis=1)
-        existing_edges_sorted = np.sort(self.memory.edges, axis=1)
+        if not self._edges:
+            return memory_graph
 
-        # Use broadcasting for efficient duplicate detection
-        # This is much faster than nested loops for large arrays
-        new_edges_view = new_edges_sorted.view(dtype=[('', new_edges_sorted.dtype)] * 2)
-        existing_edges_view = existing_edges_sorted.view(dtype=[('', existing_edges_sorted.dtype)] * 2)
+        # Get vertex mapping
+        vertex_ids = [str(vid) for vid in memory_graph.vs["id"]]
+        vertex_id_to_idx = {vid: i for i, vid in enumerate(vertex_ids)}
 
-        # Find which new edges are already in memory (vectorized)
-        is_duplicate = np.isin(new_edges_view.ravel(), existing_edges_view.ravel()).reshape(-1)
-        update_mask = is_duplicate
-        unique_mask = ~is_duplicate
+        # Collect all edges to add (including duplicates!)
+        edges_to_add = []
+        edge_ages = []
 
-        return new_edges_sorted[unique_mask], update_mask
+        for i, (v1_id, v2_id) in enumerate(self._edges):
+            # Only add if both vertices exist in current graph
+            if v1_id in vertex_id_to_idx and v2_id in vertex_id_to_idx:
+                v1_idx = vertex_id_to_idx[v1_id]
+                v2_idx = vertex_id_to_idx[v2_id]
+                edges_to_add.append((v1_idx, v2_idx))
 
-    def _batch_memory_update(self, unique_edges: np.ndarray, update_mask: np.ndarray) -> int:
+                if self.track_edge_ages:
+                    age = self.current_iteration - self._edge_iterations[i]
+                    edge_ages.append(age)
+
+        if edges_to_add:
+            # Store counts for attribute initialization
+            n_original = memory_graph.ecount()
+            n_to_add = len(edges_to_add)
+
+            # Add ALL edges at once (including duplicates)
+            memory_graph.add_edges(edges_to_add)
+
+            # Initialize attributes for all edges
+            # Current edges are not memory-based
+            memory_graph.es["memory_based"] = [False] * n_original + [True] * n_to_add
+
+            # Set weights (will be summed for duplicates)
+            memory_graph.es["weight"] = [1.0] * n_original + [1.0] * n_to_add
+
+            # Set ages
+            if self.track_edge_ages:
+                memory_graph.es["age"] = [0] * n_original + edge_ages
+            else:
+                memory_graph.es["age"] = [0] * (n_original + n_to_add)
+
+            # Now the magic: use igraph's simplify to merge duplicates
+            # This is implemented in C++ and is very fast
+            memory_graph.simplify(
+                multiple=True,  # Remove multiple edges
+                loops=True,     # Remove self-loops
+                combine_edges={
+                    "memory_based": "max",   # If any is True, keep True
+                    "weight": "sum",         # Sum weights of duplicates
+                    "age": "min"            # Keep the oldest age
+                }
+            )
+
+        return memory_graph
+
+    def create_memory_graph(self, data_points: Union[np.ndarray, Dict[str, Any]]) -> ig.Graph:
         """
-        Batch update memory storage using vectorized operations
+        Create a memory-only graph from current positions
 
-        Args:
-            unique_edges: New edges to add
-            update_mask: Mask for edges needing updates
-
-        Returns:
-            Number of edges added
+        This creates a graph with vertices from data_points but edges only from memory.
         """
-        n_new = len(unique_edges)
-        if n_new == 0:
-            return 0
+        from graphizy.algorithms import create_graph_array
 
-        # Prepare new data arrays
-        new_ages = np.full(n_new, 0, dtype=np.int32)  # New edges start with age 0
-        new_weights = np.ones(n_new, dtype=np.float32)  # Default weight
-        new_first_seen = np.full(n_new, self.current_iteration, dtype=np.int32)
-        new_last_seen = np.full(n_new, self.current_iteration, dtype=np.int32)
-
-        # Vectorized concatenation
-        self.memory.edges = np.vstack([self.memory.edges, unique_edges])
-        self.memory.ages = np.concatenate([self.memory.ages, new_ages])
-        self.memory.weights = np.concatenate([self.memory.weights, new_weights])
-        self.memory.first_seen = np.concatenate([self.memory.first_seen, new_first_seen])
-        self.memory.last_seen = np.concatenate([self.memory.last_seen, new_last_seen])
-
-        # Vectorized age updates for all existing edges
-        if len(self.memory.ages) > n_new:  # Only if we have existing edges
-            self.memory.ages[:-n_new] += 1
-
-        # Update last_seen for edges that appeared again (vectorized)
-        if update_mask.any():
-            self._update_last_seen(update_mask)
-
-        return n_new
-
-    def _update_last_seen(self, update_mask: np.ndarray) -> None:
-        """Update last_seen timestamps using vectorized operations"""
-        if not self.track_edge_ages:
-            return
-
-        # This would need more sophisticated matching logic
-        # For now, update all recent edges (simplified)
-        recent_mask = self.memory.last_seen >= (self.current_iteration - 2)
-        self.memory.last_seen[recent_mask] = self.current_iteration
-
-    def _cleanup(self) -> None:
-        """Remove old edges using vectorized operations"""
-        if len(self.memory) <= self.max_memory_size:
-            return
-
-        # Strategy: Keep most recent edges based on last_seen
-        if self.track_edge_ages:
-            # Sort by last_seen (descending) and age (ascending) - vectorized
-            sort_indices = np.lexsort((self.memory.ages, -self.memory.last_seen))
+        # Create graph with vertices only
+        if isinstance(data_points, dict):
+            data_array = np.column_stack((
+                data_points["id"],
+                data_points["x"],
+                data_points["y"]
+            ))
         else:
-            # Sort by age only - vectorized
-            sort_indices = np.argsort(self.memory.ages)
+            data_array = data_points
 
-        # Keep only the most recent edges
-        keep_indices = sort_indices[:self.max_memory_size]
+        graph = create_graph_array(data_array)
 
-        # Vectorized filtering
-        self.memory.edges = self.memory.edges[keep_indices]
-        self.memory.ages = self.memory.ages[keep_indices]
-        self.memory.weights = self.memory.weights[keep_indices]
-        self.memory.first_seen = self.memory.first_seen[keep_indices]
-        self.memory.last_seen = self.memory.last_seen[keep_indices]
+        # Add memory edges
+        return self._create_memory_graph_ultra_simple(graph)
 
-        logging.debug(f"Cleaned memory: kept {len(keep_indices)} edges")
-
-    def create_memory_graph(self, current_positions: np.ndarray) -> ig.Graph:
+    def get_current_memory_graph(self) -> Dict[str, List[str]]:
         """
-        Create memory graph using vectorized operations
+        COMPATIBILITY METHOD: Return memory in dict format
 
-        Args:
-            current_positions: Array of [id, x, y, ...] positions
-
-        Returns:
-            igraph Graph with memory edges
+        This is kept for backward compatibility but is less efficient.
         """
-        if len(self.memory) == 0:
-            # Return empty graph with current vertices
-            graph = ig.Graph()
-            vertex_ids = [str(pos[0]) for pos in current_positions]
-            graph.add_vertices(len(vertex_ids))
-            graph.vs["id"] = vertex_ids
-            # Add position attributes
-            graph.vs["x"] = current_positions[:, 1]
-            graph.vs["y"] = current_positions[:, 2]
-            return graph
+        # Count unique edges and build adjacency
+        adjacency = {str(obj_id): set() for obj_id in self.all_objects}
 
-        # Create graph with current positions
-        vertex_ids = [str(pos[0]) for pos in current_positions]
-        graph = ig.Graph()
-        graph.add_vertices(len(vertex_ids))
-        graph.vs["id"] = vertex_ids
-        graph.vs["x"] = current_positions[:, 1]
-        graph.vs["y"] = current_positions[:, 2]
+        for v1_id, v2_id in self._edges:
+            if v1_id in adjacency and v2_id in adjacency:
+                adjacency[v1_id].add(v2_id)
+                adjacency[v2_id].add(v1_id)
 
-        # Map current vertex IDs to indices
-        current_id_to_index = {vid: i for i, vid in enumerate(vertex_ids)}
+        # Convert sets to lists
+        return {obj_id: list(neighbors) for obj_id, neighbors in adjacency.items()}
 
-        # Filter memory edges to only include current vertices (vectorized)
-        valid_edges = []
-        valid_weights = []
-        valid_ages = []
+    def add_connections(self, connections: Dict[Any, List[Any]]) -> None:
+        """
+        COMPATIBILITY METHOD: Add connections in dict format
 
-        for i, edge in enumerate(self.memory.edges):
-            v1_id = self.index_to_id.get(edge[0])
-            v2_id = self.index_to_id.get(edge[1])
+        This is kept for backward compatibility.
+        """
+        self.current_iteration += 1
 
-            if v1_id and v2_id and v1_id in current_id_to_index and v2_id in current_id_to_index:
-                new_edge = (current_id_to_index[v1_id], current_id_to_index[v2_id])
-                valid_edges.append(new_edge)
-                valid_weights.append(self.memory.weights[i])
-                valid_ages.append(self.memory.ages[i])
+        for obj_id, connected_ids in connections.items():
+            obj_id_str = str(obj_id)
+            self.all_objects.add(obj_id_str)
 
-        # Add edges in batch
-        if valid_edges:
-            graph.add_edges(valid_edges)
-            graph.es["weight"] = valid_weights
-            graph.es["age"] = valid_ages
-            graph.es["memory_based"] = [True] * len(valid_edges)
+            for connected_id in connected_ids:
+                connected_id_str = str(connected_id)
+                self.all_objects.add(connected_id_str)
 
-        return graph
+                # Add normalized edge
+                edge = (min(obj_id_str, connected_id_str),
+                       max(obj_id_str, connected_id_str))
+                self._edges.append(edge)
 
-    def get_performance_stats(self) -> Dict[str, Any]:
-        """Get detailed performance statistics"""
+                if self.track_edge_ages:
+                    self._edge_iterations.append(self.current_iteration)
+
+        # Cleanup if needed
+        if len(self._edges) > self.max_memory_size * 2:
+            keep_from = len(self._edges) - self.max_memory_size
+            self._edges = self._edges[keep_from:]
+            if self.track_edge_ages:
+                self._edge_iterations = self._edge_iterations[keep_from:]
+
+    def get_memory_stats(self) -> Dict[str, Any]:
+        """Get memory statistics"""
+        # Count unique edges
+        unique_edges = len(set(self._edges))
+
         stats = {
-            'memory_size': len(self.memory),
-            'current_iteration': self.current_iteration,
-            'vertex_count': len(self.vertex_id_map)
+            "total_objects": len(self.all_objects),
+            "total_connections": len(self._edges),
+            "unique_connections": unique_edges,
+            "duplicate_ratio": 1 - (unique_edges / len(self._edges)) if self._edges else 0,
+            "current_iteration": self.current_iteration,
+            "max_memory_size": self.max_memory_size,
+            "edge_aging_enabled": self.track_edge_ages
         }
 
-        # Add timing statistics if available
-        for key in ['update_times', 'extraction_times', 'filtering_times']:
-            times = self._stats[key]
-            if times:
-                stats[f'{key}_avg'] = np.mean(times)
-                stats[f'{key}_std'] = np.std(times)
-                stats[f'{key}_min'] = np.min(times)
-                stats[f'{key}_max'] = np.max(times)
+        if self._stats['update_times']:
+            stats["avg_update_time_ms"] = np.mean(self._stats['update_times']) * 1000
+            stats["avg_graph_creation_time_ms"] = (
+                np.mean(self._stats['graph_creation_times']) * 1000
+                if self._stats['graph_creation_times'] else 0
+            )
+
+        if self.track_edge_ages and self._edge_iterations:
+            ages = [self.current_iteration - iter_num for iter_num in self._edge_iterations]
+            stats["edge_age_stats"] = {
+                "min_age": min(ages),
+                "max_age": max(ages),
+                "avg_age": float(np.mean(ages)),
+                "total_aged_edges": len(ages)
+            }
 
         return stats
 
-    def get_memory_matrix_sparse(self) -> sparse.csr_matrix:
-        """
-        Get memory as sparse adjacency matrix for very large graphs
-
-        Returns:
-            Sparse CSR matrix representation
-        """
-        if not self.use_sparse or len(self.memory) == 0:
-            return None
-
-        n_vertices = len(self.vertex_id_map)
-        if n_vertices == 0:
-            return sparse.csr_matrix((0, 0))
-
-        # Create sparse matrix from edges (vectorized)
-        rows = self.memory.edges[:, 0]
-        cols = self.memory.edges[:, 1]
-        data = self.memory.weights
-
-        # Symmetric matrix for undirected graph
-        rows_sym = np.concatenate([rows, cols])
-        cols_sym = np.concatenate([cols, rows])
-        data_sym = np.concatenate([data, data])
-
-        matrix = sparse.csr_matrix(
-            (data_sym, (rows_sym, cols_sym)),
-            shape=(n_vertices, n_vertices)
-        )
-
-        return matrix
-
-    def _get_update_stats(self, n_new: int, n_added: int,
-                          extraction_time: float, total_time: float) -> Dict[str, Any]:
-        """Get update operation statistics"""
-        return {
-            'edges_processed': n_new,
-            'edges_added': n_added,
-            'extraction_time_ms': extraction_time * 1000,
-            'total_time_ms': total_time * 1000,
-            'memory_size': len(self.memory),
-            'iteration': self.current_iteration
+    def clear(self) -> None:
+        """Clear all memory"""
+        self._edges.clear()
+        self._edge_iterations.clear()
+        self.all_objects.clear()
+        self.current_iteration = 0
+        self._stats = {
+            'update_times': [],
+            'graph_creation_times': []
         }
 
-    def clear(self) -> None:
-        """Clear all memory data"""
-        self.memory = EdgeMemory(
-            edges=np.empty((0, 2), dtype=np.int32),
-            ages=np.empty(0, dtype=np.int32),
-            weights=np.empty(0, dtype=np.float32),
-            first_seen=np.empty(0, dtype=np.int32),
-            last_seen=np.empty(0, dtype=np.int32)
-        )
-        self.vertex_id_map.clear()
-        self.index_to_id.clear()
-        self.next_vertex_index = 0
-        self.current_iteration = 0
-        self._stats = {'update_times': [], 'extraction_times': [], 'filtering_times': []}
 
-
-def benchmark_memory_systems():
+# Standalone compatibility functions
+def create_memory_graph(current_positions: Union[np.ndarray, Dict[str, Any]],
+                       memory_connections: Dict[Any, List[Any]],
+                       aspect: str = "array") -> Any:
     """
-    Benchmark comparison between original and vectorized memory systems
+    STANDALONE FUNCTION: Create memory graph
+
+    This uses the ultra-simple approach: create graph, add all edges, simplify.
     """
-    import time
-    from graphizy import Graphing, GraphizyConfig, generate_and_format_positions
+    try:
+        from graphizy.algorithms import create_graph_array, normalize_id
 
-    # Test parameters
-    sizes = [100, 500, 1000, 2000]
-    iterations = 50
+        # Create base graph
+        if aspect == "array":
+            if not isinstance(current_positions, np.ndarray):
+                raise GraphCreationError("Expected numpy array for 'array' aspect")
+            graph = create_graph_array(current_positions)
+        elif aspect == "dict":
+            if isinstance(current_positions, dict):
+                required_keys = ["id", "x", "y"]
+                if not all(k in current_positions for k in required_keys):
+                    raise GraphCreationError(f"Dict must contain keys: {required_keys}")
+                data_array = np.column_stack(tuple(current_positions[k] for k in required_keys))
+                graph = create_graph_array(data_array)
+            elif isinstance(current_positions, np.ndarray):
+                graph = create_graph_array(current_positions)
+            else:
+                raise GraphCreationError("Dict aspect requires dict or array")
+        else:
+            raise GraphCreationError(f"Unknown aspect '{aspect}'")
 
-    print("Benchmarking Memory Systems")
-    print("=" * 50)
+        # Get vertex mapping
+        id_to_vertex = {normalize_id(v["id"]): v.index for v in graph.vs}
 
-    for size in sizes:
-        print(f"\nTesting with {size} vertices, {iterations} iterations")
+        # Add all edges (including duplicates)
+        edges_to_add = []
+        for obj_id, connected_ids in memory_connections.items():
+            norm_obj_id = normalize_id(obj_id)
+            if norm_obj_id not in id_to_vertex:
+                continue
 
-        # Generate test data
-        positions = generate_and_format_positions(800, 800, size)
-        config = GraphizyConfig(dimension=(800, 800))
-        grapher = Graphing(config=config)
+            v_from = id_to_vertex[norm_obj_id]
+            for connected_id in connected_ids:
+                norm_conn_id = normalize_id(connected_id)
+                if norm_conn_id in id_to_vertex:
+                    v_to = id_to_vertex[norm_conn_id]
+                    edges_to_add.append((v_from, v_to))
 
-        # Test vectorized system
-        vectorized_mgr = VectorizedMemoryManager(
-            max_memory_size=size * 5,
-            track_edge_ages=True
-        )
+        # Add edges and simplify
+        if edges_to_add:
+            graph.add_edges(edges_to_add)
+            graph.es["memory_based"] = [True] * len(edges_to_add)
+            graph.simplify()  # Remove duplicates
 
-        start_time = time.time()
-        for i in range(iterations):
-            # Simulate slight position changes
-            positions[:, 1:3] += np.random.normal(0, 2, (size, 2))
+        return graph
 
-            # Create proximity graph
-            graph = grapher.make_graph("proximity", positions, proximity_thresh=60.0)
-
-            # Update vectorized memory
-            vectorized_mgr.add_graph(graph)
-
-        vectorized_time = time.time() - start_time
-
-        # Get final statistics
-        final_graph = vectorized_mgr.create_memory_graph(positions)
-        perf_stats = vectorized_mgr.get_performance_stats()
-
-        print(f"  Vectorized system: {vectorized_time:.3f}s total")
-        print(f"  Average update time: {perf_stats.get('update_times_avg', 0) * 1000:.2f}ms")
-        print(f"  Average extraction time: {perf_stats.get('extraction_times_avg', 0) * 1000:.2f}ms")
-        print(f"  Final memory size: {perf_stats['memory_size']} edges")
-        print(f"  Final graph: {final_graph.vcount()} vertices, {final_graph.ecount()} edges")
+    except Exception as e:
+        raise GraphCreationError(f"Failed to create memory graph: {str(e)}")
 
 
+def update_memory_from_graph(graph: Any, memory_manager: MemoryManager) -> Dict[str, List[str]]:
+    """STANDALONE FUNCTION: Update memory from graph"""
+    try:
+        if graph is None or memory_manager is None:
+            raise GraphCreationError("Graph and memory manager cannot be None")
+
+        memory_manager.add_graph_vectorized(graph, return_memory_graph=False)
+        return memory_manager.get_current_memory_graph()
+
+    except Exception as e:
+        raise GraphCreationError(f"Failed to update memory from graph: {str(e)}")
+
+
+def update_memory_from_custom_function(data_points: Union[np.ndarray, Dict[str, Any]],
+                                     memory_manager: MemoryManager,
+                                     connection_function: callable,
+                                     aspect: str = "array",
+                                     **kwargs) -> Dict[str, List[str]]:
+    """STANDALONE FUNCTION: Update memory using custom function"""
+    try:
+        raw_connections = connection_function(data_points, **kwargs)
+
+        connections_dict = {}
+
+        # Initialize empty connections
+        if aspect == "array":
+            if not isinstance(data_points, np.ndarray):
+                raise GraphCreationError("Expected numpy array for 'array' aspect")
+            for obj_id in data_points[:, 0]:
+                from graphizy.algorithms import normalize_id
+                connections_dict[normalize_id(obj_id)] = []
+        elif aspect == "dict":
+            if isinstance(data_points, dict):
+                for obj_id in data_points["id"]:
+                    from graphizy.algorithms import normalize_id
+                    connections_dict[normalize_id(obj_id)] = []
+            else:
+                raise GraphCreationError("Expected dictionary for 'dict' aspect")
+
+        # Add connections
+        for connection in raw_connections:
+            if len(connection) >= 2:
+                from graphizy.algorithms import normalize_id
+                id1, id2 = normalize_id(connection[0]), normalize_id(connection[1])
+                if id1 in connections_dict:
+                    connections_dict[id1].append(id2)
+                if id2 in connections_dict:
+                    connections_dict[id2].append(id1)
+
+        memory_manager.add_connections(connections_dict)
+        return connections_dict
+
+    except Exception as e:
+        raise GraphCreationError(f"Failed to update memory from custom function: {str(e)}")
+
+
+# Example usage
 if __name__ == "__main__":
-    # Run benchmarks
-    benchmark_memory_systems()
+    # Demonstrate the ultra-simple approach
+    print("=== ULTRA-SIMPLE MEMORY SYSTEM ===\n")
+
+    # Create test data
+    positions = np.array([
+        [1, 100, 100],
+        [2, 200, 150],
+        [3, 120, 300],
+        [4, 400, 100],
+        [5, 250, 250]
+    ])
+
+    # Initialize memory manager
+    memory_mgr = MemoryManager(max_memory_size=1000, track_edge_ages=True)
+
+    # Create test graph
+    import igraph as ig
+    graph = ig.Graph()
+    graph.add_vertices(5)
+    graph.vs["id"] = ["1", "2", "3", "4", "5"]
+    graph.vs["x"] = positions[:, 1]
+    graph.vs["y"] = positions[:, 2]
+    graph.add_edges([(0, 1), (1, 2), (2, 3)])
+
+    # Test performance
+    import time
+
+    # Update memory 100 times
+    start = time.perf_counter()
+    for i in range(100):
+        memory_mgr.add_graph_vectorized(graph, return_memory_graph=False)
+    update_time = (time.perf_counter() - start) / 100 * 1000
+
+    # Create memory graph
+    start = time.perf_counter()
+    memory_graph = memory_mgr.add_graph_vectorized(graph, return_memory_graph=True)
+    create_time = (time.perf_counter() - start) * 1000
+
+    print(f"Average update time: {update_time:.2f}ms")
+    print(f"Graph creation time: {create_time:.2f}ms")
+    print(f"Memory edges: {memory_graph.ecount() - graph.ecount()}")
+    print(f"\nStats: {memory_mgr.get_memory_stats()}")

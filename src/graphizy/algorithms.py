@@ -868,7 +868,7 @@ def create_knn_graph(positions: np.ndarray, k: int = 3, aspect: str = "array",
             raise GraphCreationError("k must be positive")
 
         if k >= len(positions):
-            raise GraphCreationError(f"k ({k}) must be less than number of points ({len(data_points)})")
+            raise GraphCreationError(f"k ({k}) must be less than number of points ({len(positions)})")
 
         if aspect == "array":
             graph = create_graph_array(positions)

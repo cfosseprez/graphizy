@@ -16,7 +16,7 @@ from graphizy.algorithms import (
 )
 from graphizy.data_interface import DataInterface
 from graphizy.memory import (
-    create_memory_graph, MemoryManager, update_memory_from_graph
+    MemoryManager
 )
 from graphizy.positions import (
 generate_positions, format_positions, generate_and_format_positions

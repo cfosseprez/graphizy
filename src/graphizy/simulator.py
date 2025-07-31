@@ -162,7 +162,7 @@ class BrownianSimulator:
         self.particle_stack[:, 2] = np.clip(self.particle_stack[:, 2], self.boundary_buffer,
                                             self.height - self.boundary_buffer)
 
-    def create_visualization(self, graph_type: int) -> Optional[np.ndarray]:
+    def create_visualization(self, graph_type: int) -> Optional[Tuple[np.ndarray, float]]:
         """Create visualization using the simplified update system"""
         if graph_type == 5:  # Combined view
             return self._create_combined_view()
