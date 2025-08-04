@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """
-Graph Metrics and Analysis Examples for Graphizy
+Graph Metrics and Analysis Examples for Graphizy - Updated for v0.1.17+
 
-This script demonstrates how to compute and interpret various graph metrics
-using the Graphizy library. It covers:
+This script demonstrates comprehensive graph analysis using the latest Graphizy API.
+It covers:
 
-1.  Fundamental graph metrics (size, density, connectivity).
-2.  Node-level centrality analysis (degree, betweenness, closeness).
-3.  Advanced structural properties (clustering, assortativity).
-4.  Direct access to the underlying igraph library for custom analysis.
-5.  Comparative analysis of metrics across different graph generation methods.
+1. Fundamental graph metrics using modern get_graph_info() method
+2. Advanced node-level centrality analysis with resilient methods
+3. Component analysis and connectivity handling
+4. Direct igraph integration with updated call_method_safe() and call_method_brutal()
+5. Comparative analysis across all supported graph types (including MST and Gabriel)
+6. Memory and weight system integration examples
+7. Creating graphs with custom node attributes.
 
 .. moduleauthor:: Charles Fosseprez
-.. contact:: charles.fosseprez.me@gmail.com
-.. license:: MIT
-.. copyright:: Copyright (C) 2023 Charles Fosseprez
+.. contact:: charles.fosseprez.pro@gmail.com
+.. license:: GPL2 or later
+.. copyright:: Copyright (C) 2025 Charles Fosseprez
 """
 
 import numpy as np
@@ -22,281 +24,516 @@ import logging
 from pathlib import Path
 import sys
 from typing import Dict, Any
+from collections import Counter
+import random
 
 from graphizy import (
-    Graphing, GraphizyConfig, generate_positions,
+    Graphing, GraphizyConfig, generate_and_format_positions,
+    validate_graphizy_input
 )
-# This utility helps create an 'output' directory if it doesn't exist.
 from graphizy.utils import setup_output_directory
 
-# Setup logging for informative output.
-logging.basicConfig(level=logging.INFO,
-                    format='%(levelname)s: %(message)s')
+# Setup logging for informative output
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 
-def create_sample_graphs() -> (Dict[str, Any], Graphing, np.ndarray):
+def create_comprehensive_sample_graphs() -> (Dict[str, Any], Graphing, np.ndarray):
     """
-    Generates a set of distinct graph types from the same point cloud.
-    This provides a basis for comparing how generation methods affect graph properties.
+    Generates a comprehensive set of graph types using the modern API.
+    Updated to include all available graph types in Graphizy v0.1.17+.
     """
     print("\n" + "=" * 60)
-    print("CREATING SAMPLE GRAPHS FOR ANALYSIS")
+    print("CREATING COMPREHENSIVE SAMPLE GRAPHS FOR ANALYSIS")
     print("=" * 60)
 
-    # Generate a common set of 2D points (nodes).
+    # Generate common set of 2D points
     WIDTH, HEIGHT = 600, 600
-    NUM_PARTICLES = 40
-    positions = generate_positions(WIDTH, HEIGHT, NUM_PARTICLES)
-    particle_ids = np.arange(len(positions))
-    particle_stack = np.column_stack((particle_ids, positions))
+    NUM_PARTICLES = 50
+    particle_stack = generate_and_format_positions(WIDTH, HEIGHT, NUM_PARTICLES)
+    validate_graphizy_input(particle_stack)
 
-    # Initialize a Graphing instance to create graphs.
-    config = GraphizyConfig()
-    config.graph.dimension = (WIDTH, HEIGHT)
+    # Initialize grapher with modern configuration
+    config = GraphizyConfig(dimension=(WIDTH, HEIGHT))
     grapher = Graphing(config=config)
 
-    # Create a dictionary to hold different graph types.
+    # Create comprehensive set of graph types using modern unified API
     graphs = {}
-    print("Creating various graph types from the same set of nodes...")
+    print("Creating various graph types using make_graph() interface...")
 
-    # Delaunay graphs are planar and tend to be sparse but well-connected.
-    graphs['delaunay'] = grapher.make_graph(graph_type="delaunay", data_points=particle_stack)
-
-    # Proximity graphs connect nodes based on a distance threshold.
-    # A larger threshold creates a denser graph.
-    graphs['proximity_dense'] = grapher.make_graph(graph_type="proximity", data_points=particle_stack, proximity_thresh=100.0)
-    # A smaller threshold creates a sparser graph, which may be disconnected.
-    graphs['proximity_sparse'] = grapher.make_graph(graph_type="proximity", data_points=particle_stack, proximity_thresh=60.0)
-
-    # K-Nearest Neighbor graphs connect each node to its 'k' closest neighbors.
     try:
-        from graphizy.algorithms import create_knn_graph
-        graphs['knn'] = create_knn_graph(particle_stack, k=4, aspect="array")
-    except ImportError:
-        print("K-nearest graph requires additional dependencies (e.g., scikit-learn). Skipping.")
-        graphs['knn'] = None
+        # Geometric graphs
+        print("  • Creating Delaunay triangulation...")
+        graphs['delaunay'] = grapher.make_graph("delaunay", particle_stack)
 
-    return graphs, grapher, particle_stack
+        print("  • Creating Gabriel graph...")
+        graphs['gabriel'] = grapher.make_graph("gabriel", particle_stack)
+
+        # Proximity-based graphs
+        print("  • Creating dense proximity graph...")
+        graphs['proximity_dense'] = grapher.make_graph("proximity", particle_stack,
+                                                      proximity_thresh=100.0)
+
+        print("  • Creating sparse proximity graph...")
+        graphs['proximity_sparse'] = grapher.make_graph("proximity", particle_stack,
+                                                       proximity_thresh=60.0)
+
+        # Fixed-degree graphs
+        print("  • Creating K-nearest neighbors graph...")
+        graphs['knn'] = grapher.make_graph("knn", particle_stack, k=4)
+
+        # Minimal connectivity
+        print("  • Creating minimum spanning tree...")
+        graphs['mst'] = grapher.make_graph("mst", particle_stack, metric="euclidean")
+
+        # Count successful creations
+        successful = sum(1 for g in graphs.values() if g is not None)
+        print(f"Successfully created {successful}/{len(graphs)} graph types.")
+
+        return graphs, grapher, particle_stack
+
+    except Exception as e:
+        print(f"Error creating sample graphs: {e}")
+        # Filter out failed graphs
+        graphs = {k: v for k, v in graphs.items() if v is not None}
+        return graphs, grapher, particle_stack
 
 
-def example_basic_metrics(graphs: Dict[str, Any], grapher: Graphing):
-    """Demonstrates computing the most fundamental graph metrics."""
+def example_modern_basic_metrics(graphs: Dict[str, Any], grapher: Graphing):
+    """
+    Demonstrates the modern get_graph_info() API for comprehensive graph analysis.
+    """
     print("\n" + "=" * 60)
-    print("BASIC GRAPH METRICS")
+    print("MODERN BASIC GRAPH METRICS")
     print("=" * 60)
-    print("These metrics provide a high-level overview of a graph's size and structure.")
+    print("Using the enhanced get_graph_info() method for unified analysis.")
 
-    # Table header for the metrics.
-    print(f"\n{'Graph Type':<20} {'Vertices':<10} {'Edges':<8} {'Density':<10} {'Connected':<10}")
-    print("-" * 65)
+    # Enhanced table with more metrics
+    header_line = f"{'Graph Type':<18} {'Vertices':<9} {'Edges':<7} {'Density':<8} {'Connected':<10} {'Components':<11} {'Avg Path':<9}"
+    print(f"\n{header_line}")
+    print("-" * len(header_line))
 
     for name, graph in graphs.items():
-        if graph is None: continue
+        if graph is None:
+            continue
 
-        # The `get_graph_info` method is a high-level API call that conveniently
-        # computes and returns a dictionary of common graph metrics.
+        # Modern comprehensive analysis
         info = grapher.get_graph_info(graph)
+        connectivity_info = grapher.get_connectivity_info(graph)
 
-        # Density: Ratio of actual edges to the total number of possible edges.
-        # Indicates how "complete" or "crowded" the graph is.
+        # Format values for display
         density = info.get('density', 0.0)
+        avg_path = info.get('average_path_length')
+        avg_path_str = f"{avg_path:.2f}" if avg_path is not None else "N/A"
 
-        print(
-            f"{name:<20} {info.get('vertex_count', 0):<10} {info.get('edge_count', 0):<8} {density:<10.3f} {str(info.get('is_connected', 'N/A')):<10}")
+        print(f"{name:<18} {info.get('vertex_count', 0):<9} "
+              f"{info.get('edge_count', 0):<7} {density:<8.3f} "
+              f"{str(info.get('is_connected', False)):<10} "
+              f"{connectivity_info['num_components']:<11} {avg_path_str:<9}")
 
-    print("\nInsight: Notice how the 'proximity_dense' graph has the highest edge count and density,")
-    print("while the 'delaunay' and 'knn' graphs are much sparser.")
+    print("\nInsights:")
+    print("  • MST has exactly n-1 edges (minimal connectivity)")
+    print("  • Gabriel is typically sparser than Delaunay")
+    print("  • Proximity graphs vary greatly with threshold")
+    print("  • KNN provides controlled vertex degree")
 
 
-def example_connectivity_analysis(graphs: Dict[str, Any], grapher: Graphing):
+def example_advanced_connectivity_analysis(graphs: Dict[str, Any], grapher: Graphing):
     """
-    Demonstrates metrics related to graph connectivity and traversal.
+    Demonstrates advanced connectivity analysis using modern resilient methods.
     """
     print("\n" + "=" * 60)
-    print("CONNECTIVITY ANALYSIS")
+    print("ADVANCED CONNECTIVITY ANALYSIS")
     print("=" * 60)
-    print("These metrics describe how well connected the graph is and the typical distances between nodes.")
+    print("Using call_method_safe() for robust analysis of disconnected graphs.")
 
     for name, graph in graphs.items():
-        if graph is None: continue
-        print(f"\n--- Analysis for: {name.upper()} ---")
+        if graph is None:
+            continue
 
-        # Use the high-level API for quick stats.
-        info = grapher.get_graph_info(graph)
-        print(f"  Is Connected: {info.get('is_connected')}")
-        # Diameter: The longest shortest path between any two nodes in the graph.
-        if info.get('diameter') is not None:
-            print(f"  Diameter: {info['diameter']}")
-        # Average Path Length: The average distance between all pairs of nodes.
-        if info.get('average_path_length') is not None:
-            print(f"  Avg. Path Length: {info['average_path_length']:.3f}")
+        print(f"\n--- {name.upper()} GRAPH ANALYSIS ---")
 
-        # For more detailed analysis, use `call_method_raw` to access igraph functions directly.
-        # This provides the raw output from the underlying library.
-        components = grapher.call_method_raw(graph, 'connected_components')
-        num_components = len(components)
-        print(f"  Components: {num_components}")
+        # Comprehensive connectivity analysis
+        connectivity_info = grapher.get_connectivity_info(graph)
 
-        # If the graph is disconnected, analyze its largest component.
-        if num_components > 1:
-            giant_component_size = max(len(c) for c in components)
-            print(
-                f"  Giant Component Size: {giant_component_size} of {graph.vcount()} nodes ({giant_component_size / graph.vcount():.1%})")
+        print(f"  Basic connectivity:")
+        print(f"    • Connected: {connectivity_info['is_connected']}")
+        print(f"    • Components: {connectivity_info['num_components']}")
 
-        # Global Clustering Coefficient (Transitivity): Measures the tendency of nodes to cluster together.
-        # A high value means friends of a node are also likely to be friends with each other.
-        transitivity = grapher.get_graph_info(graph).get('transitivity', 'N/A')
-        if isinstance(transitivity, float):
-            print(f"  Global Clustering: {transitivity:.3f}")
+        if connectivity_info['num_components'] > 1:
+            print(f"    • Largest component: {connectivity_info['largest_component_size']} vertices")
+            print(f"    • Connectivity ratio: {connectivity_info['connectivity_ratio']:.1%}")
+            print(f"    • Isolated vertices: {connectivity_info['isolation_ratio']:.1%}")
+
+        # Resilient path analysis - handles disconnected graphs gracefully
+        diameter = grapher.call_method_safe(graph, 'diameter',
+                                          component_mode="largest",
+                                          default_value=None)
+        if diameter is not None:
+            print(f"    • Diameter (largest component): {diameter}")
+
+        avg_path = grapher.call_method_safe(graph, 'average_path_length',
+                                          component_mode="largest",
+                                          default_value=None)
+        if avg_path is not None:
+            print(f"    • Avg path length (largest component): {avg_path:.3f}")
+
+        # Global clustering analysis
+        transitivity = grapher.call_method_safe(graph, 'transitivity_undirected',
+                                              default_value=0.0)
+        print(f"    • Global clustering coefficient: {transitivity:.3f}")
 
 
-def example_centrality_measures(graphs: Dict[str, Any], grapher: Graphing):
+def example_advanced_centrality_measures(graphs: Dict[str, Any], grapher: Graphing):
     """
-    Demonstrates various centrality measures to identify important nodes.
+    Demonstrates centrality analysis using the robust call_method_safe() API.
     """
     print("\n" + "=" * 60)
-    print("CENTRALITY MEASURES")
+    print("ADVANCED CENTRALITY MEASURES")
     print("=" * 60)
-    print("Centrality metrics help identify the most influential or critical nodes in a network.")
+    print("Using call_method_safe() for resilient centrality computation.")
 
-    # We will perform a detailed analysis on one representative graph.
-    name = 'delaunay'
-    graph = graphs.get(name)
-    if graph is None: return
-    print(f"\n--- Detailed centrality analysis for '{name.upper()}' graph ---")
+    # Analyze Delaunay graph in detail (typically well-connected)
+    delaunay_graph = graphs.get('delaunay')
+    if delaunay_graph is None:
+        print("No Delaunay graph available for detailed analysis.")
+        return
 
-    # 1. Degree Centrality: The number of connections a node has.
-    print("\n- Degree (Number of connections):")
-    degrees = grapher.call_method_safe(graph, 'degree')
-    degree_values = list(degrees.values())
-    print(f"  Average: {np.mean(degree_values):.2f}, Range: {min(degree_values)}-{max(degree_values)}")
+    print(f"\n--- DETAILED CENTRALITY ANALYSIS: DELAUNAY GRAPH ---")
 
-    # 2. Betweenness Centrality: Measures how often a node lies on the shortest path between other nodes.
-    # High betweenness indicates a "bridge" node that connects disparate parts of the graph.
-    print("\n- Betweenness (Bridge-like role):")
-    # `call_method_safe()` is a helper that returns a user-friendly dictionary mapping node IDs to their values.
-    betweenness = grapher.call_method_safe(graph, 'betweenness')
-    sorted_bet = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)
-    print(f"  Top 3 nodes: {[(item[0], f'{item[1]:.2f}') for item in sorted_bet[:3]]}")
+    # 1. Degree Centrality (always works)
+    print("\n• Degree Centrality:")
+    degrees = grapher.call_method_safe(delaunay_graph, 'degree', "dict")
+    degree_values = list(degrees.values()) if isinstance(degrees, dict) else []
 
-    # 3. Closeness Centrality: Measures the average distance from a node to all other nodes.
-    # A high value means the node is, on average, "close" to all others and can spread information efficiently.
-    print("\n- Closeness (Ease of reaching other nodes):")
-    if grapher.call_method_safe(graph, 'is_connected'):
-        closeness = grapher.call_method_safe(graph, 'closeness')
+    if degree_values:
+        print(f"    Average: {np.mean(degree_values):.2f}")
+        print(f"    Range: {min(degree_values)} - {max(degree_values)}")
+
+        # Degree distribution
+        degree_dist = Counter(degree_values)
+        print(f"    Distribution: {dict(sorted(degree_dist.items()))}")
+
+    # 2. Betweenness Centrality (handles disconnected graphs)
+    print("\n• Betweenness Centrality:")
+    betweenness = grapher.call_method_safe(delaunay_graph, 'betweenness',
+                                         "dict", component_mode="all",
+                                         default_value=0.0)
+
+    if isinstance(betweenness, dict) and betweenness:
+        sorted_bet = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)
+        print(f"    Top 5 bridges: {[(item[0], f'{item[1]:.3f}') for item in sorted_bet[:5]]}")
+        print(f"    Average: {np.mean(list(betweenness.values())):.3f}")
+
+    # 3. Closeness Centrality (robust handling of disconnected components)
+    print("\n• Closeness Centrality:")
+    closeness = grapher.call_method_safe(delaunay_graph, 'closeness',
+                                       "dict", component_mode="connected_only",
+                                       default_value=0.0)
+
+    if isinstance(closeness, dict) and closeness:
         sorted_close = sorted(closeness.items(), key=lambda x: x[1], reverse=True)
-        print(f"  Top 3 nodes: {[(item[0], f'{item[1]:.3f}') for item in sorted_close[:3]]}")
-    else:
-        print("  Skipped (graph is not fully connected).")
+        print(f"    Top 5 central: {[(item[0], f'{item[1]:.3f}') for item in sorted_close[:5]]}")
+
+    # 4. Comparative centrality analysis across graph types
+    print(f"\n--- CENTRALITY COMPARISON ACROSS GRAPH TYPES ---")
+
+    centrality_comparison = {}
+    for name, graph in graphs.items():
+        if graph is None:
+            continue
+
+        # Compute average betweenness for each graph type
+        bet_centrality = grapher.call_method_safe(graph, 'betweenness',
+                                                component_mode="all",
+                                                default_value=0.0)
+
+        if isinstance(bet_centrality, dict):
+            avg_betweenness = np.mean(list(bet_centrality.values()))
+            centrality_comparison[name] = avg_betweenness
+
+    print("Average Betweenness Centrality by Graph Type:")
+    for name, avg_bet in sorted(centrality_comparison.items(),
+                               key=lambda x: x[1], reverse=True):
+        print(f"    {name:<18}: {avg_bet:.4f}")
 
 
-def example_direct_igraph_usage(graphs: Dict[str, Any], grapher: Graphing):
+def example_direct_igraph_integration(graphs: Dict[str, Any], grapher: Graphing):
     """
-    Demonstrates how to use the direct igraph interface for custom analysis.
-    This is for advanced use cases where a specific metric is not available
-    through the high-level `graphizy` API.
+    Demonstrates the enhanced igraph integration with call_method_brutal().
     """
     print("\n" + "=" * 60)
-    print("DIRECT IGRAPH INTERFACE USAGE")
+    print("DIRECT IGRAPH INTEGRATION")
     print("=" * 60)
-    print("Use `call_method_raw` to access any method from the underlying igraph object.")
+    print("Using call_method_brutal() for advanced igraph method access.")
 
-    name = 'delaunay'
-    graph = graphs.get(name)
-    if graph is None: return
-    print(f"\n--- Direct analysis examples using '{name.upper()}' graph ---")
+    # Use MST for predictable structure
+    mst_graph = graphs.get('mst')
+    if mst_graph is None:
+        print("No MST graph available for analysis.")
+        return
 
-    # Example: Perform a degree distribution analysis.
-    print("\n- Analyzing degree distribution:")
-    # `call_method_raw` returns the direct, unprocessed output from the igraph function.
-    degree_sequence = grapher.call_method_raw(graph, 'degree')
+    print(f"\n--- ADVANCED IGRAPH METHODS: MST GRAPH ---")
 
-    from collections import Counter
-    degree_counts = Counter(degree_sequence)
-    print(f"  Degree counts: {dict(sorted(degree_counts.items()))}")
+    try:
+        # 1. Degree sequence analysis with different return formats
+        print("\n• Degree Sequence Analysis:")
 
-    # Example: Custom analysis to find nodes that are local degree maxima.
-    print("\n- Custom Analysis: Find local degree maxima")
-    local_maxima_nodes = []
-    for node_id in range(graph.vcount()):
-        node_degree = degree_sequence[node_id]
-        neighbor_ids = grapher.call_method_raw(graph, 'neighbors', node_id)
-        if not neighbor_ids: continue
+        # Get as dict (auto-formatted)
+        degree_dict = grapher.call_method_brutal(mst_graph, 'degree', "dict")
+        print(f"    Degree as dict (first 5): {dict(list(degree_dict.items())[:5])}")
 
-        neighbor_degrees = [degree_sequence[nid] for nid in neighbor_ids]
-        if all(node_degree >= n_degree for n_degree in neighbor_degrees):
-            local_maxima_nodes.append(node_id)
-    print(f"  Nodes with degree >= all neighbors: {local_maxima_nodes}")
+        # Get as raw list
+        degree_list = grapher.call_method_brutal(mst_graph, 'degree', "list")
+        print(f"    Degree as list: {degree_list[:10]}...")
+
+        # Degree distribution analysis
+        degree_counts = Counter(degree_list)
+        print(f"    Degree distribution: {dict(sorted(degree_counts.items()))}")
+
+        # 2. Advanced graph properties
+        print("\n• Advanced Graph Properties:")
+
+        # Edge connectivity (minimum cut)
+        try:
+            edge_connectivity = grapher.call_method_brutal(mst_graph, 'edge_connectivity', "raw")
+            print(f"    Edge connectivity: {edge_connectivity}")
+        except:
+            print(f"    Edge connectivity: Not computed (requires connected graph)")
+
+        # Radius and diameter
+        try:
+            radius = grapher.call_method_brutal(mst_graph, 'radius', "raw")
+            diameter = grapher.call_method_brutal(mst_graph, 'diameter', "raw")
+            print(f"    Radius: {radius}, Diameter: {diameter}")
+        except:
+            print(f"    Radius/Diameter: Not computed (disconnected graph)")
+
+        # 3. Custom analysis using raw igraph access
+        print("\n• Custom Analysis Examples:")
+
+        # Find articulation points (cut vertices)
+        try:
+            articulation_points = grapher.call_method_brutal(mst_graph, 'articulation_points', "raw")
+            if articulation_points:
+                # Map back to original IDs
+                original_ids = [mst_graph.vs[idx]["id"] for idx in articulation_points]
+                print(f"    Articulation points (original IDs): {original_ids}")
+            else:
+                print(f"    No articulation points found")
+        except Exception as e:
+            print(f"    Articulation points analysis failed: {e}")
+
+        # Edge betweenness for community detection
+        try:
+            edge_betweenness = grapher.call_method_brutal(mst_graph, 'edge_betweenness', "list")
+            if edge_betweenness:
+                max_eb_idx = np.argmax(edge_betweenness)
+                max_eb_value = edge_betweenness[max_eb_idx]
+                print(f"    Highest edge betweenness: {max_eb_value:.3f} (edge {max_eb_idx})")
+        except Exception as e:
+            print(f"    Edge betweenness analysis failed: {e}")
+
+    except Exception as e:
+        print(f"Advanced igraph integration failed: {e}")
 
 
-def example_comparing_graph_types(graphs: Dict[str, Any], grapher: Graphing):
-    """Generates a summary table to compare metrics across all graph types."""
+def example_graph_type_performance_comparison(graphs: Dict[str, Any], grapher: Graphing):
+    """
+    Compares computational and structural properties across all graph types.
+    """
     print("\n" + "=" * 60)
-    print("COMPARING GRAPH TYPES")
+    print("COMPREHENSIVE GRAPH TYPE COMPARISON")
     print("=" * 60)
 
     comparison_data = {}
-    metrics_to_compare = [
-        ('Vertices', 'vertex_count'), ('Edges', 'edge_count'), ('Density', 'density'),
-        ('Connected', 'is_connected'), ('Avg Path Len', 'average_path_length'), ('Clustering', 'transitivity')
+
+    # Collect comprehensive metrics for each graph type
+    for name, graph in graphs.items():
+        if graph is None:
+            continue
+
+        print(f"Analyzing {name}...")
+
+        # Basic metrics
+        info = grapher.get_graph_info(graph)
+        connectivity_info = grapher.get_connectivity_info(graph)
+
+        # Advanced metrics with error handling
+        transitivity = grapher.call_method_safe(graph, 'transitivity_undirected',
+                                              default_value=0.0)
+
+        betweenness_dict = grapher.call_method_safe(graph, 'betweenness',
+                                                  component_mode="all",
+                                                  default_value=0.0)
+        avg_betweenness = (np.mean(list(betweenness_dict.values()))
+                          if isinstance(betweenness_dict, dict) else 0.0)
+
+        comparison_data[name] = {
+            'vertices': info.get('vertex_count', 0),
+            'edges': info.get('edge_count', 0),
+            'density': info.get('density', 0.0),
+            'connected': info.get('is_connected', False),
+            'components': connectivity_info['num_components'],
+            'clustering': transitivity,
+            'avg_betweenness': avg_betweenness,
+            'connectivity_ratio': connectivity_info['connectivity_ratio']
+        }
+
+    # Display comprehensive comparison table
+    if comparison_data:
+        print("\nCOMPREHENSIVE COMPARISON TABLE:")
+
+        metrics = [
+            ('Vertices', 'vertices', '{}'),
+            ('Edges', 'edges', '{}'),
+            ('Density', 'density', '{:.3f}'),
+            ('Connected', 'connected', '{}'),
+            ('Components', 'components', '{}'),
+            ('Clustering', 'clustering', '{:.3f}'),
+            ('Avg Betweenness', 'avg_betweenness', '{:.4f}'),
+            ('Connectivity %', 'connectivity_ratio', '{:.1%}')
+        ]
+
+        # Table header
+        header = f"{'Metric':<15}" + "".join([f"{name:<12}" for name in comparison_data.keys()])
+        print(header)
+        print("-" * len(header))
+
+        # Table rows
+        for display_name, key, fmt in metrics:
+            row = f"{display_name:<15}"
+            for name in comparison_data.keys():
+                value = comparison_data[name][key]
+                try:
+                    formatted_value = fmt.format(value)
+                except:
+                    formatted_value = str(value)
+                row += f"{formatted_value:<12}"
+            print(row)
+
+    # Graph type recommendations
+    print(f"\nGRAPH TYPE SELECTION GUIDE:")
+    print(f"  • Delaunay: Optimal for mesh generation, always connected")
+    print(f"  • Gabriel: Subset of Delaunay, geometric proximity constraints")
+    print(f"  • Proximity: Local neighborhoods, adjustable with threshold")
+    print(f"  • K-NN: Fixed degree networks, good for ML applications")
+    print(f"  • MST: Minimal connectivity, tree structure (n-1 edges)")
+
+
+def example_custom_node_attributes():
+    """
+    Demonstrates creating graphs with custom node attributes using the flexible
+    `add_more` parameter in `generate_and_format_positions`.
+    """
+    print("\n" + "=" * 60)
+    print("CREATING GRAPHS WITH CUSTOM NODE ATTRIBUTES")
+    print("=" * 60)
+
+    # 1. Define the extra attributes you want to generate using lambda functions
+    extra_attributes = {
+        'velocity': lambda: random.uniform(0, 5.0),
+        'rotation': lambda: random.uniform(-np.pi, np.pi),
+        'mass': lambda: random.choice([1.0, 2.0, 5.0])
+    }
+    print(f"Defined extra attributes: {list(extra_attributes.keys())}")
+
+    # 2. Generate the data using the new `add_more` dictionary
+    WIDTH, HEIGHT = 600, 600
+    NUM_PARTICLES = 20
+    particle_stack_custom = generate_and_format_positions(
+        WIDTH, HEIGHT, NUM_PARTICLES,
+        add_more=extra_attributes
+    )
+    # The resulting array will have columns: [id, x, y, velocity, rotation, mass]
+    print(f"Generated data shape: {particle_stack_custom.shape}")
+
+
+    # 3. IMPORTANT: Define the data_shape to match the generated data.
+    # This tells Graphizy what each column means so it can create the attributes.
+    data_shape = [
+        ('id', int),
+        ('x', float),
+        ('y', float),
+        ('velocity', float),
+        ('rotation', float),
+        ('mass', float)
     ]
 
-    for name, graph in graphs.items():
-        if graph is None: continue
-        comparison_data[name] = grapher.get_graph_info(graph)
+    # 4. Initialize a new Graphing instance with the custom data_shape
+    config = GraphizyConfig(dimension=(WIDTH, HEIGHT))
+    # The key step is passing the data_shape to the Graphing constructor
+    grapher_custom = Graphing(config=config, data_shape=data_shape)
+    print("Initialized Graphing instance with custom data_shape.")
 
-    # Display comparison table
-    header = f"{'Metric':<15}" + "".join([f"{name:<18}" for name in comparison_data.keys()])
-    print(header)
-    print("-" * len(header))
+    # 5. Create a graph from the data with custom attributes
+    # The data_interface will now correctly map all columns to vertex attributes.
+    graph = grapher_custom.make_graph("delaunay", particle_stack_custom)
+    print(f"Created a '{graph.summary()}' with custom attributes.")
 
-    for display_name, metric_key in metrics_to_compare:
-        row = f"{display_name:<15}"
-        for name in comparison_data.keys():
-            value = comparison_data.get(name, {}).get(metric_key)
-            if value is None:
-                row += f"{'N/A':<18}"
-            elif isinstance(value, bool):
-                row += f"{str(value):<18}"
-            elif isinstance(value, (int, np.integer)):
-                row += f"{value:<18}"
-            else:
-                row += f"{value:<18.3f}"
-        print(row)
+    # 6. Access and verify the custom attributes on the graph vertices
+    print("\nVerifying custom attributes on the graph:")
+    if graph.vcount() > 0:
+        first_vertex = graph.vs[0]
+        print(f"  Vertex 0 attributes: {first_vertex.attributes()}")
+
+        # Check if all attributes are present
+        available_attrs = graph.vs.attributes()
+        print(f"  All available vertex attributes: {available_attrs}")
+
+        # Example: Analyze one of the custom attributes
+        if 'mass' in available_attrs:
+            masses = graph.vs['mass']
+            print(f"  Average mass of all particles: {np.mean(masses):.2f}")
+
+        if 'velocity' in available_attrs:
+            velocities = graph.vs['velocity']
+            print(f"  Max velocity: {np.max(velocities):.2f}")
+    else:
+        print("Graph has no vertices to inspect.")
 
 
 def main():
-    """Run all graph metrics examples."""
-    print("Graphizy: Graph Metrics and Analysis Examples")
+    """Run all modern graph metrics examples."""
+    print("Graphizy: Graph Metrics and Analysis Examples - v0.1.17+ Edition")
     print("=" * 70)
 
     try:
-        graphs, grapher, particle_stack = create_sample_graphs()
+        # Create comprehensive sample graphs
+        graphs, grapher, particle_stack = create_comprehensive_sample_graphs()
 
-        example_basic_metrics(graphs, grapher)
-        example_connectivity_analysis(graphs, grapher)
-        example_centrality_measures(graphs, grapher)
-        example_direct_igraph_usage(graphs, grapher)
-        example_comparing_graph_types(graphs, grapher)
+        # Run all analysis examples
+        example_modern_basic_metrics(graphs, grapher)
+        example_advanced_connectivity_analysis(graphs, grapher)
+        example_advanced_centrality_measures(graphs, grapher)
+        example_direct_igraph_integration(graphs, grapher)
+        example_graph_type_performance_comparison(graphs, grapher)
+        example_custom_node_attributes()
 
-        # Create visualizations for context.
-        print("\nCreating visualizations of the sample graphs...")
+        # Create visualizations
+        print("\nCreating visualizations...")
         output_dir = setup_output_directory()
         for name, graph in graphs.items():
             if graph:
-                image = grapher.draw_graph(graph)
-                grapher.save_graph(image, str(output_dir / f"metrics_graph_{name}.jpg"))
+                try:
+                    image = grapher.draw_graph(graph)
+                    grapher.save_graph(image, str(output_dir / f"metrics_graph_{name}.jpg"))
+                except Exception as e:
+                    logging.error(f"Failed to save {name}: {e}")
+
         print(f"Visualizations saved to '{output_dir}'.")
 
         print("\n" + "=" * 70)
         print("All examples completed successfully.")
-        print("\nKey Takeaways:")
-        print("  - `get_graph_info()` is for a quick, high-level summary.")
-        print("  - `call_method()` is for node-wise metrics (e.g., centrality).")
-        print("  - `call_method_raw()` gives you direct access to the full power of `igraph`.")
+        print("\nKey Features Demonstrated:")
+        print("  • get_graph_info() for comprehensive metrics")
+        print("  • call_method_safe() for resilient analysis")
+        print("  • call_method_brutal() for advanced igraph access")
+        print("  • Modern connectivity analysis methods")
+        print("  • Support for all graph types (including MST and Gabriel)")
+        print("  • Creation of graphs with custom node attributes")
 
     except Exception as e:
-        print(f"\nExamples failed with an error: {e}")
+        print(f"\nExamples failed with error: {e}")
         import traceback
         traceback.print_exc()
         return 1

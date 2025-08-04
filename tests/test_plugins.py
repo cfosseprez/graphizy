@@ -132,9 +132,12 @@ class TestClassBasedPlugins:
                     version="1.0.0"
                 )
 
-            def create_graph(self, data_points, dimension, grid_size=2, **kwargs):
+            def create_graph(self, data_points, dimension, data_shape=None, **kwargs):
                 from graphizy.algorithms import create_graph_array
-                graph = create_graph_array(data_points)
+                # Retrieve the parameter from kwargs
+                grid_size = kwargs.get("grid_size", 2)
+
+                graph = create_graph_array(data_points, data_shape=data_shape)
 
                 # Simple grid connections (for testing)
                 n = len(data_points)

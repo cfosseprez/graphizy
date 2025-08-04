@@ -5,102 +5,85 @@ Graphizy Documentation
    :alt: Detection to Graph
    :align: center
 
-*A powerful real-time graph maker for computational geometry and network visualization*
+*A powerful, fast, and flexible Python library for building and analyzing graphs from 2D spatial data*
 
-Graphizy specializes in creating multiple graph types from point data, with advanced memory-enhanced analysis for temporal patterns. Built on OpenCV and igraph, it provides real-time graph construction and comprehensive analytics.
+Graphizy specializes in creating comprehensive graph types from point data, with advanced memory-enhanced analysis for temporal patterns, sophisticated weight computation systems, and real-time streaming capabilities. Built on OpenCV and igraph, it provides a modern unified API for graph construction and comprehensive analytics.
 
 Quick Start
 -----------
 
 .. code-block:: python
 
-   import numpy as np
-   from graphizy import Graphing, GraphizyConfig, generate_positions, validate_graphizy_input
+   from graphizy import Graphing, GraphizyConfig, generate_and_format_positions
 
-   # Generate random points positions
-   positions = generate_positions(800, 800, 100)
-   # The positions can be in different format
-   # Here it is an array with column id, x, y
-   data = np.column_stack((np.arange(len(positions)), positions))
-   
-   # Optional: Validate your data format (recommended for new users)
-   result = validate_graphizy_input(data, aspect="array", dimension=(800, 800), verbose=True)
-   if not result["valid"]:
-       print("Data validation errors:", result["errors"])
-       exit()
+   # Generate sample data
+   data = generate_and_format_positions(size_x=800, size_y=600, num_particles=100)
 
-   # Create the grapher config
-   # Note: The grapher requires the image dimensions
-   config = GraphizyConfig()
-   config.graph.dimension = (800, 800)
-   # Create the grapher
+   # Configure and create grapher
+   config = GraphizyConfig(dimension=(800, 600))  
    grapher = Graphing(config=config)
 
-   # Generate different graph types from the data
-   delaunay_graph = grapher.make_delaunay(data)
-   proximity_graph = grapher.make_proximity(data, proximity_thresh=50.0)
-   mst_graph = grapher.make_mst(data)  # Minimum spanning tree
-   gabriel_graph = grapher.make_gabriel(data)  # Gabriel graph
+   # Create different graph types using unified interface
+   delaunay_graph = grapher.make_graph("delaunay", data)
+   proximity_graph = grapher.make_graph("proximity", data, proximity_thresh=50.0)
+   knn_graph = grapher.make_graph("knn", data, k=4)
+   mst_graph = grapher.make_graph("mst", data)
+   gabriel_graph = grapher.make_graph("gabriel", data)
 
-   # Visualize
+   # Visualize results
    image = grapher.draw_graph(delaunay_graph)
-   grapher.show_graph(image, "Delaunay Triangulation")
+   grapher.show_graph(image, "Delaunay Graph")
+   grapher.save_graph(image, "delaunay.jpg")
+
+   # Comprehensive graph analysis
+   info = grapher.get_graph_info(delaunay_graph)
+   print(f"Density: {info['density']:.3f}")
+   print(f"Connected: {info['is_connected']}")
    
-   # Graph-level metrics calculation
-   graph_info = grapher.get_graph_info(delaunay_graph)
-   print(f"Graph metrics:")
-   print(f"  Vertices: {graph_info['vertex_count']}")
-   print(f"  Edges: {graph_info['edge_count']}")
-   print(f"  Density: {graph_info['density']:.3f}")
-   print(f"  Connected: {graph_info['is_connected']}")
-   print(f"  Average path length: {graph_info['average_path_length']:.2f}")
-   print(f"  Clustering coefficient: {graph_info['transitivity']:.3f}")
-   
-   # Individual-level metrics calculation
-   # Betweenness centrality (measures how often a node acts as a bridge)
-   betweenness = grapher.call_method(delaunay_graph, 'betweenness')
-   
-   # Find the top 5 most central nodes
-   top_central = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:5]
-   print(f"\nTop 5 most central nodes (betweenness):")
-   for node_id, centrality in top_central:
-       print(f"  Node {node_id}: {centrality:.3f}")
-   
-   # Degree centrality (number of connections per node)
-   degrees = grapher.call_method(delaunay_graph, 'degree')
-   avg_degree = sum(degrees.values()) / len(degrees)
-   max_degree_node = max(degrees.items(), key=lambda x: x[1])
-   print(f"\nDegree statistics:")
-   print(f"  Average degree: {avg_degree:.2f}")
-   print(f"  Most connected node: {max_degree_node[0]} with {max_degree_node[1]} connections")
+   # Resilient centrality analysis
+   betweenness = grapher.call_method_safe(delaunay_graph, 'betweenness')
+   connectivity_info = grapher.get_connectivity_info(delaunay_graph)
 
 Key Features
 ------------
 
-🎯 **Graph Types**
-   - **Delaunay Triangulation**: Optimal triangular meshes
-   - **Proximity Graphs**: Distance-based connections  
-   - **K-Nearest Neighbors**: Fixed-degree networks
-   - **Minimum Spanning Tree**: Minimal connectivity
-   - **Gabriel Graph**: Geometric proximity (subset of Delaunay)
+🔄 **Unified Graph Creation Interface**
+   - Modern API with single `make_graph()` method for all graph types
+   - Plugin system for easily adding custom graph algorithms
+   - Smart defaults with intelligent parameter handling 
+   - Type-safe runtime configuration validation
 
-🧠 **Temporal memory**
-   - **Memory-Enhanced**: Any graph type can have a memory in number of past interaction (edges) or in number of past frames
+📊 **Comprehensive Graph Types**
+   - **Delaunay Triangulation**: Optimal triangular meshes from point sets
+   - **Proximity Graphs**: Connect nearby points based on distance thresholds  
+   - **K-Nearest Neighbors**: Connect each point to its k closest neighbors
+   - **Minimum Spanning Tree**: Minimal connected graph with shortest total edge length
+   - **Gabriel Graph**: Geometric proximity graph (subset of Delaunay triangulation)
+   - **Custom Graphs**: Extensible plugin system for domain-specific algorithms
 
-🧮 **Analysis**
-   - Full igraph integration with 200+ graph analysis algorithms
-   - Real-time statistics and centrality measures
-   - Memory system for temporal pattern analysis
+🧠 **Advanced Memory Systems**
+   - Temporal analysis tracking connections across time steps
+   - Smart integration with automatic memory updates and configurable retention
+   - Age-based visualization showing connection persistence over time
+   - Performance optimized with vectorized operations for real-time applications
 
-🎨 **Visualization**
-   - Interactive OpenCV display
-   - Age-based edge coloring for memory graphs
-   - Configurable styling and output formats
+⚖️ **Sophisticated Weight Computation**  
+   - Multiple methods: distance, inverse distance, Gaussian, and custom formulas
+   - Real-time computation with optimized fast computers for high-performance applications
+   - Compute any edge attribute using mathematical expressions
+   - Memory integration for weight computation on memory-enhanced structures
 
-🔧 **Architecture**
-   - Type-safe dataclass configuration
-   - Robust error handling with detailed exceptions
-   - Performance monitoring and optimization
+📈 **Comprehensive Graph Analysis**
+   - Full igraph integration with access to 200+ graph analysis algorithms
+   - Resilient methods providing robust analysis that handles disconnected graphs gracefully
+   - Real-time statistics: vertex count, edge count, connectivity, clustering, centrality
+   - Component analysis with detailed connectivity and community structure analysis
+
+🎨 **Advanced Visualization & Real-Time Processing**
+   - Memory visualization with age-based coloring and transparency effects
+   - Real-time streaming with high-performance streaming and async support
+   - Flexible configuration using runtime-configurable parameters with type-safe dataclasses
+   - Interactive demos and built-in CLI tools
 
 User Guide
 ==========
@@ -109,14 +92,35 @@ User Guide
    :maxdepth: 2
 
    user_guide/installation
+   user_guide/quickstart
    user_guide/data_formats
    user_guide/data_validation
-   user_guide/graph_types
-   user_guide/graph_analysis
-   user_guide/memory_system
-   user_guide/plugin_system
+   user_guide/basic_usage
+   user_guide/advanced_analysis
    user_guide/configuration
    user_guide/examples
+
+Core Systems
+============
+
+.. toctree::
+   :maxdepth: 2
+
+   graph_types/index
+   memory/index  
+   weight/index
+
+Advanced Features
+=================
+
+.. toctree::
+   :maxdepth: 2
+
+   advanced/streaming
+   advanced/plugin_system
+   advanced/performance
+   advanced/networkx_bridge
+   advanced/async_processing
 
 API Reference
 =============
@@ -124,7 +128,40 @@ API Reference
 .. toctree::
    :maxdepth: 2
 
-   modules
+   api/graphing
+   api/config
+   api/algorithms
+   api/memory
+   api/weight
+   api/drawing
+   api/exceptions
+   api/utils
+
+Examples & Tutorials
+====================
+
+.. toctree::
+   :maxdepth: 2
+
+   examples/basic_usage
+   examples/graph_metrics
+   examples/advanced_memory
+   examples/weight_computation
+   examples/custom_graph_types
+   examples/streaming
+   examples/scientific_computing
+   examples/network_analysis
+
+Development
+===========
+
+.. toctree::
+   :maxdepth: 2
+
+   development/contributing
+   development/testing
+   development/performance
+   development/release_notes
 
 Indices and Tables
 ==================

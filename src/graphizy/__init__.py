@@ -41,7 +41,9 @@ from graphizy.plugins_logic import (
 from graphizy.simulator import BrownianSimulator
 
 # Import built-in plugins to auto-register them
-from graphizy import builtin_plugins
+from graphizy.builtin_plugins import register_all_builtins
+register_all_builtins()
+
 
 __author__ = "Charles Fosseprez"
 __email__ = "charles.fosseprez.pro@gmail.com"

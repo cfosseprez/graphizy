@@ -821,6 +821,7 @@ class Graphing:
                 graph_type=graph_type,
                 data_points=data_array,
                 dimension=self.dimension,
+                data_shape=self.data_interface.data_shape,
                 **final_params
             )
             if do_timing:

@@ -68,7 +68,7 @@ def main():
     # Simulation parameters
     parser.add_argument('--iterations', '-i', type=int, default=100000,
                         help='Maximum iterations (default: 1000)')
-    parser.add_argument('--particles', '-p', type=int, default=500,
+    parser.add_argument('--particles', '-p', type=int, default=100,
                         help='Number of particles (default: 50)')
     parser.add_argument('--size', nargs=2, type=int, default=[800, 800],
                         help='Canvas size [width height] (default: 800 600)')

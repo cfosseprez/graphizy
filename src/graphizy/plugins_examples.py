@@ -21,7 +21,7 @@ The process involves three simple steps:
 """
 
 import numpy as np
-from typing import Any
+from typing import Any, Optional, List, Tuple
 
 # Import the plugin system
 from graphizy.plugins_logic import GraphTypePlugin, GraphTypeInfo, register_graph_type, graph_type_plugin
@@ -35,72 +35,51 @@ from .algorithms import create_graph_array
 # would typically live in `algorithms.py` or your own separate module.
 # ============================================================================
 
-def create_radial_graph(data_points: np.ndarray, **kwargs) -> Any:
+def create_radial_graph(data_points: np.ndarray, data_shape: Optional[List[Tuple[str, Any]]] = None, **kwargs) -> Any:
     """
     Creates a graph connecting points based on their radial distance from a center.
 
-    This is the core logic for our example plugin. It assumes `data_points`
-    is a pre-validated NumPy array of shape (n, 3) with [id, x, y] columns.
-
     Args:
-        data_points: A NumPy array of shape (n, 3) with columns [id, x, y].
+        data_points: A NumPy array of shape (n, m) with columns defined by data_shape.
+        data_shape: The shape of the data, used to create the base graph.
         **kwargs: Algorithm-specific parameters.
-            - center_x (float, optional): X-coordinate of the radial center.
-            - center_y (float, optional): Y-coordinate of the radial center.
-            - radius_threshold (float): Points outside this radius are ignored.
-            - ring_connections (bool): If True, connect points at similar radial
-                                     distances (rings). If False, connect points
-                                     along the same radial line (spokes).
     """
     # --- Parameter Parsing ---
-    # Extract parameters with sensible defaults.
     center_x = kwargs.get("center_x")
     center_y = kwargs.get("center_y")
     radius_threshold = kwargs.get("radius_threshold", 150.0)
     ring_connections = kwargs.get("ring_connections", True)
-    ring_tolerance = kwargs.get("ring_tolerance", 30.0)  # For ring connections
-    spoke_tolerance_rad = kwargs.get("spoke_tolerance_rad", 0.2)  # For spoke connections
+    ring_tolerance = kwargs.get("ring_tolerance", 30.0)
+    spoke_tolerance_rad = kwargs.get("spoke_tolerance_rad", 0.2)
 
     # --- Graph and Position Setup ---
-    # Create the base graph with vertices and their attributes.
-    graph = create_graph_array(data_points)
+    # FIX: Pass data_shape to create the base graph with all attributes.
+    graph = create_graph_array(data_points, data_shape=data_shape)
     positions = data_points[:, 1:3]
 
-    # Calculate the center if not provided (mean of all points).
     if center_x is None or center_y is None:
         center = positions.mean(axis=0)
     else:
         center = np.array([center_x, center_y])
 
     # --- Vectorized Calculations ---
-    # Using NumPy for vector calculations is much faster than Python loops.
-    # Calculate vectors from the center to each point.
     vectors = positions - center
-    # Calculate the radial distance of each point from the center.
     radial_distances = np.linalg.norm(vectors, axis=1)
-    # Calculate the angle of each point relative to the center.
     angles = np.arctan2(vectors[:, 1], vectors[:, 0])
 
     # --- Edge Creation ---
-    # Find indices of points that are within the radius threshold.
     valid_indices = np.where(radial_distances <= radius_threshold)[0]
-
     edges_to_add = []
-    # Iterate only through the valid points.
     for i_idx in range(len(valid_indices)):
         for j_idx in range(i_idx + 1, len(valid_indices)):
-            # Get the actual indices in the full `data_points` array.
             i = valid_indices[i_idx]
             j = valid_indices[j_idx]
 
             if ring_connections:
-                # Connect points that form a "ring" at a similar distance.
                 if abs(radial_distances[i] - radial_distances[j]) <= ring_tolerance:
                     edges_to_add.append((i, j))
-            else:  # Spoke connections
-                # Connect points that are on the same "spoke" from the center.
+            else:
                 angle_diff = abs(angles[i] - angles[j])
-                # Handle angle wrapping around 2*pi.
                 if angle_diff <= spoke_tolerance_rad or angle_diff >= (2 * np.pi - spoke_tolerance_rad):
                     edges_to_add.append((i, j))
 
@@ -108,7 +87,6 @@ def create_radial_graph(data_points: np.ndarray, **kwargs) -> Any:
         graph.add_edges(edges_to_add)
 
     return graph
-
 # ============================================================================
 # STEP 2: CREATE PLUGINS TO EXPOSE THE LOGIC TO GRAPHIZY
 #
@@ -138,14 +116,15 @@ class RadialGraphPlugin(GraphTypePlugin):
             version="1.0.0"
         )
 
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
+    def create_graph(self, data_points: np.ndarray, dimension: tuple,
+                     data_shape: Optional[List[Tuple[str, Any]]] = None, **kwargs) -> Any:
         """
         This method is called by Graphizy. It acts as a bridge to the core logic.
         It receives the standardized data and passes it to the algorithm function.
         """
         # The `data_points` are already validated and converted to a NumPy array.
         # We just need to call our core logic function.
-        return create_radial_graph(data_points, **kwargs)
+        return create_radial_graph(data_points, data_shape=data_shape, **kwargs)
 
 
 # --- METHOD B: The Decorator-Based Plugin (Quick & Easy for Simple Cases) ---
@@ -156,23 +135,22 @@ class RadialGraphPlugin(GraphTypePlugin):
     parameters={},
     category="custom_example"
 )
-def connect_to_center_graph(data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
+def connect_to_center_graph(data_points: np.ndarray, dimension: tuple,
+                            data_shape: Optional[List[Tuple[str, Any]]] = None, **kwargs) -> Any:
     """
     A simple graph algorithm implemented directly as a decorated function.
     The decorator automatically handles creating and registering the plugin.
     """
-    graph = create_graph_array(data_points)
+    graph = create_graph_array(data_points, data_shape=data_shape)
     num_points = len(data_points)
 
     if num_points < 2:
         return graph
 
-    # Create a new vertex for the center point.
     center_id = np.max(data_points[:, 0]) + 1
     center_x, center_y = dimension[0] / 2, dimension[1] / 2
     graph.add_vertex(name=str(center_id), id=center_id, x=center_x, y=center_y)
 
-    # Add edges from all original points to the new center vertex.
     center_vertex_index = graph.vcount() - 1
     edges_to_add = [(i, center_vertex_index) for i in range(num_points)]
     graph.add_edges(edges_to_add)

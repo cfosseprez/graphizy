@@ -64,11 +64,12 @@ class TestDataValidationErrors:
     def test_insufficient_data_dimensions(self):
         """Test handling of insufficient data dimensions."""
         # 1D array - updated to match the actual error message
-        with pytest.raises(GraphCreationError, match="must be 2D with at least 3 columns"):
+        # FIX: The error message should check for the 2D error, which comes first.
+        with pytest.raises(GraphCreationError, match="Point array must be 2D"):
             create_graph_array(np.array([1, 2, 3]))
 
-        # 2D array with insufficient columns
-        with pytest.raises(GraphCreationError, match="must be 2D with at least 3 columns"):
+        # 2D array with too few columns
+        with pytest.raises(GraphCreationError, match="must have at least 3 columns"):
             create_graph_array(np.array([[1, 2], [3, 4]]))
 
     def test_invalid_data_types(self):

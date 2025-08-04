@@ -22,6 +22,13 @@ def get_examples():
     examples_dir = Path(__file__).parent
     examples = [
         {
+            'id': 0,
+            'file': '0_interactive_demo.py',
+            'name': 'Interactive demo',
+            'description': 'A basic visualization tool',
+            'duration': '~2 minutes'
+        },
+        {
             'id': 1,
             'file': '1_basic_usage.py',
             'name': 'Basic Usage',
@@ -44,8 +51,8 @@ def get_examples():
         },
         {
             'id': 4,
-            'file': '4_interactive_demo.py',
-            'name': 'Interactive video analysis',
+            'file': '4_weight_computation.py',
+            'name': 'Example of modified weight computation',
             'description': 'Complete simulation with dynamic networks and movie generation',
             'duration': '~5-10 minutes',
         },

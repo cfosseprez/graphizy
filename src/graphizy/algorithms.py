@@ -527,51 +527,90 @@ def graph_distance(graph: Any, position2d: np.ndarray, proximity_thresh: float,
         raise GraphCreationError(f"Failed to create distance graph: {str(e)}")
 
 
-def create_graph_array(point_array: np.ndarray) -> Any:
-    """Create a graph from a point array
+def create_graph_array(point_array: np.ndarray, data_shape: Optional[List[Tuple[str, Any]]] = None) -> Any:
+    """Create a graph from a point array, dynamically adding attributes.
 
     Args:
-        point_array: Array of points with columns [id, x, y, ...]
+        point_array: Array of points with columns corresponding to the data_shape.
+        data_shape: List of tuples defining the data structure, e.g.,
+                    [('id', int), ('x', float), ('velocity', float)].
+                    If None, defaults to the legacy [id, x, y] behavior.
 
     Returns:
-        igraph Graph object
+        igraph Graph object.
 
     Raises:
-        GraphCreationError: If graph creation fails
+        GraphCreationError: If graph creation fails.
     """
     try:
         if point_array is None or point_array.size == 0:
             raise GraphCreationError("Point array cannot be None or empty")
-        if point_array.ndim != 2 or point_array.shape[1] < 3:
-            raise GraphCreationError("Point array must be 2D with at least 3 columns [id, x, y]")
+        if point_array.ndim != 2:
+            raise GraphCreationError(f"Point array must be 2D, got {point_array.ndim}D")
 
         timer = time.time()
-
         n_vertices = len(point_array)
-
-        # Create graph
         graph = ig.Graph(n=n_vertices)
-        graph.vs["name"] = list(range(n_vertices))
-        graph.vs["id"] = point_array[:, 0]
-        graph.vs["x"] = point_array[:, 1]
-        graph.vs["y"] = point_array[:, 2]
 
-        logging.debug(f"Graph name vector of length {len(graph.vs['id'])}")
-        logging.debug(f"Graph x vector of length {len(graph.vs['x'])}")
-        logging.debug(f"Graph y vector of length {len(graph.vs['y'])}")
-        logging.debug(f"Graph creation took {round((time.time() - timer) * 1000, 3)}ms")
+        # If no data_shape is provided, fall back to the old hardcoded behavior for compatibility.
+        if data_shape is None:
+            logging.warning("No data_shape provided to create_graph_array, defaulting to [id, x, y].")
+            if point_array.shape[1] < 3:
+                raise GraphCreationError("Point array must have at least 3 columns [id, x, y] for default mode.")
 
+            graph.vs["id"] = point_array[:, 0]
+            graph.vs["x"] = point_array[:, 1]
+            graph.vs["y"] = point_array[:, 2]
+            # Use the ID as the name for a nice summary string.
+            graph.vs["name"] = [normalize_id(val) for val in point_array[:, 0]]
+
+            logging.debug(f"Graph creation (default) took {round((time.time() - timer) * 1000, 3)}ms")
+            return graph
+
+        # --- DYNAMIC ATTRIBUTE CREATION ---
+        id_col_index = -1
+        for i, (attr_name, attr_type) in enumerate(data_shape):
+            if i < point_array.shape[1]:
+                # igraph's 'name' attribute must be a string.
+                if attr_name == "name":
+                    graph.vs[attr_name] = [str(val) for val in point_array[:, i]]
+                else:
+                    graph.vs[attr_name] = point_array[:, i]
+
+                if attr_name == "id":
+                    id_col_index = i
+            else:
+                logging.warning(
+                    f"data_shape specifies attribute '{attr_name}' at column {i}, "
+                    f"but data only has {point_array.shape[1]} columns. Skipping."
+                )
+
+        # Ensure 'name' attribute exists for compatibility, even if not in data_shape.
+        # This makes graph.summary() look good.
+        if "name" not in [ds[0] for ds in data_shape]:
+            if id_col_index != -1:
+                # Use the 'id' column to create the 'name' attribute.
+                id_values = point_array[:, id_col_index]
+                graph.vs["name"] = [normalize_id(val) for val in id_values]
+            else:
+                # Fallback if no 'id' is present.
+                graph.vs["name"] = [str(i) for i in range(n_vertices)]
+
+        logging.debug(f"Graph creation (dynamic) took {round((time.time() - timer) * 1000, 3)}ms")
         return graph
 
     except Exception as e:
-        raise GraphCreationError(f"Failed to create graph from array: {str(e)}")
+        raise GraphCreationError(f"Failed to create graph from array: {str(e)}") from e
 
 
 def create_graph_dict(point_dict: Dict[str, Any]) -> Any:
-    """Create a graph from a point dictionary
+    """Create a graph from a point dictionary.
+
+    This function dynamically adds all keys from the dictionary as vertex attributes.
 
     Args:
-        point_dict: Dictionary with keys 'id', 'x', 'y'
+        point_dict: Dictionary with keys 'id', 'x', 'y', and other optional attributes.
+                    All values should be lists or arrays of the same length.
 
     Returns:
         igraph Graph object
@@ -583,38 +622,38 @@ def create_graph_dict(point_dict: Dict[str, Any]) -> Any:
         if not point_dict:
             raise GraphCreationError("Point dictionary cannot be empty")
 
+        # Core keys are required for basic functionality
         required_keys = ['id', 'x', 'y']
         missing_keys = [key for key in required_keys if key not in point_dict]
         if missing_keys:
             raise GraphCreationError(f"Missing required keys: {missing_keys}")
 
         # Check that all arrays have the same length
-        lengths = [len(point_dict[key]) for key in required_keys]
-        if len(set(lengths)) > 1:
-            raise GraphCreationError(f"All arrays must have the same length. Got: {dict(zip(required_keys, lengths))}")
+        lengths = {key: len(val) for key, val in point_dict.items()}
+        if len(set(lengths.values())) > 1:
+            raise GraphCreationError(f"All arrays in dictionary must have the same length. Got: {lengths}")
 
         timer = time.time()
-
         n_vertices = len(point_dict["id"])
-
-        # Create graph
         graph = ig.Graph(n=n_vertices)
-        graph.vs["name"] = list(range(n_vertices))
-        graph.vs["id"] = point_dict["id"]
-        graph.vs["x"] = point_dict["x"]
-        graph.vs["y"] = point_dict["y"]
 
-        logging.debug(f"Graph name vector of length {len(graph.vs['name'])}")
-        logging.debug(f"Graph x vector of length {len(graph.vs['x'])}")
-        logging.debug(f"Graph y vector of length {len(graph.vs['y'])}")
-        logging.debug(f"Graph creation took {round((time.time() - timer) * 1000, 3)}ms")
+        # Dynamically add all provided attributes
+        for attr_name, values in point_dict.items():
+            if attr_name == "name":
+                graph.vs[attr_name] = [str(val) for val in values]
+            else:
+                graph.vs[attr_name] = values
 
+        # Ensure 'name' attribute exists for compatibility if not provided
+        if "name" not in point_dict:
+            id_values = point_dict["id"]
+            graph.vs["name"] = [normalize_id(val) for val in id_values]
+
+        logging.debug(f"Graph creation from dict took {round((time.time() - timer) * 1000, 3)}ms")
         return graph
 
     except Exception as e:
-        raise GraphCreationError(f"Failed to create graph from dictionary: {str(e)}")
-
-
+        raise GraphCreationError(f"Failed to create graph from dictionary: {str(e)}") from e
 
 
 def call_igraph_method(graph: Any, method_name: str, *args, **kwargs) -> Any:
@@ -654,13 +693,14 @@ def call_igraph_method(graph: Any, method_name: str, *args, **kwargs) -> Any:
 
 def create_delaunay_graph(data_points: Union[np.ndarray, Dict[str, Any]],
                           aspect: str = "array", dimension: Tuple[int, int] = (1200, 1200),
-                          ) -> Any:
+                          data_shape: Optional[List[Tuple[str, Any]]] = None) -> Any:
     """Create a Delaunay triangulation graph from point data
 
     Args:
         data_points: Point data as array or dictionary
         aspect: Data format ("array" or "dict")
         dimension: Image dimensions (width, height)
+        data_shape: shape of the data to pass (if extra column of information)
 
     Returns:
         igraph Graph object with Delaunay triangulation
@@ -680,7 +720,7 @@ def create_delaunay_graph(data_points: Union[np.ndarray, Dict[str, Any]],
             if data_points.dtype.kind in ['U', 'S', 'O']:
                 raise GraphCreationError("Object IDs must be numeric, not string type")
 
-            graph = create_graph_array(data_points)
+            graph = create_graph_array(data_points, data_shape=data_shape)
 
             # Make triangulation with appropriate columns (assuming standard format [id, x, y])
             pos_array = np.stack((
@@ -724,6 +764,7 @@ def create_delaunay_graph(data_points: Union[np.ndarray, Dict[str, Any]],
 def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
                            proximity_thresh: float, aspect: str = "array",
                            metric: str = "euclidean",
+                           data_shape: Optional[List[Tuple[str, Any]]] = None
                            ) -> Any:
     """Create a proximity graph from point data
 
@@ -732,6 +773,7 @@ def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
         proximity_thresh: Distance threshold for connections
         aspect: Data format ("array" or "dict")
         metric: Distance metric to use for the graph construction
+        data_shape: shape of the data to pass (if extra column of information)
 
     Returns:
         igraph Graph object with proximity connections and distance attributes
@@ -746,7 +788,7 @@ def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
             if not isinstance(data_points, np.ndarray):
                 raise GraphCreationError("Expected numpy array for 'array' aspect")
 
-            graph = create_graph_array(data_points)
+            graph = create_graph_array(data_points, data_shape=data_shape)
             pos_array = np.stack((
                 data_points[:, 1],  # x position (column 1)
                 data_points[:, 2]  # y position (column 2)
@@ -779,7 +821,8 @@ def create_proximity_graph(data_points: Union[np.ndarray, Dict[str, Any]],
 
 
 def graph_distance_optimized(graph: Any, position2d: np.ndarray, proximity_thresh: float,
-                             metric: str = "euclidean") -> Any:
+                             metric: str = "euclidean",
+                             ) -> Any:
     """Construct a distance graph using optimized vectorized operations
 
     Args:
@@ -854,13 +897,14 @@ def graph_distance_optimized(graph: Any, position2d: np.ndarray, proximity_thres
 
 
 def create_knn_graph(positions: np.ndarray, k: int = 3, aspect: str = "array",
-                     ) -> Any:
+                     data_shape: Optional[List[Tuple[str, Any]]] = None) -> Any:
     """Create graph connecting each point to its k nearest neighbors
 
     Args:
         positions: Point data array
         k: Number of nearest neighbors
         aspect: Data format
+        data_shape: shape of the data to pass (if extra column of information)
     """
     try:
         # Validate k parameter
@@ -871,7 +915,7 @@ def create_knn_graph(positions: np.ndarray, k: int = 3, aspect: str = "array",
             raise GraphCreationError(f"k ({k}) must be less than number of points ({len(positions)})")
 
         if aspect == "array":
-            graph = create_graph_array(positions)
+            graph = create_graph_array(positions, data_shape)
             pos_2d = positions[:, 1:3]
         else:
             raise NotImplementedError("Dict aspect not implemented for k-nearest")
@@ -902,6 +946,7 @@ def create_knn_graph(positions: np.ndarray, k: int = 3, aspect: str = "array",
 
 def create_mst_graph(positions: np.ndarray, aspect: str = "array",
                      metric: str = "euclidean",
+                     data_shape: Optional[List[Tuple[str, Any]]] = None
                      ) -> Any:
     """Create minimum spanning tree graph from a standardized array.
 
@@ -909,10 +954,11 @@ def create_mst_graph(positions: np.ndarray, aspect: str = "array",
         positions: Point data array
         aspect: Data format
         metric: Distance metric for MST construction
+        data_shape: shape of the data to pass (if extra column of information)
     """
     try:
         if aspect == "array":
-            graph = create_graph_array(positions)
+            graph = create_graph_array(positions, data_shape=data_shape)
             pos_2d = positions[:, 1:3]
         else:
             raise NotImplementedError("Dict aspect not implemented for MST")
@@ -947,68 +993,103 @@ def create_mst_graph(positions: np.ndarray, aspect: str = "array",
         raise GraphCreationError(f"Failed to create MST: {str(e)}")
 
 def create_gabriel_graph(positions: np.ndarray, aspect: str = "array",
-                         ) -> Any:
-    """Create Gabriel graph from point positions
+                         data_shape: Optional[List[Tuple[str, Any]]] = None) -> Any:
+    """
+    Create a Gabriel graph from point positions using an optimized, vectorized approach.
+
+    A Gabriel graph is a subgraph of the Delaunay triangulation where for any
+    edge (p, q), the disk with diameter pq contains no other point r.
 
     Args:
-        positions: Point data array
-        aspect: Data format
-        edge_metric: Distance metric to use for the edge distances
+        positions: Point data array with shape (n, >=3) containing [id, x, y, ...].
+        aspect: Data format (currently only "array" is supported).
+        data_shape: shape of the data to pass (if extra column of information)
+
+    Returns:
+        igraph.Graph: An igraph Graph object representing the Gabriel graph.
+
+    Raises:
+        GraphCreationError: If graph creation fails.
     """
     try:
-        if aspect == "array":
-            graph = create_graph_array(positions)
-            pos_2d = positions[:, 1:3]
-        else:
-            raise NotImplementedError("Dict aspect not implemented for Gabriel graph")
+        if aspect != "array":
+            raise NotImplementedError("Dict aspect is not yet implemented for Gabriel graph")
 
+        # 1. Initial setup
+        graph = create_graph_array(positions, data_shape=data_shape)
+        # Use float64 for better precision in geometric calculations
+        pos_2d = positions[:, 1:3].astype(np.float64)
         n_points = len(pos_2d)
+
         if n_points < 2:
             return graph
 
-        # Create Delaunay triangulation as starting point
-        temp_graph = create_delaunay_graph(positions, aspect="array",
-                                           dimension=(int(pos_2d[:, 0].max()) + 1, int(pos_2d[:, 1].max()) + 1))
+        # 2. Start with the Delaunay triangulation. This is a crucial optimization,
+        # as a Gabriel graph is always a subgraph of the Delaunay graph. This
+        # reduces the number of candidate edges from O(N^2) to O(N).
+        max_x, max_y = np.max(pos_2d, axis=0)
+        temp_graph = create_delaunay_graph(
+            positions,
+            aspect="array",
+            dimension=(int(max_x) + 1, int(max_y) + 1)
+        )
 
-        edges_to_add = []
+        if temp_graph.ecount() == 0:
+            return graph  # No edges to check
 
-        # Check Gabriel condition for each Delaunay edge
-        for edge in temp_graph.es:
-            i, j = edge.tuple
-            p1 = pos_2d[i]
-            p2 = pos_2d[j]
+        # 3. Get Delaunay edges and corresponding point coordinates
+        delaunay_edges = np.array(temp_graph.get_edgelist())
+        source_indices, target_indices = delaunay_edges[:, 0], delaunay_edges[:, 1]
 
-            center = (p1 + p2) / 2
-            radius_sq = np.sum(((p1 - p2) / 2) ** 2)
+        p1s = pos_2d[source_indices]  # Coordinates of all source points
+        p2s = pos_2d[target_indices]  # Coordinates of all target points
 
-            is_gabriel_edge = True
-            for k in range(n_points):
-                if k == i or k == j:
-                    continue
+        # 4. Vectorized calculation of disk centers and radii for ALL edges at once
+        # Center of the disk for each edge (p1, p2) is (p1+p2)/2
+        centers = (p1s + p2s) / 2.0
+        # Squared radius of the disk is ||(p1-p2)/2||^2
+        radii_sq = np.sum(((p1s - p2s) / 2.0)**2, axis=1)
 
-                p3 = pos_2d[k]
-                dist_sq = np.sum((p3 - center) ** 2)
+        # 5. Vectorized check for the Gabriel condition.
+        # We check if any other point `pk` falls inside the disk of an edge `(pi, pj)`.
+        # Condition: ||pk - center_ij||^2 < radius_ij^2
 
-                if dist_sq < radius_sq - 1e-10:
-                    is_gabriel_edge = False
-                    break
+        # Expand dimensions for broadcasting to compute the difference between every
+        # disk center and every point in the dataset.
+        # `dist_sq_matrix[e, k]` will be the squared distance from the center of edge `e` to point `k`.
+        dist_sq_matrix = cdist(centers, pos_2d, 'sqeuclidean')
 
-            if is_gabriel_edge:
-                edges_to_add.append((i, j))
+        # Compare every distance to the corresponding edge's radius.
+        # `is_inside[e, k]` is True if point `k` is inside the disk of edge `e`.
+        is_inside = dist_sq_matrix < radii_sq[:, np.newaxis] - 1e-10  # Tolerance for float precision
 
-        # Add Gabriel edges
-        if edges_to_add:
-            graph.add_edges(edges_to_add)
+        # 6. Mask out the endpoints for each edge.
+        # A point cannot invalidate an edge it belongs to. We create a boolean
+        # mask to efficiently set `is_inside` to False for these cases.
+        n_edges = len(delaunay_edges)
+        row_indices = np.arange(n_edges)
+        is_inside[row_indices, source_indices] = False
+        is_inside[row_indices, target_indices] = False
 
+        # 7. Identify Gabriel edges.
+        # An edge is a Gabriel edge if NO other point is inside its disk.
+        # We check if `any` value is True along the points axis (axis=1).
+        has_intruder = np.any(is_inside, axis=1)
+        gabriel_edges = delaunay_edges[~has_intruder]
+
+        # 8. Add the final Gabriel edges to the graph
+        if gabriel_edges.size > 0:
+            graph.add_edges(gabriel_edges.tolist())
 
         return graph
 
     except Exception as e:
-        raise GraphCreationError(f"Failed to create Gabriel graph: {str(e)}")
-
+        # Wrap the exception for consistent error handling
+        raise GraphCreationError(f"Failed to create Gabriel graph: {str(e)}") from e
 
 def create_voronoi_cell_graph(positions: np.ndarray, dimension: Tuple[int, int],
-                              aspect: str = "array", ) -> Any:
+                              aspect: str = "array",
+                              ) -> Any:
     """
     Create graph from Voronoi diagram structure:
     - Nodes are Voronoi vertices (intersections of cell boundaries)
@@ -1056,7 +1137,8 @@ def create_voronoi_cell_graph(positions: np.ndarray, dimension: Tuple[int, int],
         raise GraphCreationError(f"Failed to create Voronoi cell graph: {str(e)}")
 
 def create_visibility_graph(positions: np.ndarray, obstacles: Optional[List] = None,
-                            aspect: str = "array", ) -> Any:
+                            aspect: str = "array",
+                            ) -> Any:
     """
     Create visibility graph where points are connected if they have line-of-sight.
 

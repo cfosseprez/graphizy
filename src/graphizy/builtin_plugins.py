@@ -1,9 +1,8 @@
 """
-Built-in graph type plugins for Graphizy
+Built-in Graph Type Plugins for Graphizy
 
-This module contains plugin implementations for all the built-in graph types.
-It demonstrates the best practice for creating plugins by calling the low-level
-algorithm functions directly, avoiding circular dependencies and unnecessary overhead.
+This module defines and registers the core graph construction algorithms
+as plugins, making them available through the unified Graphing API.
 
 .. moduleauthor:: Charles Fosseprez
 .. contact:: charles.fosseprez.pro@gmail.com
@@ -12,10 +11,10 @@ algorithm functions directly, avoiding circular dependencies and unnecessary ove
 """
 
 import numpy as np
-from typing import Any
+from typing import Any, List, Tuple
 
 from .plugins_logic import GraphTypePlugin, GraphTypeInfo, register_graph_type
-# Import the core algorithm functions directly, NOT the Graphing class
+# Import the core algorithm functions that the plugins will wrap
 from .algorithms import (
     create_delaunay_graph, create_proximity_graph,
     create_mst_graph, create_gabriel_graph, create_knn_graph,
@@ -29,13 +28,17 @@ class DelaunayPlugin(GraphTypePlugin):
     def info(self) -> GraphTypeInfo:
         return GraphTypeInfo(
             name="delaunay",
-            description="Creates a Delaunay triangulation connecting nearby points optimally",
-            parameters={}, category="built-in", author="Charles Fosseprez", version="1.0.0"
+            description="Creates a Delaunay triangulation connecting nearby points optimally.",
+            parameters={},
+            category="built-in",
+            author="Charles Fosseprez",
+            version="1.0.0"
         )
 
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
         """Create Delaunay triangulation graph by calling the algorithm directly."""
-        return create_delaunay_graph(data_points, dimension=dimension)
+        # Pass data_shape down to the algorithm function
+        return create_delaunay_graph(data_points, dimension=dimension, data_shape=data_shape)
 
 
 class ProximityPlugin(GraphTypePlugin):
@@ -44,51 +47,20 @@ class ProximityPlugin(GraphTypePlugin):
     def info(self) -> GraphTypeInfo:
         return GraphTypeInfo(
             name="proximity",
-            description="Connects points within a specified distance threshold",
+            description="Connects points within a specified distance threshold.",
             parameters={
                 "proximity_thresh": {"type": float, "default": 50.0, "description": "Maximum distance for connecting points"},
                 "metric": {"type": str, "default": "euclidean", "description": "Distance metric to use"}
             },
-            category="built-in", author="Charles Fosseprez", version="1.0.0"
+            category="built-in",
+            author="Charles Fosseprez",
+            version="1.0.0"
         )
 
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
         """Create proximity graph by calling the algorithm directly."""
-        proximity_thresh = kwargs.get("proximity_thresh", 50.0)
-        metric = kwargs.get("metric", "euclidean")
-        return create_proximity_graph(data_points, proximity_thresh, metric=metric)
-
-
-class MSTPlugin(GraphTypePlugin):
-    """Minimum Spanning Tree graph plugin"""
-    @property
-    def info(self) -> GraphTypeInfo:
-        return GraphTypeInfo(
-            name="mst",
-            description="Creates a minimum spanning tree connecting all points with minimum total edge weight",
-            parameters={"metric": {"type": str, "default": "euclidean", "description": "Distance metric for edge weights"}},
-            category="built-in", author="Charles Fosseprez", version="1.0.0"
-        )
-
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
-        """Create minimum spanning tree graph by calling the algorithm directly."""
-        metric = kwargs.get("metric", "euclidean")
-        return create_mst_graph(data_points, metric=metric)
-
-
-class GabrielPlugin(GraphTypePlugin):
-    """Gabriel graph plugin"""
-    @property
-    def info(self) -> GraphTypeInfo:
-        return GraphTypeInfo(
-            name="gabriel",
-            description="Creates a Gabriel graph where no other point lies within the diameter circle of two connected points",
-            parameters={}, category="built-in", author="Charles Fosseprez", version="1.0.0"
-        )
-
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
-        """Create Gabriel graph by calling the algorithm directly."""
-        return create_gabriel_graph(data_points)
+        # Pass data_shape and other params down to the algorithm function
+        return create_proximity_graph(data_points, data_shape=data_shape, **kwargs)
 
 
 class KNNPlugin(GraphTypePlugin):
@@ -97,57 +69,105 @@ class KNNPlugin(GraphTypePlugin):
     def info(self) -> GraphTypeInfo:
         return GraphTypeInfo(
             name="knn",
-            description="Connects each point to its k nearest neighbors",
-            parameters={"k": {"type": int, "default": 4, "description": "Number of neighbors"}},
-            category="built-in", author="Charles Fosseprez", version="1.0.0"
+            description="Connects each point to its 'k' nearest neighbors.",
+            parameters={"k": {"type": int, "default": 4, "description": "Number of nearest neighbors to connect"}},
+            category="built-in",
+            author="Charles Fosseprez",
+            version="1.0.0"
         )
 
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
-        """Create k-NN graph by calling the algorithm directly."""
-        k = kwargs.get("k", 4)
-        return create_knn_graph(data_points, k=k)
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
+        """Create k-nearest neighbors graph by calling the algorithm directly."""
+        # Pass data_shape and other params down to the algorithm function
+        return create_knn_graph(data_points, data_shape=data_shape, **kwargs)
 
 
+class MSTPlugin(GraphTypePlugin):
+    """Minimum Spanning Tree graph plugin"""
+    @property
+    def info(self) -> GraphTypeInfo:
+        return GraphTypeInfo(
+            name="mst",
+            description="Creates a minimum spanning tree connecting all points with minimum total edge weight.",
+            parameters={"metric": {"type": str, "default": "euclidean", "description": "Distance metric for edge weights"}},
+            category="built-in",
+            author="Charles Fosseprez",
+            version="1.0.0"
+        )
 
-class VisibilityGraphPlugin(GraphTypePlugin):
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
+        """Create minimum spanning tree graph by calling the algorithm directly."""
+        # Pass data_shape and other params down to the algorithm function
+        return create_mst_graph(data_points, data_shape=data_shape, **kwargs)
+
+
+class GabrielPlugin(GraphTypePlugin):
+    """Gabriel graph plugin"""
+    @property
+    def info(self) -> GraphTypeInfo:
+        return GraphTypeInfo(
+            name="gabriel",
+            description="A subgraph of Delaunay where the disk of every edge is empty.",
+            parameters={},
+            category="built-in",
+            author="Charles Fosseprez",
+            version="1.0.0"
+        )
+
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
+        """Create Gabriel graph by calling the algorithm directly."""
+        # Pass data_shape down to the algorithm function
+        return create_gabriel_graph(data_points, data_shape=data_shape)
+
+
+class VoronoiCellPlugin(GraphTypePlugin):
+    """Voronoi cell graph plugin"""
+    @property
+    def info(self) -> GraphTypeInfo:
+        return GraphTypeInfo(
+            name="voronoi_cell",
+            description="Creates a graph from Voronoi vertices and ridges.",
+            parameters={},
+            category="built-in",
+            author="Charles Fosseprez",
+            version="1.0.0"
+        )
+
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
+        """Create Voronoi cell graph by calling the algorithm directly."""
+        # Note: Voronoi creates its own vertices, so data_shape is not used by the algorithm,
+        # but the signature must match the abstract base class.
+        return create_voronoi_cell_graph(data_points, dimension=dimension)
+
+
+class VisibilityPlugin(GraphTypePlugin):
+    """Visibility graph plugin"""
     @property
     def info(self) -> GraphTypeInfo:
         return GraphTypeInfo(
             name="visibility",
-            description="Graph connecting points with unobstructed line-of-sight",
-            parameters={
-                "obstacles": {"type": "list", "default": None, "description": "List of obstacle polygons"}
-            },
-            category="built-in"
+            description="Connects points if they have an unobstructed line of sight.",
+            parameters={"obstacles": {"type": list, "default": None, "description": "List of obstacle polygons"}},
+            category="built-in",
+            author="Charles Fosseprez",
+            version="1.0.0"
         )
 
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
-        return create_visibility_graph(data_points, **kwargs)
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
+        """Create visibility graph by calling the algorithm directly."""
+        # Pass data_shape and other params down to the algorithm function
+        return create_visibility_graph(data_points, data_shape=data_shape, **kwargs)
 
 
-class VoronoiCellGraphPlugin(GraphTypePlugin):
-    @property
-    def info(self) -> GraphTypeInfo:
-        return GraphTypeInfo(
-            name="voronoi_cells",
-            description="Graph of Voronoi diagram structure (vertices and ridges)",
-            parameters={},
-            category="built-in"
-        )
-
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, **kwargs) -> Any:
-        return create_voronoi_cell_graph(data_points, dimension, **kwargs)
-
-
-# Register all built-in plugins
-def register_builtin_plugins():
-    """Register all built-in graph type plugins"""
+def register_all_builtins():
+    """
+    A convenience function to register all built-in plugins.
+    This is typically called once when the graphizy package is initialized.
+    """
     register_graph_type(DelaunayPlugin())
     register_graph_type(ProximityPlugin())
+    register_graph_type(KNNPlugin())
     register_graph_type(MSTPlugin())
     register_graph_type(GabrielPlugin())
-    register_graph_type(KNNPlugin())
-
-
-# Auto-register when module is imported
-register_builtin_plugins()
+    register_graph_type(VoronoiCellPlugin())
+    register_graph_type(VisibilityPlugin())

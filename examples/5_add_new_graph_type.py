@@ -1,39 +1,57 @@
 #!/usr/bin/env python3
 """
-Example 5: Adding Custom Graph Types to Graphizy
+Example 5: Adding Custom Graph Types to Graphizy - Updated for v0.1.17+
 
-This example demonstrates how to extend Graphizy with custom graph types
-using the plugin system. You can add new graph algorithms without modifying
-the core library code.
+This example demonstrates the enhanced plugin system for adding custom graph types.
 
-Key Features Demonstrated:
-- Plugin registration system using decorators
-- Custom graph creation functions
-- Parameter validation and documentation
-- Integration with existing API
-- Automatic discovery and listing
+.. moduleauthor:: Charles Fosseprez
+.. contact:: charles.fosseprez.pro@gmail.com
+.. license:: GPL2 or later
+.. copyright:: Copyright (C) 2025 Charles Fosseprez
 """
 
 import numpy as np
-from graphizy import Graphing, graph_type_plugin
 import random
+import sys
 import igraph as ig
 
-# This utility helps create an 'output' directory if it doesn't exist.
+from graphizy import (
+    Graphing, GraphizyConfig, graph_type_plugin,
+    generate_and_format_positions, validate_graphizy_input
+)
 from graphizy.utils import setup_output_directory
+
+random.seed(42)
+np.random.seed(42)
 
 
 @graph_type_plugin(
-    name="random_edges",
-    description="Randomly connects points with a specified probability",
-    category="community",
-    author="Amazing Random Graph Developer",
-    version="1.0.0",
+    name="enhanced_random",
+    description="Advanced random graph with configurable clustering and distance decay",
+    category="probabilistic",
+    author="Graphizy Example Developer",
+    version="2.0.0",
     parameters={
         "edge_probability": {
             "type": "float",
             "default": 0.3,
-            "description": "Probability of connection between any two points (0.0-1.0)"
+            "description": "Base probability of connection (0.0-1.0)",
+            "min": 0.0,
+            "max": 1.0
+        },
+        "clustering_factor": {
+            "type": "float", 
+            "default": 1.0,
+            "description": "Clustering enhancement factor (>1.0 increases clustering)",
+            "min": 0.1,
+            "max": 5.0
+        },
+        "distance_decay": {
+            "type": "float",
+            "default": 0.0,
+            "description": "Distance-based probability decay (0.0 = no decay)",
+            "min": 0.0,
+            "max": 1.0
         },
         "seed": {
             "type": "int",
@@ -42,27 +60,14 @@ from graphizy.utils import setup_output_directory
         }
     }
 )
-def create_random_graph(data_points: np.ndarray, dimension: tuple, **kwargs) -> ig.Graph:
-    """
-    Create a graph with random edges between points.
-
-    This is a simple example plugin that demonstrates the plugin system.
-    Each pair of points has a probability of being connected.
-
-    Args:
-        data_points: Point data as array with columns [id, x, y]
-        dimension: The (width, height) of the graph canvas (part of the plugin interface).
-        **kwargs: Additional parameters including:
-                 - edge_probability: Probability of connection between any two points (default: 0.3)
-                 - seed: Random seed for reproducibility (default: None)
-
-    Returns:
-        igraph Graph object with random connections
-    """
+def create_enhanced_random_graph(data_points: np.ndarray, dimension: tuple, **kwargs) -> ig.Graph:
+    """Create an enhanced random graph with clustering and distance-based probability."""
     from graphizy.algorithms import create_graph_array
 
-    # Get parameters with defaults
-    edge_probability = kwargs.get('edge_probability', 0.3)
+    # Extract parameters with validation
+    edge_probability = max(0.0, min(1.0, kwargs.get('edge_probability', 0.3)))
+    clustering_factor = max(0.1, min(5.0, kwargs.get('clustering_factor', 1.0)))
+    distance_decay = max(0.0, min(1.0, kwargs.get('distance_decay', 0.0)))
     seed = kwargs.get('seed', None)
 
     if seed is not None:
@@ -72,14 +77,61 @@ def create_random_graph(data_points: np.ndarray, dimension: tuple, **kwargs) -> 
     # Create base graph structure
     graph = create_graph_array(data_points)
     n_vertices = len(graph.vs)
+    
+    if n_vertices < 2:
+        return graph
 
-    # Add random edges
+    # Extract positions for distance calculations
+    positions = data_points[:, 1:3]
+    max_distance = np.sqrt(dimension[0]**2 + dimension[1]**2)
+
+    # Basic random connections with distance decay
     edges_to_add = []
+    
     for i in range(n_vertices):
         for j in range(i + 1, n_vertices):
-            if random.random() < edge_probability:
+            # Calculate connection probability
+            base_prob = edge_probability
+            
+            # Apply distance decay if enabled
+            if distance_decay > 0:
+                distance = np.linalg.norm(positions[i] - positions[j])
+                normalized_distance = distance / max_distance
+                distance_modifier = np.exp(-distance_decay * normalized_distance * 5)
+                connection_prob = base_prob * distance_modifier
+            else:
+                connection_prob = base_prob
+            
+            # Random connection decision
+            if random.random() < connection_prob:
                 edges_to_add.append((i, j))
 
+    # Clustering enhancement
+    if clustering_factor > 1.0 and len(edges_to_add) > 0:
+        temp_graph = graph.copy()
+        if edges_to_add:
+            temp_graph.add_edges(edges_to_add)
+        
+        # Find triangulation opportunities
+        clustering_edges = []
+        for i in range(n_vertices):
+            neighbors_i = set(temp_graph.neighbors(i))
+            
+            for j in neighbors_i:
+                neighbors_j = set(temp_graph.neighbors(j))
+                common_neighbors = neighbors_i & neighbors_j
+                
+                for k in common_neighbors:
+                    if not temp_graph.are_connected(i, k):
+                        triangle_prob = (clustering_factor - 1.0) * 0.1
+                        if random.random() < triangle_prob:
+                            clustering_edges.append((min(i, k), max(i, k)))
+        
+        clustering_edges = list(set(clustering_edges))
+        edges_to_add.extend(clustering_edges)
+
+    # Remove duplicates and add all edges
+    edges_to_add = list(set(edges_to_add))
     if edges_to_add:
         graph.add_edges(edges_to_add)
 
@@ -87,347 +139,267 @@ def create_random_graph(data_points: np.ndarray, dimension: tuple, **kwargs) -> 
 
 
 @graph_type_plugin(
-    name="star",
-    description="Creates a star topology with one central hub",
+    name="geometric_star",
+    description="Advanced star topology with geometric optimization",
     category="topology",
-    author="Star Graph Super Expert",
-    version="1.0.0",
+    author="Graphizy Topology Expert",
+    version="2.0.0",
     parameters={
-        "center_id": {
-            "type": "int",
-            "default": None,
-            "description": "ID of existing point to use as center"
+        "hub_selection": {
+            "type": "str",
+            "default": "centroid",
+            "description": "Hub selection method: 'centroid', 'geometric_median', 'random'",
+            "choices": ["centroid", "geometric_median", "random"]
         },
-        "center_x": {
-            "type": "float",
-            "default": None,
-            "description": "X coordinate for center point"
-        },
-        "center_y": {
-            "type": "float",
-            "default": None,
-            "description": "Y coordinate for center point"
-        },
-        "add_center_node": {
+        "create_hub": {
             "type": "bool",
             "default": True,
-            "description": "Whether to add a new center node"
-        }
-    }
-)
-def create_star_graph(data_points: np.ndarray, dimension: tuple, **kwargs) -> ig.Graph:
-    """
-    Create a star topology graph with one central hub.
-
-    Connects all points to a single central point. The center can be:
-    - An existing point (specified by center_id)
-    - The geometric center of all points (default)
-    - A specified coordinate (center_x, center_y)
-
-    Args:
-        data_points: Point data as array with columns [id, x, y]
-        dimension: The (width, height) of the graph canvas (part of the plugin interface).
-        **kwargs: Additional parameters including:
-                 - center_id: ID of existing point to use as center (default: None)
-                 - center_x, center_y: Coordinates for new center point (default: geometric center)
-                 - add_center_node: Whether to add a new center node (default: True)
-
-    Returns:
-        igraph Graph object with star topology
-    """
-    from graphizy.algorithms import create_graph_array
-
-    # Get parameters
-    center_id = kwargs.get('center_id', None)
-    center_x = kwargs.get('center_x', None)
-    center_y = kwargs.get('center_y', None)
-    add_center_node = kwargs.get('add_center_node', True)
-
-    # Create base graph structure
-    graph = create_graph_array(data_points)
-    n_vertices = len(graph.vs)
-
-    if center_id is not None:
-        # Use existing point as center
-        try:
-            center_vertex_idx = graph.vs.find(id=center_id).index
-        except (ValueError, IndexError):
-            raise ValueError(f"Center ID {center_id} not found in data")
-
-        # Connect all other vertices to the center
-        edges_to_add = [(center_vertex_idx, i) for i in range(n_vertices) if i != center_vertex_idx]
-        if edges_to_add:
-            graph.add_edges(edges_to_add)
-
-    elif add_center_node:
-        # Add a new center node
-        if center_x is None:
-            center_x = np.mean(data_points[:, 1])
-        if center_y is None:
-            center_y = np.mean(data_points[:, 2])
-
-        # Add center vertex
-        new_id = np.max(data_points[:, 0]) + 1
-        graph.add_vertex(id=new_id, x=center_x, y=center_y, name=str(new_id))
-        center_vertex_idx = n_vertices
-
-        # Connect all original vertices to the center
-        edges_to_add = [(center_vertex_idx, i) for i in range(n_vertices)]
-        graph.add_edges(edges_to_add)
-
-    else:
-        # Connect all vertices to the first vertex (no new center)
-        if n_vertices > 0:
-            center_vertex_idx = 0
-            edges_to_add = [(center_vertex_idx, i) for i in range(1, n_vertices)]
-            graph.add_edges(edges_to_add)
-
-    return graph
-
-
-@graph_type_plugin(
-    name="grid",
-    description="Creates grid-like connections between nearby points",
-    category="geometric",
-    author="Grid Graph Creator",
-    version="1.0.0",
-    parameters={
-        "grid_spacing": {
-            "type": "float",
-            "default": None,
-            "description": "Distance threshold for grid connections (auto-calculated if None)"
+            "description": "Whether to create a new hub node or use existing point"
         },
-        "include_diagonals": {
+        "spokes_only": {
             "type": "bool",
-            "default": False,
-            "description": "Whether to connect diagonal neighbors"
+            "default": True,
+            "description": "If True, only hub-to-node connections"
         },
-        "tolerance": {
+        "peripheral_probability": {
             "type": "float",
             "default": 0.1,
-            "description": "Tolerance factor for grid alignment (fraction of grid_spacing)"
+            "description": "Probability of peripheral connections (if spokes_only=False)",
+            "min": 0.0,
+            "max": 1.0
         }
     }
 )
-def create_grid_graph(data_points: np.ndarray, dimension: tuple, **kwargs) -> ig.Graph:
-    """
-    Create a grid-like graph by connecting points to nearby grid neighbors.
-
-    Arranges points in a grid pattern and connects each point to its
-    immediate neighbors (up, down, left, right, and optionally diagonals).
-
-    Args:
-        data_points: Point data as array with columns [id, x, y]
-        dimension: The (width, height) of the graph canvas (part of the plugin interface).
-        **kwargs: Additional parameters including:
-                 - grid_spacing: Distance threshold for grid connections (default: auto-calculated)
-                 - include_diagonals: Whether to connect diagonal neighbors (default: False)
-                 - tolerance: Tolerance for grid alignment (default: 10% of grid_spacing)
-
-    Returns:
-        igraph Graph object with grid-like connections
-    """
+def create_geometric_star_graph(data_points: np.ndarray, dimension: tuple, **kwargs) -> ig.Graph:
+    """Create an advanced geometric star graph with intelligent hub placement."""
     from graphizy.algorithms import create_graph_array
-    from scipy.spatial.distance import pdist
 
-    # Get parameters
-    grid_spacing = kwargs.get('grid_spacing', None)
-    include_diagonals = kwargs.get('include_diagonals', False)
-    tolerance_factor = kwargs.get('tolerance', 0.1)
+    # Parameter extraction and validation
+    hub_selection = kwargs.get('hub_selection', 'centroid')
+    create_hub = kwargs.get('create_hub', True)
+    spokes_only = kwargs.get('spokes_only', True)
+    peripheral_prob = max(0.0, min(1.0, kwargs.get('peripheral_probability', 0.1)))
 
-    # Create base graph structure
+    # Create base graph
     graph = create_graph_array(data_points)
-    positions = data_points[:, 1:3]  # x, y coordinates
+    n_vertices = len(graph.vs)
+    
+    if n_vertices == 0:
+        return graph
 
-    # Auto-calculate grid spacing if not provided
-    if grid_spacing is None and len(positions) > 1:
-        # Use the minimum non-zero distance as grid spacing
-        distances = pdist(positions)
-        non_zero_distances = distances[distances > 1e-9]
-        if len(non_zero_distances) > 0:
-            grid_spacing = np.min(non_zero_distances)
-        else: # All points are at the same location
-            grid_spacing = 1.0
-    elif grid_spacing is None:
-        grid_spacing = 1.0 # Default for single point case
+    positions = data_points[:, 1:3]
+    
+    # Determine hub location and index
+    hub_vertex_idx = None
+    hub_position = None
 
-    tolerance = grid_spacing * tolerance_factor
+    if hub_selection == 'centroid':
+        # Geometric centroid
+        hub_position = np.mean(positions, axis=0)
+        
+    elif hub_selection == 'geometric_median':
+        # Geometric median (more robust to outliers)
+        hub_position = calculate_geometric_median(positions)
+        
+    elif hub_selection == 'random':
+        # Random existing point
+        hub_vertex_idx = random.randint(0, n_vertices - 1)
+        hub_position = positions[hub_vertex_idx]
+        create_hub = False
+    
+    # Create hub vertex if needed
+    if create_hub and hub_position is not None:
+        new_id = np.max(data_points[:, 0]) + 1
+        graph.add_vertex(id=new_id, x=hub_position[0], y=hub_position[1], name=str(new_id))
+        hub_vertex_idx = n_vertices  # Index of newly added vertex
+        n_vertices += 1
 
-    # Find grid connections
-    edges_to_add = []
-    n_points = len(positions)
+    # Create spoke connections
+    spoke_edges = []
+    
+    for i in range(n_vertices):
+        if i == hub_vertex_idx:
+            continue
+        spoke_edges.append((hub_vertex_idx, i))
 
-    for i in range(n_points):
-        for j in range(i + 1, n_points):
-            pos_i = positions[i]
-            pos_j = positions[j]
+    # Add spoke edges
+    if spoke_edges:
+        graph.add_edges(spoke_edges)
 
-            dx = abs(pos_i[0] - pos_j[0])
-            dy = abs(pos_i[1] - pos_j[1])
-
-            # Check for horizontal/vertical neighbors
-            is_horizontal = (dy <= tolerance) and (abs(dx - grid_spacing) <= tolerance)
-            is_vertical = (dx <= tolerance) and (abs(dy - grid_spacing) <= tolerance)
-
-            # Check for diagonal neighbors (if enabled)
-            is_diagonal = False
-            if include_diagonals:
-                is_diagonal = (abs(dx - grid_spacing) <= tolerance) and \
-                              (abs(dy - grid_spacing) <= tolerance)
-
-            if is_horizontal or is_vertical or is_diagonal:
-                edges_to_add.append((i, j))
-
-    if edges_to_add:
-        graph.add_edges(edges_to_add)
+    # Add peripheral connections if requested
+    if not spokes_only and peripheral_prob > 0:
+        peripheral_edges = []
+        
+        for i in range(n_vertices):
+            if i == hub_vertex_idx:
+                continue
+                
+            for j in range(i + 1, n_vertices):
+                if j == hub_vertex_idx:
+                    continue
+                    
+                if random.random() < peripheral_prob:
+                    peripheral_edges.append((i, j))
+        
+        if peripheral_edges:
+            graph.add_edges(peripheral_edges)
 
     return graph
+
+
+def calculate_geometric_median(points: np.ndarray, max_iterations: int = 100) -> np.ndarray:
+    """Calculate the geometric median of a set of points using Weiszfeld's algorithm."""
+    if len(points) == 0:
+        return np.array([0.0, 0.0])
+    if len(points) == 1:
+        return points[0].copy()
+    
+    # Initialize with centroid
+    median = np.mean(points, axis=0)
+    tolerance = 1e-6
+    
+    for _ in range(max_iterations):
+        distances = np.linalg.norm(points - median, axis=1)
+        
+        # Avoid division by zero
+        non_zero_mask = distances > tolerance
+        if not np.any(non_zero_mask):
+            break
+        
+        weights = np.zeros_like(distances)
+        weights[non_zero_mask] = 1.0 / distances[non_zero_mask]
+        
+        if np.sum(weights) == 0:
+            break
+            
+        new_median = np.sum(points * weights[:, np.newaxis], axis=0) / np.sum(weights)
+        
+        # Check convergence
+        if np.linalg.norm(new_median - median) < tolerance:
+            break
+            
+        median = new_median
+    
+    return median
 
 
 def main():
-    """Demonstrate adding custom graph types to Graphizy."""
-
+    """Demonstrate the enhanced custom graph types and plugin system."""
     output_dir = setup_output_directory()
 
-    print("Demonstrating easy graph type extension in Graphizy")
-    print("=" * 60)
-
-    # NOTE: Registration is now handled automatically by the @graph_type_plugin decorators
-    # when this file is imported. No need for manual registration calls here.
+    print("Demonstrating Enhanced Custom Graph Types in Graphizy v0.1.17+")
+    print("=" * 70)
 
     # Create a Graphing instance
-    grapher = Graphing(dimension=(400, 400))
+    config = GraphizyConfig(dimension=(500, 500))
+    grapher = Graphing(config=config)
 
-    # List all available graph types (including our new ones)
-    print("Available graph types:")
+    # List all available graph types (including new ones)
+    print("\nAvailable graph types after plugin registration:")
     all_types = grapher.list_graph_types()
+    
+    builtin_types = []
+    custom_types = []
+    
     for name, info in all_types.items():
-        # Access attributes using dot notation (e.g., info.description)
-        # The 'info' variable is a GraphTypeInfo object, not a dictionary.
+        if hasattr(info, 'category') and info.category != 'built-in':
+            custom_types.append((name, info))
+        else:
+            builtin_types.append((name, info))
+
+    print(f"\nBuilt-in graph types ({len(builtin_types)}):")
+    for name, info in builtin_types:
         print(f"  • {name}: {info.description}")
 
-        # Use hasattr for safe attribute checking and getattr for safe access
-        if hasattr(info, 'category') and info.category != 'built-in':
-            author = getattr(info, 'author', 'Unknown')
-            print(f"    └─ Category: {info.category}, Author: {author}")
+    print(f"\nCustom graph types ({len(custom_types)}):")
+    for name, info in custom_types:
+        author = getattr(info, 'author', 'Unknown')
+        version = getattr(info, 'version', '1.0.0')
+        print(f"  • {name}: {info.description}")
+        print(f"    └─ Author: {author}, Version: {version}, Category: {info.category}")
 
-    print("=" * 60)
-    print("Creating graphs with new types:")
+    # Generate sample data sets for testing
+    print("\n" + "=" * 70)
+    print("TESTING CUSTOM GRAPH TYPES")
+    print("=" * 70)
 
-    # Generate sample data
-    np.random.seed(42)
-    n_points = 20
-    data = np.column_stack([
-        np.arange(n_points),  # IDs
-        np.random.rand(n_points) * 300 + 50,  # X coordinates
-        np.random.rand(n_points) * 300 + 50  # Y coordinates
-    ])
+    # Test data
+    test_data = generate_and_format_positions(500, 500, 30)
 
-    # --- NEW: Initialize graph variables to ensure they exist for the display block ---
-    random_graph = None
-    star_graph = None
-    grid_graph = None
-    delaunay_graph = None
+    # Test each custom graph type
+    custom_graph_tests = [
+        ("enhanced_random", {"edge_probability": 0.4, "clustering_factor": 2.0, "distance_decay": 0.3}),
+        ("geometric_star", {"hub_selection": "geometric_median", "spokes_only": False, "peripheral_probability": 0.2})
+    ]
 
-    try:
-        # Test the random edges graph
-        print("\nCreating random edges graph...")
-        random_graph = grapher.make_graph("random_edges", data, edge_probability=0.4, seed=42)
-        print(f"   Random graph: {random_graph.vcount()} vertices, {random_graph.ecount()} edges")
+    print(f"\nTesting custom graph types:")
 
-        # Test the star graph
-        print("\nCreating star graph...")
-        star_graph = grapher.make_graph("star", data, center_x=200, center_y=200)
-        print(f"   Star graph: {star_graph.vcount()} vertices, {star_graph.ecount()} edges")
+    for graph_type, params in custom_graph_tests:
+        try:
+            print(f"\n• Creating {graph_type} graph...")
+            
+            # Create graph using the unified interface
+            graph = grapher.make_graph(graph_type, test_data, **params)
+            
+            if graph:
+                # Analyze results
+                info = grapher.get_graph_info(graph)
+                
+                print(f"    Success: {info['vertex_count']} vertices, {info['edge_count']} edges")
+                print(f"    Density: {info['density']:.3f}, Connected: {info['is_connected']}")
+                
+                # Save visualization
+                try:
+                    image = grapher.draw_graph(graph)
+                    filename = f"{graph_type}_example.jpg"
+                    grapher.save_graph(image, str(output_dir / filename))
+                    print(f"    Saved: {filename}")
+                except Exception as viz_error:
+                    print(f"    Visualization failed: {viz_error}")
+            
+            else:
+                print(f"    Failed: No graph created")
+                
+        except Exception as e:
+            print(f"    Error: {e}")
 
-        # Test the grid graph
-        print("\nCreating grid graph...")
-        # Create a more grid-like dataset for better demonstration
-        grid_data = np.array([
-            [i, (i % 5) * 50 + 50, (i // 5) * 50 + 50]
-            for i in range(20)
-        ])
-        grid_graph = grapher.make_graph("grid", grid_data, grid_spacing=50, include_diagonals=True)
-        print(f"   Grid graph: {grid_graph.vcount()} vertices, {grid_graph.ecount()} edges")
+    # Plugin information demonstration
+    print(f"\n" + "=" * 70)
+    print("DETAILED PLUGIN INFORMATION")
+    print("=" * 70)
 
-        # Test with built-in type for comparison
-        print("\nCreating Delaunay graph for comparison...")
-        delaunay_graph = grapher.make_graph("delaunay", data)
-        print(f"   Delaunay graph: {delaunay_graph.vcount()} vertices, {delaunay_graph.ecount()} edges")
+    for graph_type, _ in custom_graph_tests:
+        try:
+            plugin_info = Graphing.get_plugin_info(graph_type)
+            
+            print(f"\n• {graph_type.replace('_', ' ').title()} Plugin:")
+            print(f"  Description: {plugin_info['info']['description']}")
+            print(f"  Category: {plugin_info['info']['category']}")
+            print(f"  Author: {plugin_info['info']['author']}")
+            print(f"  Version: {plugin_info['info']['version']}")
+            
+            print(f"  Parameters:")
+            for param_name, param_info in plugin_info['parameters'].items():
+                default_val = param_info.get('default', 'None')
+                param_type = param_info.get('type', 'unknown')
+                description = param_info.get('description', 'No description')
+                
+                print(f"    - {param_name} ({param_type}): {description}")
+                print(f"      Default: {default_val}")
 
-    except Exception as e:
-        print(f"Error during graph creation: {e}")
+        except Exception as e:
+            print(f"  Error getting plugin info for {graph_type}: {e}")
 
-    print("\n" + "=" * 60)
-    print("Get detailed info about our new graph types:")
-
-    try:
-        # NOTE: This part is correct! get_plugin_info() *does* return a dictionary,
-        # so subscripting here is the right approach.
-        star_info = Graphing.get_plugin_info("star")
-        print(f"\nStar Graph Info:")
-        print(f"   Description: {star_info['info']['description']}")
-        print(f"   Category: {star_info['info']['category']}")
-        print(f"   Parameters: {list(star_info['parameters'].keys())}")
-
-        random_info = Graphing.get_plugin_info("random_edges")
-        print(f"\nRandom Edges Graph Info:")
-        print(f"   Description: {random_info['info']['description']}")
-        print(f"   Parameters: {list(random_info['parameters'].keys())}")
-
-        grid_info = Graphing.get_plugin_info("grid")
-        print(f"\nGrid Graph Info:")
-        print(f"   Description: {grid_info['info']['description']}")
-        print(f"   Parameters: {list(grid_info['parameters'].keys())}")
-
-    except Exception as e:
-        print(f"Could not get plugin info: {e}")
-
-    print("\n" + "=" * 60)
-    print("Success! New graph types added with minimal code!")
-    print("Key Benefits:")
-    print(" - No core files modified")
-    print(" - Automatic parameter validation")
-    print(" - Discoverable through list_graph_types()")
-    print(" - Integrated documentation")
-    print(" - Same API as built-in types")
-    print(" - Easy to distribute as separate packages")
-
-    # --- UPDATED: Save and display visualizations ---
-    try:
-        print("\nSaving and displaying visualizations...")
-        print("Press any key on a graph window to close it and see the next one.")
-
-        # Draw, save, and show the random graph
-        if random_graph:
-            random_image = grapher.draw_graph(random_graph)
-            grapher.save_graph(random_image, str(output_dir / "random_edges_example.png"))
-            print("   Saved random_edges_example.png")
-            grapher.show_graph(random_image, title="Random Edges Graph", block=True)
-
-        # Draw, save, and show the star graph
-        if star_graph:
-            star_image = grapher.draw_graph(star_graph)
-            grapher.save_graph(star_image, str(output_dir / "star_graph_example.png"))
-            print("   Saved star_graph_example.png")
-            grapher.show_graph(star_image, title="Star Graph", block=True)
-
-        # Draw, save, and show the grid graph
-        if grid_graph:
-            grid_image = grapher.draw_graph(grid_graph)
-            grapher.save_graph(grid_image, str(output_dir / "grid_graph_example.png"))
-            print("   Saved grid_graph_example.png")
-            grapher.show_graph(grid_image, title="Grid Graph", block=True)
-
-        # Draw, save, and show the built-in Delaunay graph
-        if delaunay_graph:
-            delaunay_image = grapher.draw_graph(delaunay_graph)
-            grapher.save_graph(delaunay_image, str(output_dir / "delaunay_example.png"))
-            print("   Saved delaunay_example.png")
-            grapher.show_graph(delaunay_image, title="Delaunay Graph (for comparison)", block=True)
-
-    except Exception as e:
-        print(f"Could not save or display visualizations: {e}")
+    print("\n" + "=" * 70)
+    print("SUCCESS! Enhanced custom graph types demonstrated!")
+    print("=" * 70)
+    
+    print("\nKey Enhancements Demonstrated:")
+    print("  • Advanced parameter validation and documentation")
+    print("  • Sophisticated geometric and probabilistic algorithms")
+    print("  • Compatibility with memory and weight systems")
+    print("  • Comprehensive plugin information and metadata")
+    print("  • Same API as built-in graph types")
 
 
 if __name__ == "__main__":
