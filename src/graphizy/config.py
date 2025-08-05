@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Tuple, Union, Any, Optional, Dict
 import logging
 
+from graphizy.exceptions import InvalidDimensionError, InvalidAspectError
 
 @dataclass
 class DrawingConfig:
@@ -38,7 +39,7 @@ class DrawingConfig:
 @dataclass
 class GraphConfig:
     """Configuration for graph creation parameters"""
-    dimension: Tuple[int, int] = (1200, 1200)  # It is required to have hte dimension for the opencv triangulation
+    dimension: Tuple[int, int] = (1200, 1200)
     data_shape: list = field(
         default_factory=lambda: [("id", int), ("x", int), ("y", int), ("speed", float), ("feedback", bool)])
     aspect: str = "array"
@@ -48,16 +49,15 @@ class GraphConfig:
     def __post_init__(self):
         """Validate configuration after initialization"""
         if not isinstance(self.dimension, (tuple, list)) or len(self.dimension) != 2:
-            raise ValueError("dimension must be a tuple/list of 2 integers")
+            raise InvalidDimensionError("dimension must be a tuple/list of 2 integers", dimensions=self.dimension)
         if self.dimension[0] <= 0 or self.dimension[1] <= 0:
-            raise ValueError("dimension values must be positive")
+            raise InvalidDimensionError("dimension values must be positive", dimensions=self.dimension)
         if self.aspect not in ["array", "dict"]:
-            raise ValueError("aspect must be 'array' or 'dict'")
+            raise InvalidAspectError(f"aspect must be 'array' or 'dict', got '{self.aspect}'")
         if self.proximity_threshold <= 0:
             raise ValueError("proximity_threshold must be positive")
         if not isinstance(self.data_shape, list):
-            raise ValueError("data_shape must be a list of tuples")
-
+            raise InvalidDataShapeError("data_shape must be a list of tuples")
 
 @dataclass
 class MemoryConfig:

@@ -38,16 +38,20 @@ from typing import Union, Dict, Any, List, Tuple, Optional
 import numpy as np
 from networkx.algorithms.clique import make_max_clique_graph
 
-from graphizy.config import GraphizyConfig, DrawingConfig, GraphConfig
+from graphizy.config import (
+    GraphizyConfig, DrawingConfig, GraphConfig, MemoryConfig, WeightConfig,
+    GenerationConfig, LoggingConfig,
+)
 from graphizy.exceptions import (
     InvalidAspectError, InvalidDimensionError, GraphCreationError,
-    IgraphMethodError, DrawingError
+    IgraphMethodError, DrawingError,
 )
 from graphizy.algorithms import (
     create_graph_array, create_graph_dict, call_igraph_method,
     create_delaunay_graph, create_proximity_graph,
     create_mst_graph, create_knn_graph, create_gabriel_graph,
 )
+from graphizy.analysis import GraphAnalysisResult
 from graphizy.data_interface import DataInterface
 from graphizy.memory import (
     MemoryManager, update_memory_from_custom_function
@@ -101,78 +105,52 @@ class Graphing:
     """
 
     def __init__(self,
-                 dimension: Union[Tuple[int, int], List[int]] = None,
-                 data_shape: List[Tuple[str, type]] = None,
-                 aspect: str = "array",
                  config: Optional[GraphizyConfig] = None,
                  **kwargs):
         """
-        Initialize Graphing object with specified parameters.
+        Initialize Graphing object with a flexible configuration system.
+
+        You can provide a pre-made GraphizyConfig object for detailed control,
+        or override specific settings directly with keyword arguments for ease of use.
 
         Args:
-            dimension: Canvas dimensions as (width, height). Defaults to config default.
-            data_shape: Data structure definition for custom data formats.
-                       Defaults to [(id, int), (x, float), (y, float)].
-            aspect: Data format specification. Either "array" for NumPy arrays
-                   or "dict" for dictionary format.
-            config: Pre-configured GraphizyConfig object. If None, creates default config.
-            **kwargs: Additional configuration parameters that override config settings.
-                     Can include nested parameters like drawing={'line_color': (255,0,0)}.
+            config: A pre-configured GraphizyConfig object. If None, a default
+                    config is created.
+            **kwargs: Keyword arguments to override default settings. These are
+                      applied on top of the provided or default config.
+                      Examples:
+                        - dimension=(800, 600)
+                        - line_color=(255, 0, 0)
+                        - proximity_thresh=75.0
+                        - data_shape=[('id', int), ('x', int), ('y', int)]
 
         Raises:
-            InvalidDimensionError: If dimension is not a 2-element tuple/list with positive integers.
-            InvalidAspectError: If aspect is not "array" or "dict".
             GraphCreationError: If initialization fails due to configuration issues.
 
         Examples:
-            >>> # Basic initialization with default config
-            >>> grapher = Graphing(dimension=(800, 600))
+            >>> # Easiest way: Use keyword arguments
+            >>> grapher = Graphing(dimension=(800, 600), line_color=(255, 0, 0))
 
-            >>> # Custom aspect and drawing parameters
-            >>> grapher = Graphing(
-            ...     dimension=(1024, 768),
-            ...     aspect="dict",
-            ...     line_color=(255, 0, 0),
-            ...     point_radius=5
-            ... )
+            >>> # Power-user way: Create and pass a config object
+            >>> my_config = GraphizyConfig()
+            >>> my_config.drawing.point_radius = 10
+            >>> grapher = Graphing(config=my_config)
 
-            >>> # Using pre-configured config object
-            >>> config = GraphizyConfig()
-            >>> config.drawing.line_thickness = 3
-            >>> grapher = Graphing(config=config, dimension=(640, 480))
+            >>> # Hybrid: Use a base config and override with a keyword
+            >>> grapher = Graphing(config=my_config, point_radius=5) # 5 wins
         """
         try:
-            # Initialize configuration with sensible defaults
-            if config is None:
-                config = GraphizyConfig()
+            # If a config object is passed, use it and update it.
+            # If not, create a new config directly from the keyword arguments,
+            # which ensures the __post_init__ validation in the config classes runs.
+            if config:
+                self.config = config.copy()
+                self.config.update(**kwargs)
+            else:
+                self.config = GraphizyConfig(**kwargs)
 
-            # Update configuration with provided parameters
-            if dimension is not None:
-                config.graph.dimension = tuple(dimension)
-            if data_shape is not None:
-                config.graph.data_shape = data_shape
-            if aspect != "array":
-                config.graph.aspect = aspect
-
-            # Apply any additional configuration overrides
-            if kwargs:
-                config.update(**kwargs)
-
-            self.config = config
-
-            # Validate and set dimensions
-            if not isinstance(self.config.graph.dimension, (tuple, list)) or len(self.config.graph.dimension) != 2:
-                raise InvalidDimensionError("Dimension must be a tuple/list of 2 integers")
-            if self.config.graph.dimension[0] <= 0 or self.config.graph.dimension[1] <= 0:
-                raise InvalidDimensionError("Dimension values must be positive")
-
+            # Set main attributes from the final configuration
             self.dimension = self.config.graph.dimension
-
-            # Validate aspect parameter
-            valid_aspects = ["dict", "array"]
-            if self.config.graph.aspect not in valid_aspects:
-                raise InvalidAspectError(
-                    f"Invalid aspect '{self.config.graph.aspect}'. Must be one of {valid_aspects}")
             self.aspect = self.config.graph.aspect
 
             # Initialize data interface for handling different data formats
@@ -181,28 +159,27 @@ class Graphing:
             # Get the graph registry
             self.registry = get_graph_registry()
 
-            # Initialize memory manager as None (created on-demand)
+            # Initialize optional managers
             self.memory_manager = None
-
-            # Initialize weight manager as None (created on-demand)
             self.weight_computer = None
             self.fast_computer = None
             if self.config.weight.auto_compute_weights:
-                logging.info("Adding the auto computation of weights")
+                logging.info("Auto-computation of weights is enabled.")
                 self.init_weight_computer()
-
 
             # Initialize the visualizer
             self.visualizer = Visualizer(self.config.drawing, self.config.graph.dimension)
 
-
             logging.info(f"Graphing object initialized: {self.dimension} canvas, '{self.aspect}' aspect")
 
-        except (InvalidDimensionError, InvalidAspectError):
-            # Re-raise specific exceptions as-is
+
+        except (InvalidDimensionError, InvalidAspectError, ValueError) as e:
+            # Re-raise specific, expected configuration errors as-is.
             raise
+
         except Exception as e:
-            raise GraphCreationError(f"Failed to initialize Graphing object: {str(e)}")
+            # Wrap any other unexpected errors in a generic GraphCreationError.
+            raise GraphCreationError(f"Failed to initialize Graphing object: {str(e)}") from e
 
     # ============================================================================
     # CONFIGURATIONS FUNCTIONS
@@ -428,6 +405,43 @@ class Graphing:
 
         self.graph_type_params[graph_type].update(kwargs)
         logging.info(f"Updated parameters for '{graph_type}': {kwargs}")
+
+    def update(self, **kwargs):
+        """
+        Update configuration values at runtime from keyword arguments.
+        This method can intelligently route flat keys (e.g., 'line_color')
+        to the correct nested config object (e.g., self.drawing).
+        """
+        for key, value in kwargs.items():
+            # Check for nested dictionary updates first (e.g., drawing={...})
+            if hasattr(self, key) and isinstance(getattr(self, key),
+                                                 (DrawingConfig, GraphConfig, MemoryConfig, WeightConfig,
+                                                  GenerationConfig, LoggingConfig)):
+                config_obj = getattr(self, key)
+                if isinstance(value, dict):
+                    for nested_key, nested_value in value.items():
+                        if hasattr(config_obj, nested_key):
+                            setattr(config_obj, nested_key, nested_value)
+                        else:
+                            raise ValueError(f"Unknown config key in '{key}': {nested_key}")
+                else:
+                    # Allow replacing the whole object, e.g., config.update(drawing=my_drawing_config)
+                    setattr(self, key, value)
+            # Route flat keys to the correct sub-config
+            elif hasattr(self.drawing, key):
+                setattr(self.drawing, key, value)
+            elif hasattr(self.graph, key):
+                setattr(self.graph, key, value)
+            elif hasattr(self.generation, key):
+                setattr(self.generation, key, value)
+            elif hasattr(self.memory, key):
+                setattr(self.memory, key, value)
+            elif hasattr(self.weight, key):
+                setattr(self.weight, key, value)
+            elif hasattr(self.logging, key):
+                setattr(self.logging, key, value)
+            else:
+                raise ValueError(f"Unknown configuration key: {key}")
 
     # ============================================================================
     # CONVENIENT CONVERSION
@@ -705,7 +719,7 @@ class Graphing:
                    update_memory: Optional[bool] = None,
                    use_memory: Optional[bool] = None,
                    compute_weights: Optional[bool] = None,
-                   do_timing: bool = True,
+                   do_timing: bool = False,
                    **kwargs) -> Any:
         """
         Create a graph using the extensible plugin system with intelligent memory defaults.
@@ -841,9 +855,9 @@ class Graphing:
             if do_timing:
                 end_time_weights = time.perf_counter() - start_time_weights
                 print(
-                    f"Graph '{graph_type}' with data shape: {data_array.shape} > {end_time_graph*1000:.1f} /"
-                    f" memory >{end_time_memory*1000}/"
-                    f" weights >{end_time_weights*1000}.")
+                    f"Graph '{graph_type}' with data shape: {data_array.shape} > {end_time_graph*1000:.1f} ms /"
+                    f" memory >{end_time_memory*1000}/ ms"
+                    f" weights >{end_time_weights*1000} ms")
 
             return graph
 
@@ -1989,6 +2003,9 @@ class Graphing:
             - Essential for robust analysis pipelines
         """
         try:
+            if not hasattr(graph, method_name):
+                raise IgraphMethodError(f"Graph does not have method '{method_name}'")
+
             # Methods that always work regardless of connectivity
             CONNECTIVITY_SAFE_METHODS = {
                 'degree', 'density', 'vcount', 'ecount', 'connected_components',
@@ -2299,99 +2316,37 @@ class Graphing:
         """
         return call_igraph_method(graph, method_name, *args, **kwargs)
 
-    def get_graph_info(self, graph: Any) -> Dict[str, Any]:
+    def get_graph_info(self, graph: Any) -> GraphAnalysisResult:
         """
-        Get comprehensive information about the graph structure and properties.
+        Get a lazy-loading analysis object for the graph.
 
-        This method provides a detailed summary of the graph's basic properties
-        and advanced metrics, with robust handling of edge cases like empty
-        graphs or disconnected components.
+        This method is the entry point for all graph analysis. It returns a
+        powerful result object where metrics are computed on-demand, ensuring
+        maximum performance and a responsive user experience.
 
         Args:
             graph: igraph Graph object to analyze.
 
         Returns:
-            Dict[str, Any]: Comprehensive graph information:
-                           - vertex_count: Number of vertices
-                           - edge_count: Number of edges
-                           - density: Graph density (0.0 to 1.0)
-                           - is_connected: Whether graph is connected
-                           - average_path_length: Average distance between vertices (if connected)
-                           - diameter: Maximum shortest path length (if connected)
-                           - transitivity: Global clustering coefficient (if has edges)
+            GraphAnalysisResult: An object for lazily accessing graph metrics.
 
         Examples:
-            >>> info = grapher.get_graph_info(graph)
-            >>> print(f"Graph: {info['vertex_count']} vertices, {info['edge_count']} edges")
-            >>> print(f"Density: {info['density']:.3f}, Connected: {info['is_connected']}")
-            >>>
-            >>> if info['diameter'] is not None:
-            ...     print(f"Diameter: {info['diameter']}, Avg path: {info['average_path_length']:.2f}")
-            >>>
-            >>> if info['transitivity'] is not None:
-            ...     print(f"Clustering: {info['transitivity']:.3f}")
+            >>> # This call is instantaneous
+            >>> results = grapher.get_graph_info(graph)
 
-            >>> # Check for degenerate cases
-            >>> if info['vertex_count'] == 0:
-            ...     print("Empty graph")
-            >>> elif info['edge_count'] == 0:
-            ...     print("Graph with no edges (isolated vertices)")
+            >>> # The first access to a property computes the metric
+            >>> print(f"Density: {results.density}")
 
-        Note:
-            - Handles empty graphs and graphs without edges gracefully
-            - Advanced metrics set to None if not computable
-            - Safe for disconnected graphs (uses call_method_safe internally)
-            - Provides foundation for more detailed analysis
+            >>> # Subsequent access is instant (from cache)
+            >>> print(f"Graph density is {results.density:.4f}")
+
+            >>> # Compute advanced metrics on the fly
+            >>> top_hubs = results.get_top_n_by('degree', n=3)
+            >>> betweenness_stats = results.get_metric_stats('betweenness')
         """
-        try:
-            info = {}
+        if graph is None:
+            raise GraphCreationError("Cannot get info for a None graph.")
 
-            # Basic properties (always computable)
-            info['vertex_count'] = self.call_method_safe(graph, 'vcount')
-            info['edge_count'] = self.call_method_safe(graph, 'ecount')
-            info['density'] = self.density(graph)
-            info['is_connected'] = self.call_method_safe(graph, 'is_connected')
-
-            # Advanced properties (conditional on graph structure)
-            if info['vertex_count'] > 0:
-                if info['edge_count'] > 0:
-                    # Graph has edges - compute path-based metrics
-                    try:
-                        info['average_path_length'] = self.call_method_safe(
-                            graph, 'average_path_length',
-                            component_mode="largest", default_value=None
-                        )
-                    except:
-                        info['average_path_length'] = None
-
-                    try:
-                        info['diameter'] = self.call_method_safe(
-                            graph, 'diameter',
-                            component_mode="largest", default_value=None
-                        )
-                    except:
-                        info['diameter'] = None
-
-                    try:
-                        info['transitivity'] = self.call_method_safe(
-                            graph, 'transitivity_undirected',
-                            default_value=None
-                        )
-                    except:
-                        info['transitivity'] = None
-                else:
-                    # No edges - path metrics undefined
-                    info['average_path_length'] = None
-                    info['diameter'] = None
-                    info['transitivity'] = None
-            else:
-                # Empty graph - all metrics undefined
-                info['average_path_length'] = None
-                info['diameter'] = None
-                info['transitivity'] = None
-
-            return info
-
-        except Exception as e:
-            raise IgraphMethodError(f"Failed to get graph info: {str(e)}")
+        # The method is now just a factory. All computation is deferred.
+        return GraphAnalysisResult(graph, self)
 

@@ -19,7 +19,7 @@ class TestDataInterface:
 
         # Test with string IDs (should fail)
         string_id_data = np.array([["a", 10, 20], ["b", 30, 40]], dtype=object)
-        with pytest.raises(InvalidPointArrayError, match="numeric IDs"):
+        with pytest.raises(InvalidPointArrayError, match="must be numeric"):
             dinter.to_array(string_id_data)
 
         # Test with insufficient columns

@@ -3,6 +3,7 @@ Tests for the configuration classes in graphizy.config.
 """
 import pytest
 from graphizy import GraphizyConfig, DrawingConfig, GraphConfig, MemoryConfig
+from graphizy.exceptions import InvalidDimensionError, InvalidAspectError
 
 def test_drawing_config_defaults():
     """Test DrawingConfig default values."""
@@ -25,9 +26,9 @@ def test_graph_config_defaults():
 
 def test_graph_config_validation():
     """Test GraphConfig validation raises errors on invalid input."""
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidDimensionError):
         GraphConfig(dimension=(1200,))
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidAspectError):
         GraphConfig(aspect="invalid_aspect")
 
 def test_memory_config_validation():

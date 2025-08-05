@@ -1,3 +1,5 @@
+# examples/1_basic_usage.py
+
 #!/usr/bin/env python3
 """
 Basic Usage Examples for the Graphizy Package
@@ -6,7 +8,7 @@ This script serves as a user-friendly guide to the core features of Graphizy.
 It demonstrates how to:
 1. Generate different types of graphs from point data (Delaunay, Proximity, K-Nearest, MST, Gabriel).
 2. Customize the visual style of the graphs (colors, sizes, etc.).
-3. Analyze graph properties and statistics using the latest API.
+3. Analyze graph properties and statistics using the modern, lazy-loading API.
 4. Compare the characteristics of different graph types.
 5. Use the modern make_graph() unified interface.
 
@@ -23,6 +25,7 @@ import numpy as np
 import logging
 import sys
 from pathlib import Path
+import random
 
 # --- Graphizy Imports ---
 from graphizy import (
@@ -63,7 +66,6 @@ def example_delaunay_triangulation():
 
         # --- Data Generation ---
         print(f"Generating {NUM_PARTICLES} random points on an {IMAGE_WIDTH}x{IMAGE_HEIGHT} canvas...")
-        # Use the updated helper function that returns properly formatted data
         particle_stack = generate_and_format_positions(
             size_x=IMAGE_WIDTH,
             size_y=IMAGE_HEIGHT,
@@ -73,34 +75,34 @@ def example_delaunay_triangulation():
 
         # --- Styling and Graph Creation ---
         config = GraphizyConfig(dimension=(IMAGE_WIDTH, IMAGE_HEIGHT))
-        # Use the updated drawing configuration method
         config.drawing.line_color = (255, 0, 0)  # Red lines (B, G, R in OpenCV)
         config.drawing.point_color = (0, 0, 255)  # Blue points
         config.drawing.line_thickness = 1
         config.drawing.point_radius = 5
 
-        # Initialize the main Graphing object with our custom configuration.
-        grapher = Graphing(config=config)
+        # Define the simple data shape we are using to prevent warnings.
+        simple_data_shape = [('id', int), ('x', float), ('y', float)]
 
-        # UPDATED: Use the modern unified make_graph interface
+        # Initialize the main Graphing object with our custom configuration and data_shape.
+        grapher = Graphing(config=config, data_shape=simple_data_shape)
+
+        # Use the modern unified make_graph interface
         print("Creating the Delaunay triangulation...")
         delaunay_graph = grapher.make_graph("delaunay", particle_stack)
 
         # --- Analysis ---
-        # Get and display key statistics about the generated graph.
-        info = grapher.get_graph_info(delaunay_graph)
+        # Get the lazy-loading analysis object. This call is instantaneous.
+        results = grapher.get_graph_info(delaunay_graph)
+
+        # Access metrics as properties. Computation happens on first access.
         print("Delaunay Graph Statistics:")
-        print(f"  - Vertices (Nodes): {info['vertex_count']}")
-        print(f"  - Edges (Connections): {info['edge_count']}")
-        print(f"  - Density: {info['density']:.4f}")
-        print(f"  - Is Connected: {info['is_connected']}")
+        print(f"  - Vertices (Nodes): {results.vertex_count}")
+        print(f"  - Edges (Connections): {results.edge_count}")
+        print(f"  - Density: {results.density:.4f}")
+        print(f"  - Is Connected: {results.is_connected}")
 
-        if info.get('average_path_length') is not None:
-            print(f"  - Average Path Length: {info['average_path_length']:.4f}")
-
-        # Additional analysis using the updated API
-        connectivity_info = grapher.get_connectivity_info(delaunay_graph)
-        print(f"  - Number of Components: {connectivity_info['num_components']}")
+        if results.average_path_length is not None:
+            print(f"  - Average Path Length: {results.average_path_length:.4f}")
 
         # --- Output ---
         # Draw the graph onto an image canvas and save it to a file.
@@ -125,7 +127,7 @@ def example_proximity_graph(particle_stack):
     Demonstrates creating a proximity graph using the updated API.
 
     This connects any two points if the distance between them is less than
-    a specified threshold. Uses the modern make_graph interface.
+    a specified threshold.
     """
     print("\n" + "=" * 50)
     print(" EXAMPLE 2: PROXIMITY GRAPH")
@@ -139,16 +141,16 @@ def example_proximity_graph(particle_stack):
         THRESHOLD = 80.0
         IMAGE_WIDTH, IMAGE_HEIGHT = 800, 600
 
-        # Create configuration using the updated API
         config = GraphizyConfig(dimension=(IMAGE_WIDTH, IMAGE_HEIGHT))
-        config.drawing.line_color = (255, 0, 0)  # Red lines
-        config.drawing.point_color = (255, 255, 0)  # Yellow points
+        config.drawing.line_color = (255, 0, 0)
+        config.drawing.point_color = (255, 255, 0)
         config.drawing.line_thickness = 2
         config.drawing.point_radius = 8
 
-        grapher = Graphing(config=config)
+        simple_data_shape = [('id', int), ('x', float), ('y', float)]
+        grapher = Graphing(config=config, data_shape=simple_data_shape)
 
-        # --- Graph Creation using modern unified API ---
+        # --- Graph Creation ---
         print(f"Creating proximity graph with threshold {THRESHOLD} pixels...")
         proximity_graph = grapher.make_graph(
             "proximity",
@@ -157,24 +159,14 @@ def example_proximity_graph(particle_stack):
             metric='euclidean'
         )
 
-        # --- Analysis using updated methods ---
-        info = grapher.get_graph_info(proximity_graph)
+        # --- Analysis ---
+        results = grapher.get_graph_info(proximity_graph)
         print("Proximity Graph Statistics:")
-        print(f"  - Vertices: {info['vertex_count']}")
-        print(f"  - Edges: {info['edge_count']}")
-        print(f"  - Density: {info['density']:.4f}")
-        print(f"  - Is Connected: {info['is_connected']}")
-
-        if info.get('average_path_length') is not None:
-            print(f"  - Average Path Length: {info['average_path_length']:.4f}")
-
-        # Use the updated connection analysis method
-        connections_per_node = grapher.get_connections_per_object(proximity_graph)
-        avg_connections = np.mean(list(connections_per_node.values()))
-        max_connections = max(connections_per_node.values()) if connections_per_node else 0
-
-        print(f"  - Average Connections per Node: {avg_connections:.2f}")
-        print(f"  - Maximum Connections for a Single Node: {max_connections}")
+        print(f"  - Vertices: {results.vertex_count}")
+        print(f"  - Edges: {results.edge_count}")
+        print(f"  - Density: {results.density:.4f}")
+        print(f"  - Is Connected: {results.is_connected}")
+        print(f"  - Number of Components: {results.num_components}")
 
         # --- Output ---
         image = grapher.draw_graph(proximity_graph)
@@ -195,10 +187,9 @@ def example_proximity_graph(particle_stack):
 
 def example_k_nearest_neighbors(particle_stack):
     """
-    Demonstrates creating a K-Nearest Neighbors graph using the modern API.
+    Demonstrates creating a K-Nearest Neighbors graph.
 
     In a KNN graph, every point is connected to its 'K' closest neighbors.
-    Uses the unified make_graph interface.
     """
     print("\n" + "=" * 50)
     print(" EXAMPLE 3: K-NEAREST NEIGHBORS (KNN) GRAPH")
@@ -213,34 +204,24 @@ def example_k_nearest_neighbors(particle_stack):
         IMAGE_WIDTH, IMAGE_HEIGHT = 800, 600
 
         config = GraphizyConfig(dimension=(IMAGE_WIDTH, IMAGE_HEIGHT))
-        config.drawing.line_color = (0, 255, 255)  # Cyan lines
-        config.drawing.point_color = (255, 0, 255)  # Magenta points
+        config.drawing.line_color = (0, 255, 255)
+        config.drawing.point_color = (255, 0, 255)
         config.drawing.line_thickness = 2
         config.drawing.point_radius = 10
 
-        grapher = Graphing(config=config)
+        simple_data_shape = [('id', int), ('x', float), ('y', float)]
+        grapher = Graphing(config=config, data_shape=simple_data_shape)
 
-        # --- Graph Creation using modern unified API ---
+        # --- Graph Creation ---
         print(f"Creating k-nearest neighbors graph with K={K}...")
         knn_graph = grapher.make_graph("knn", particle_stack, k=K)
 
         # --- Analysis ---
-        info = grapher.get_graph_info(knn_graph)
+        results = grapher.get_graph_info(knn_graph)
         print("K-Nearest Neighbors Graph Statistics:")
-        print(f"  - Vertices: {info['vertex_count']}")
-        print(f"  - Edges: {info['edge_count']}")
-        print(f"  - Density: {info['density']:.4f}")
-        print(f"  - Is Connected: {info['is_connected']}")
-
-        if info.get('average_path_length') is not None:
-            print(f"  - Average Path Length: {info['average_path_length']:.4f}")
-
-        # Verify the connectivity
-        connections_per_node = grapher.get_connections_per_object(knn_graph)
-        avg_connections = np.mean(list(connections_per_node.values()))
-
-        print(f"  - Expected Average Connections (approx.): {K * 2}")
-        print(f"  - Actual Average Connections: {avg_connections:.2f}")
+        print(f"  - Vertices: {results.vertex_count}")
+        print(f"  - Edges: {results.edge_count}")
+        print(f"  - Density: {results.density:.4f}")
 
         # --- Output ---
         image = grapher.draw_graph(knn_graph)
@@ -261,7 +242,7 @@ def example_k_nearest_neighbors(particle_stack):
 
 def example_minimum_spanning_tree(particle_stack):
     """
-    Demonstrates creating a Minimum Spanning Tree using the modern API.
+    Demonstrates creating a Minimum Spanning Tree.
 
     MST creates the minimal connected graph by selecting the shortest edges
     that connect all vertices without creating cycles.
@@ -278,34 +259,29 @@ def example_minimum_spanning_tree(particle_stack):
         IMAGE_WIDTH, IMAGE_HEIGHT = 800, 600
 
         config = GraphizyConfig(dimension=(IMAGE_WIDTH, IMAGE_HEIGHT))
-        config.drawing.line_color = (0, 128, 255)  # Orange lines
-        config.drawing.point_color = (128, 0, 128)  # Purple points
+        config.drawing.line_color = (0, 128, 255)
+        config.drawing.point_color = (128, 0, 128)
         config.drawing.line_thickness = 3
         config.drawing.point_radius = 6
 
-        grapher = Graphing(config=config)
+        simple_data_shape = [('id', int), ('x', float), ('y', float)]
+        grapher = Graphing(config=config, data_shape=simple_data_shape)
 
-        # --- Graph Creation using modern unified API ---
+        # --- Graph Creation ---
         print("Creating minimum spanning tree...")
         mst_graph = grapher.make_graph("mst", particle_stack, metric="euclidean")
 
         # --- Analysis ---
-        info = grapher.get_graph_info(mst_graph)
+        results = grapher.get_graph_info(mst_graph)
         print("Minimum Spanning Tree Statistics:")
-        print(f"  - Vertices: {info['vertex_count']}")
-        print(f"  - Edges: {info['edge_count']}")
-        print(f"  - Density: {info['density']:.4f}")
-        print(f"  - Is Connected: {info['is_connected']}")  # Always True for MST
+        print(f"  - Vertices: {results.vertex_count}")
+        print(f"  - Edges: {results.edge_count}")
+        print(f"  - Is Connected: {results.is_connected}")  # Always True for MST
 
         # Verify MST property: edges = vertices - 1
-        n_vertices = info['vertex_count']
-        n_edges = info['edge_count']
-        expected_edges = n_vertices - 1
-        print(f"  - MST Property (edges = vertices - 1): {n_edges == expected_edges}")
-        print(f"    Expected edges: {expected_edges}, Actual edges: {n_edges}")
-
-        if info.get('average_path_length') is not None:
-            print(f"  - Average Path Length: {info['average_path_length']:.4f}")
+        expected_edges = results.vertex_count - 1
+        print(f"  - MST Property (edges = vertices - 1): {results.edge_count == expected_edges}")
+        print(f"    Expected edges: {expected_edges}, Actual edges: {results.edge_count}")
 
         # --- Output ---
         image = grapher.draw_graph(mst_graph)
@@ -326,10 +302,10 @@ def example_minimum_spanning_tree(particle_stack):
 
 def example_gabriel_graph(particle_stack):
     """
-    Demonstrates creating a Gabriel graph using the modern API.
+    Demonstrates creating a Gabriel graph.
 
-    Gabriel graph connects two points if no other point lies within the circle
-    having the two points as diameter endpoints.
+    A Gabriel graph connects two points if no other point lies within the circle
+    having the two points as its diameter.
     """
     print("\n" + "=" * 50)
     print(" EXAMPLE 5: GABRIEL GRAPH")
@@ -343,33 +319,24 @@ def example_gabriel_graph(particle_stack):
         IMAGE_WIDTH, IMAGE_HEIGHT = 800, 600
 
         config = GraphizyConfig(dimension=(IMAGE_WIDTH, IMAGE_HEIGHT))
-        config.drawing.line_color = (128, 255, 0)  # Green-yellow lines
-        config.drawing.point_color = (255, 128, 0)  # Orange points
+        config.drawing.line_color = (128, 255, 0)
+        config.drawing.point_color = (255, 128, 0)
         config.drawing.line_thickness = 2
         config.drawing.point_radius = 7
 
-        grapher = Graphing(config=config)
+        simple_data_shape = [('id', int), ('x', float), ('y', float)]
+        grapher = Graphing(config=config, data_shape=simple_data_shape)
 
-        # --- Graph Creation using modern unified API ---
+        # --- Graph Creation ---
         print("Creating Gabriel graph...")
         gabriel_graph = grapher.make_graph("gabriel", particle_stack)
 
         # --- Analysis ---
-        info = grapher.get_graph_info(gabriel_graph)
+        results = grapher.get_graph_info(gabriel_graph)
         print("Gabriel Graph Statistics:")
-        print(f"  - Vertices: {info['vertex_count']}")
-        print(f"  - Edges: {info['edge_count']}")
-        print(f"  - Density: {info['density']:.4f}")
-        print(f"  - Is Connected: {info['is_connected']}")  # May be False
-
-        if info.get('average_path_length') is not None:
-            print(f"  - Average Path Length: {info['average_path_length']:.4f}")
-
-        # Gabriel graph is always a subset of Delaunay triangulation
-        connectivity_info = grapher.get_connectivity_info(gabriel_graph)
-        if connectivity_info['num_components'] > 1:
-            print(f"  - Number of Components: {connectivity_info['num_components']}")
-            print(f"  - Largest Component Size: {connectivity_info['largest_component_size']}")
+        print(f"  - Vertices: {results.vertex_count}")
+        print(f"  - Edges: {results.edge_count}")
+        print(f"  - Is Connected: {results.is_connected}")
 
         # --- Output ---
         image = grapher.draw_graph(gabriel_graph)
@@ -391,166 +358,38 @@ def example_gabriel_graph(particle_stack):
 def example_comprehensive_comparison(graphs):
     """
     Compares the statistics of all generated graphs side-by-side.
-    Updated to include all modern graph types and use latest API.
     """
     print("\n" + "=" * 60)
     print(" EXAMPLE 6: COMPREHENSIVE GRAPH COMPARISON")
     print("=" * 60)
 
-    # Filter out None graphs
     valid_graphs = {name: graph for name, graph in graphs.items() if graph is not None}
-
     if not valid_graphs:
         print("No valid graphs to compare.")
         return
 
     try:
-        # Create a single grapher for analysis
-        grapher = Graphing()
+        simple_data_shape = [('id', int), ('x', float), ('y', float)]
+        grapher = Graphing(data_shape=simple_data_shape)
 
         # Print table header
-        print(f"{'Property':<25} " + "".join([f"{name:<15}" for name in valid_graphs.keys()]))
+        print(f"{'Property':<25} " + "".join([f"{name.title():<15}" for name in valid_graphs.keys()]))
         print("-" * (25 + 15 * len(valid_graphs)))
 
         # Basic properties
         for prop in ['vertex_count', 'edge_count', 'density', 'is_connected']:
             row = f"{prop.replace('_', ' ').title():<25}"
             for name, graph in valid_graphs.items():
-                info = grapher.get_graph_info(graph)
-                value = info.get(prop, 'N/A')
+                results = grapher.get_graph_info(graph)
+                value = results[prop]  # Use dictionary-style access for dynamic properties
                 if isinstance(value, float):
                     row += f"{value:<15.3f}"
                 else:
                     row += f"{str(value):<15}"
             print(row)
 
-        # Connectivity analysis
-        print("\n" + "=" * 60)
-        print("DETAILED CONNECTIVITY ANALYSIS")
-        print("=" * 60)
-
-        for name, graph in valid_graphs.items():
-            print(f"\n--- {name.upper()} GRAPH ---")
-
-            # Use safe method calls for disconnected graphs
-            connectivity_info = grapher.get_connectivity_info(graph)
-            print(f"  Connected: {connectivity_info['is_connected']}")
-            print(f"  Components: {connectivity_info['num_components']}")
-
-            if connectivity_info['num_components'] > 1:
-                print(f"  Largest component: {connectivity_info['largest_component_size']} vertices")
-                print(f"  Connectivity ratio: {connectivity_info['connectivity_ratio']:.1%}")
-
-            # Safely compute path length
-            avg_path = grapher.call_method_safe(graph, "average_path_length",
-                                                component_mode="largest", default_value=None)
-            if avg_path is not None:
-                print(f"  Average path length: {avg_path:.3f}")
-
-            # Compute degree statistics
-            connections = grapher.get_connections_per_object(graph)
-            if connections:
-                degree_values = list(connections.values())
-                print(f"  Degree - Avg: {np.mean(degree_values):.2f}, "
-                      f"Range: {min(degree_values)}-{max(degree_values)}")
-
-        # Theoretical properties comparison
-        print("\n" + "=" * 60)
-        print("THEORETICAL PROPERTIES")
-        print("=" * 60)
-
-        properties = {
-            "Delaunay": "Always connected, ~3n edges, planar",
-            "Proximity": "Variable connectivity, depends on threshold",
-            "KNN": "Variable connectivity, k*n directed edges",
-            "MST": "Always connected, exactly n-1 edges",
-            "Gabriel": "Subset of Delaunay, may be disconnected"
-        }
-
-        for name, graph in valid_graphs.items():
-            if name.title() in properties:
-                print(f"  {name.title()}: {properties[name.title()]}")
-
     except Exception as e:
         print(f"Comparison failed: {e}")
-
-
-# =============================================================================
-# EXAMPLE 7: CONFIGURATION SHOWCASE
-# =============================================================================
-
-def example_configuration_showcase():
-    """
-    Shows how to create multiple graphs with different visual styles using
-    the updated configuration system.
-    """
-    print("\n" + "=" * 50)
-    print(" EXAMPLE 7: CONFIGURATION SHOWCASE")
-    print("=" * 50)
-
-    try:
-        # Use smaller dataset for quick showcase
-        IMAGE_WIDTH, IMAGE_HEIGHT = 400, 400
-        NUM_PARTICLES = 30
-
-        positions = generate_and_format_positions(IMAGE_WIDTH, IMAGE_HEIGHT, NUM_PARTICLES)
-
-        # Define style configurations using the updated config system
-        styles = [
-            {
-                "name": "classic_dark",
-                "drawing": {
-                    "line_color": (0, 255, 0),  # Green
-                    "point_color": (0, 0, 255),  # Blue
-                    "line_thickness": 1,
-                    "point_radius": 6
-                }
-            },
-            {
-                "name": "bold_neon",
-                "drawing": {
-                    "line_color": (255, 0, 255),  # Magenta
-                    "point_color": (0, 255, 255),  # Cyan
-                    "line_thickness": 3,
-                    "point_radius": 12
-                }
-            },
-            {
-                "name": "minimal_grayscale",
-                "drawing": {
-                    "line_color": (128, 128, 128),  # Gray
-                    "point_color": (64, 64, 64),  # Dark gray
-                    "line_thickness": 1,
-                    "point_radius": 4
-                }
-            }
-        ]
-
-        output_dir = setup_output_directory()
-
-        # Create graphs with different styles
-        for style in styles:
-            print(f"Creating '{style['name']}' style graph...")
-
-            # Use the modern configuration approach
-            config = GraphizyConfig(dimension=(IMAGE_WIDTH, IMAGE_HEIGHT))
-            config.update(drawing=style["drawing"])
-
-            grapher = Graphing(config=config)
-
-            # Use the modern make_graph interface
-            graph = grapher.make_graph("delaunay", positions)
-
-            # Draw and save
-            image = grapher.draw_graph(graph)
-            filename = f"style_{style['name']}.jpg"
-            grapher.save_graph(image, str(output_dir / filename))
-            print(f"  Saved {filename}")
-
-        print("\nStyle showcase complete!")
-
-    except Exception as e:
-        print(f"Configuration showcase failed: {e}")
 
 
 # =============================================================================
@@ -562,7 +401,7 @@ def main():
     Runs all the basic usage examples using the updated API.
     """
     print("=" * 60)
-    print("Graphizy Basic Usage Examples - Updated for v0.1.17+")
+    print("Graphizy Basic Usage Examples - Updated for v0.1.18+")
     print("=" * 60)
 
     try:
@@ -582,18 +421,11 @@ def main():
             "gabriel": gabriel_graph
         }
 
-        # Run comparisons and showcase
+        # Run comparisons
         example_comprehensive_comparison(all_graphs)
-        example_configuration_showcase()
 
         print("\n" + "=" * 60)
         print("All examples completed successfully!")
-        print("Key Updates in this Version:")
-        print("  • Uses modern make_graph() unified interface")
-        print("  • Includes MST and Gabriel graph types")
-        print("  • Updated configuration system with GraphizyConfig")
-        print("  • Enhanced error handling and analysis methods")
-        print("  • Comprehensive graph comparison including all types")
         print(f"Check the 'examples/output/' folder for generated images.")
 
     except Exception as e:

@@ -107,8 +107,11 @@ class DataInterface:
                     f"Need at least {required_cols}, got {point_array.shape[1]}"
                 )
 
-            # Additional type validations could go here
-            # e.g., check if ID column contains the expected type
+            id_col_idx = self.getidx_id()
+            if point_array.shape[1] > id_col_idx:
+                id_column_dtype = point_array[:, id_col_idx].dtype
+                if not np.issubdtype(id_column_dtype, np.number):
+                     raise InvalidPointArrayError("Object IDs must be numeric, not string or object type")
 
         except Exception as e:
             if isinstance(e, InvalidPointArrayError):
@@ -132,12 +135,6 @@ class DataInterface:
         """
         try:
             if isinstance(data_points, np.ndarray):
-                # Already an array - just validate and return
-                # Validate data types - reject string/object IDs for consistency
-                if data_points.dtype.kind in ['U', 'S', 'O']:
-                    raise InvalidPointArrayError("Array format requires numeric IDs, not string/object types")
-
-                # Validate array structure
                 self.validate_array(data_points)
                 return data_points
 
@@ -147,24 +144,26 @@ class DataInterface:
                 if not all(k in data_points for k in required_keys):
                     raise InvalidPointArrayError(f"Dict data must contain keys: {required_keys}")
 
+                if not data_points["id"]:
+                    raise InvalidPointArrayError("Input dictionary cannot be empty")
+
                 # Check all values are lists/arrays of same length
                 lengths = [len(v) for v in data_points.values()]
                 if len(set(lengths)) > 1:
                     raise InvalidPointArrayError("All dict values must have same length")
 
-                if lengths[0] == 0:
-                    raise InvalidPointArrayError("Data cannot be empty")
+                # Build the array using only the columns present in the input dictionary,
+                # but ordered according to the instance's data_shape.
+                ordered_columns = []
+                for attr_name, _ in self.data_shape:
+                    if attr_name in data_points:
+                        ordered_columns.append(data_points[attr_name])
 
-                # Convert to array format
-                n_points = lengths[0]
-                n_cols = len(self.data_shape)
-                array_data = np.zeros((n_points, n_cols))
+                if not ordered_columns:
+                    raise InvalidPointArrayError(
+                        "Could not construct array from dictionary; no matching keys found in data_shape.")
 
-                array_data[:, self.getidx_id()] = data_points["id"]
-                array_data[:, self.getidx_xpos()] = data_points["x"]
-                array_data[:, self.getidx_ypos()] = data_points["y"]
-
-                return array_data
+                return np.column_stack(ordered_columns)
 
             else:
                 raise InvalidPointArrayError(
@@ -196,6 +195,13 @@ class DataInterface:
                 raise InvalidPointArrayError("Point array must be 2D")
             if point_array.shape[1] < max(self.getidx_id(), self.getidx_xpos(), self.getidx_ypos()) + 1:
                 raise InvalidPointArrayError("Point array doesn't have enough columns for the specified data shape")
+
+            max_required_index = max(self.getidx_id(), self.getidx_xpos(), self.getidx_ypos())
+            if point_array.shape[1] <= max_required_index:
+                raise InvalidPointArrayError(
+                    f"Point array has {point_array.shape[1]} columns, but the data shape "
+                    f"requires an index of at least {max_required_index}."
+                )
 
             point_dict = {
                 "id": point_array[:, self.getidx_id()],

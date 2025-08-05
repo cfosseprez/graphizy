@@ -102,19 +102,21 @@ grapher.save_graph(image, "delaunay.jpg")
 
 ```python
 # Comprehensive graph analysis
-info = grapher.get_graph_info(delaunay_graph)
-print(f"Density: {info['density']:.3f}")
-print(f"Average path length: {info['average_path_length']:.2f}")
-print(f"Connected: {info['is_connected']}")
+results = grapher.get_graph_info(delaunay_graph) # This call is instantaneous
 
-# Resilient centrality analysis (handles disconnected graphs)
-betweenness = grapher.call_method_safe(delaunay_graph, 'betweenness')
-closeness = grapher.call_method_safe(delaunay_graph, 'closeness', component_mode="largest")
+# Print a clean, pre-formatted summary
+print(results.summary())
 
-# Advanced connectivity analysis
-connectivity_info = grapher.get_connectivity_info(delaunay_graph)
-print(f"Components: {connectivity_info['num_components']}")
-print(f"Largest component: {connectivity_info['largest_component_size']} vertices")
+# Access specific metrics as properties (computed on first access)
+print(f"Density: {results.density:.3f}")
+print(f"Diameter: {results.diameter}")
+
+# Use helper methods for deeper analysis
+top_hubs = results.get_top_n_by('degree', n=3)
+print(f"Top 3 hubs (by degree): {top_hubs}")
+
+betweenness_stats = results.get_metric_stats('betweenness')
+print(f"Betweenness Centrality Stats: {betweenness_stats}")
 ```
 
 ## 🧠 Memory-Enhanced Temporal Graphs
