@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import Tuple, Union, Any, Optional, Dict
 import logging
 
-from graphizy.exceptions import InvalidDimensionError, InvalidAspectError
+from graphizy.exceptions import InvalidDimensionError, InvalidAspectError, InvalidDataShapeError
 
 @dataclass
 class DrawingConfig:

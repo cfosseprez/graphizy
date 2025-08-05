@@ -34,9 +34,13 @@ Examples:
 import logging
 import time
 import timeit
-from typing import Union, Dict, Any, List, Tuple, Optional
+from typing import Union, Dict, Any, List, Tuple, Optional, TYPE_CHECKING
 import numpy as np
 from networkx.algorithms.clique import make_max_clique_graph
+
+if TYPE_CHECKING:
+    from .networkx_bridge import NetworkXAnalyzer
+    from .streaming import StreamManager, AsyncStreamManager
 
 from graphizy.config import (
     GraphizyConfig, DrawingConfig, GraphConfig, MemoryConfig, WeightConfig,

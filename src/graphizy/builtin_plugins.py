@@ -11,7 +11,7 @@ as plugins, making them available through the unified Graphing API.
 """
 
 import numpy as np
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Optional
 
 from .plugins_logic import GraphTypePlugin, GraphTypeInfo, register_graph_type
 # Import the core algorithm functions that the plugins will wrap
@@ -35,7 +35,7 @@ class DelaunayPlugin(GraphTypePlugin):
             version="1.0.0"
         )
 
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
+    def create_graph(self, data_points: np.ndarray, dimension: tuple,data_shape: Optional[List[Tuple[str, Any]]] = None, **kwargs) -> Any:
         """Create Delaunay triangulation graph by calling the algorithm directly."""
         # Pass data_shape down to the algorithm function
         return create_delaunay_graph(data_points, dimension=dimension, data_shape=data_shape)
@@ -57,7 +57,7 @@ class ProximityPlugin(GraphTypePlugin):
             version="1.0.0"
         )
 
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: Optional[List[Tuple[str, Any]]] = None, **kwargs) -> Any:
         """Create proximity graph by calling the algorithm directly."""
         # Pass data_shape and other params down to the algorithm function
         return create_proximity_graph(data_points, data_shape=data_shape, **kwargs)
@@ -76,7 +76,7 @@ class KNNPlugin(GraphTypePlugin):
             version="1.0.0"
         )
 
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: Optional[List[Tuple[str, Any]]] = None, **kwargs) -> Any:
         """Create k-nearest neighbors graph by calling the algorithm directly."""
         # Pass data_shape and other params down to the algorithm function
         return create_knn_graph(data_points, data_shape=data_shape, **kwargs)
@@ -95,7 +95,7 @@ class MSTPlugin(GraphTypePlugin):
             version="1.0.0"
         )
 
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: Optional[List[Tuple[str, Any]]] = None, **kwargs) -> Any:
         """Create minimum spanning tree graph by calling the algorithm directly."""
         # Pass data_shape and other params down to the algorithm function
         return create_mst_graph(data_points, data_shape=data_shape, **kwargs)
@@ -114,7 +114,7 @@ class GabrielPlugin(GraphTypePlugin):
             version="1.0.0"
         )
 
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: Optional[List[Tuple[str, Any]]] = None, **kwargs) -> Any:
         """Create Gabriel graph by calling the algorithm directly."""
         # Pass data_shape down to the algorithm function
         return create_gabriel_graph(data_points, data_shape=data_shape)
@@ -133,7 +133,7 @@ class VoronoiCellPlugin(GraphTypePlugin):
             version="1.0.0"
         )
 
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: Optional[List[Tuple[str, Any]]] = None, **kwargs) -> Any:
         """Create Voronoi cell graph by calling the algorithm directly."""
         # Note: Voronoi creates its own vertices, so data_shape is not used by the algorithm,
         # but the signature must match the abstract base class.
@@ -153,7 +153,7 @@ class VisibilityPlugin(GraphTypePlugin):
             version="1.0.0"
         )
 
-    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: List[Tuple[str, Any]], **kwargs) -> Any:
+    def create_graph(self, data_points: np.ndarray, dimension: tuple, data_shape: Optional[List[Tuple[str, Any]]] = None, **kwargs) -> Any:
         """Create visibility graph by calling the algorithm directly."""
         # Pass data_shape and other params down to the algorithm function
         return create_visibility_graph(data_points, data_shape=data_shape, **kwargs)

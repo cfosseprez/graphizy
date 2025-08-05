@@ -14,9 +14,12 @@ import logging
 import asyncio
 import threading
 from queue import Queue, Empty, Full
-from typing import Callable, Any
+from typing import Callable, Any, TYPE_CHECKING
 import numpy as np
 import time
+
+if TYPE_CHECKING:
+    from .main import Graphing
 
 
 class StreamManager:

@@ -891,25 +891,6 @@ def describe_weight_options() -> None:
     print("   - formula: use existing edge attributes in calculations")
 
 
-# ============================================================================
-# EXAMPLE USAGE FUNCTIONS
-# ============================================================================
-
-def example_basic_usage():
-    """
-    Demonstrate basic weight computation usage.
-
-    Shows the most common patterns for computing distance and weight attributes.
-    """
-    print("=== Basic Weight Computation Examples ===")
-
-    # Create sample data
-    data_points = np.random.rand(50, 3) * 100  # [id, x, y]
-    data_points[:, 0] = range(50)  # Set IDs
-
-    print("\n1. Compute distance attribute:")
-    print("   dist_computer = create_distance_computer()")
-    print("   graph = dist_computer.compute_weights(graph, data_points)")
     print("   # Result: graph.es['distance'] contains actual distances")
 
     print("\n2. Compute weight from distance:")
@@ -1004,7 +985,7 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     example_realtime_usage()
     print("\n" + "="*60)
-    example_advanced_usage().compute_multiple_attributes_fast(graph, data_points, config)
+    example_advanced_usage()
 
 
 def setup_realtime_weight_computer(distance_metric: str = "euclidean",

@@ -1031,7 +1031,8 @@ def create_gabriel_graph(positions: np.ndarray, aspect: str = "array",
         temp_graph = create_delaunay_graph(
             positions,
             aspect="array",
-            dimension=(int(max_x) + 1, int(max_y) + 1)
+            dimension=(int(max_x) + 1, int(max_y) + 1),
+            data_shape=data_shape
         )
 
         if temp_graph.ecount() == 0:

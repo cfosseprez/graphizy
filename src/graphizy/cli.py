@@ -291,11 +291,15 @@ def cmd_memory(args):
 
         # Create grapher with memory
         grapher = Graphing(config=config)
-        grapher.init_memory_manager(args.memory_size, args.memory_iterations)
+        grapher.init_memory_manager(
+            max_memory_size=args.memory_size,
+            max_iterations=args.memory_iterations,
+            track_edge_ages=True
+        )
 
         # Simulate multiple iterations
         print(f"Simulating {args.iterations} iterations...")
-
+        memory_graph = None
         for i in range(args.iterations):
             # Add some random movement (optional)
             if i > 0:
@@ -305,16 +309,16 @@ def cmd_memory(args):
                 particle_stack[:, 1] = np.clip(particle_stack[:, 1], 0, config.graph.dimension[0] - 1)
                 particle_stack[:, 2] = np.clip(particle_stack[:, 2], 0, config.graph.dimension[1] - 1)
 
-            # Update memory with current proximities
-            current_connections = grapher.update_memory_with_proximity(
-                particle_stack, args.proximity_thresh
+            # Create a proximity graph. This automatically updates memory due to smart defaults.
+            # We set use_memory=True to get the combined historical graph at each step.
+            memory_graph = grapher.make_graph(
+                "proximity",
+                particle_stack,
+                proximity_thresh=args.proximity_thresh,
+                use_memory=True,
+                update_memory=True
             )
-
-            print(
-                f"Iteration {i + 1}: {sum(len(conns) for conns in current_connections.values()) // 2} current connections")
-
-        # Create final memory graph
-        memory_graph = grapher.make_memory_graph(particle_stack)
+            print(f"Iteration {i + 1}: Memory graph has {memory_graph.ecount()} edges")
 
         # Get statistics
         stats = grapher.get_memory_analysis()
