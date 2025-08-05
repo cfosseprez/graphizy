@@ -181,7 +181,7 @@ class MemoryManager:
                 multiple=True,  # Remove multiple edges
                 loops=True,     # Remove self-loops
                 combine_edges={
-                    "memory_based": "max",   # If any is True, keep True
+                    "memory_based": "min",   # If an edge is current (False), it's not memory-based.
                     "weight": "sum",         # Sum weights of duplicates
                     "age": "min"            # Keep the oldest age
                 }

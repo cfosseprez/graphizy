@@ -5,7 +5,7 @@ authors:
   - family-names: Fosseprez
     given-names: Charles
     orcid: "https://orcid.org/0009-0000-4524-0399"
-version: 0.1.15
+version: 0.1.18
 date-released: 2025-07-31
 repository-code: https://github.com/cfosseprez/graphizy
 url: https://github.com/cfosseprez/graphizy

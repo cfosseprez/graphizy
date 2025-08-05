@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 from graphizy import Graphing
 from graphizy.drawing import Visualizer
 from graphizy.exceptions import DrawingError
+from graphizy.positions import generate_and_format_positions
 
 def test_visualizer_initialization(default_config):
     """Test that the Visualizer is correctly initialized within Graphing."""
@@ -65,3 +66,18 @@ def test_drawing_errors(grapher, blank_image):
 
     with pytest.raises(DrawingError):
         grapher.save_graph(blank_image, "")  # Filename cannot be empty
+
+def test_draw_graph_produces_valid_image():
+    """Test that draw_graph returns a non-empty image of the correct shape."""
+    grapher = Graphing(dimension=(100, 80))
+    data = generate_and_format_positions(100, 80, 10)
+    graph = grapher.make_graph("delaunay", data)
+
+    # Call the drawing function
+    image = grapher.draw_graph(graph)
+
+    # Assert the output is a valid image array
+    assert isinstance(image, np.ndarray)
+    assert image.shape == (80, 100, 3) # height, width, channels
+    assert image.dtype == np.uint8
+    assert np.sum(image) > 0 # Check that the image is not just black

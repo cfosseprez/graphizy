@@ -31,8 +31,11 @@ def example_modern_memory_integration():
 
     try:
         # Initialize grapher with memory system
+        # Define the shape of the data we are using to prevent warnings
+        simple_data_shape = [('id', int), ('x', float), ('y', float)]
         config = GraphizyConfig(dimension=(600, 600))
-        grapher = Graphing(config=config)
+        # Pass the correct data_shape during initialization
+        grapher = Graphing(config=config, data_shape=simple_data_shape)
         
         # Initialize memory manager with enhanced features
         grapher.init_memory_manager(
