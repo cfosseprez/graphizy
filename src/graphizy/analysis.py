@@ -95,12 +95,20 @@ class GraphAnalysisResult:
         """
         Computes any igraph metric on the fly using the robust `call_method_safe`.
         Results are cached to avoid re-computation.
+
+        For dictionary results, entries with `None` values are filtered out.
         """
         cache_key = f"{metric_name}_{sorted(kwargs.items())}"
         if cache_key in self._metric_cache:
             return self._metric_cache[cache_key]
 
         result = self._grapher.call_method_safe(self._graph, metric_name, **kwargs)
+
+        # For per-vertex metrics that can fail on some nodes (e.g., pagerank
+        # on disconnected graphs), filter out None values for robustness.
+        if kwargs.get('return_format') == 'dict' and isinstance(result, dict):
+            result = {k: v for k, v in result.items() if v is not None}
+
         self._metric_cache[cache_key] = result
         return result
 
@@ -111,14 +119,29 @@ class GraphAnalysisResult:
         Returns the top N nodes sorted by a given per-vertex metric.
         Handles None values by treating them as the lowest possible value.
         """
-        kwargs['return_format'] = 'dict'
-        metric_dict = self.get_metric(metric_name, **kwargs)
+        # First, check if the metric_name is a direct vertex attribute.
+        if metric_name in self._graph.vs.attributes():
+            # It's a vertex attribute. Create the dictionary manually.
+            # We use the 'name' attribute which is set to the ID for good summaries.
+            ids = self._graph.vs["name"]
+            values = self._graph.vs[metric_name]
+            metric_dict = dict(zip(ids, values))
+        else:
+            # If not, assume it's a computable metric (igraph method).
+            kwargs['return_format'] = 'dict'
+            metric_dict = self.get_metric(metric_name, **kwargs)
 
         if not isinstance(metric_dict, dict):
             raise TypeError(f"Metric '{metric_name}' did not return a dictionary.")
 
+        # Filter out non-numeric values before sorting for robustness
+        valid_items = [
+            item for item in metric_dict.items()
+            if isinstance(item[1], (int, float, np.number))
+        ]
+
         sorted_items = sorted(
-            metric_dict.items(),
+            valid_items,
             key=lambda item: item[1] if item[1] is not None else -float('inf'),
             reverse=True
         )
@@ -129,13 +152,21 @@ class GraphAnalysisResult:
         Computes descriptive statistics for a numeric metric.
         Handles None values by ignoring them in the calculation.
         """
-        kwargs['return_format'] = 'list'
-        values = self.get_metric(metric_name, **kwargs)
+        # First, check if the metric_name is a direct vertex attribute.
+        if metric_name in self._graph.vs.attributes():
+            values = self._graph.vs[metric_name]
+        else:
+            # If not, assume it's a computable metric (igraph method).
+            kwargs['return_format'] = 'list'
+            values = self.get_metric(metric_name, **kwargs)
 
         if not isinstance(values, list):
             raise TypeError(f"Metric '{metric_name}' did not return a list of values.")
 
-        numeric_values = [v for v in values if v is not None]
+        # Ensure we only process numeric types, ignoring strings or other objects.
+        numeric_values = [
+            v for v in values if v is not None and isinstance(v, (int, float, np.number))
+        ]
 
         if not numeric_values:
             return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0, 'median': 0.0, 'count': 0}

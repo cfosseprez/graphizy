@@ -58,7 +58,9 @@ def create_sample_graphs() -> (Dict[str, Any], Graphing):
     ])
 
     config = GraphizyConfig(dimension=(WIDTH, HEIGHT))
-    grapher = Graphing(config=config)
+    # Define the shape of the data we are using,
+    simple_data_shape = [('id', int), ('x', float), ('y', float)]
+    grapher = Graphing(config=config, data_shape=simple_data_shape)
 
     graphs = {
         'delaunay': grapher.make_graph("delaunay", particle_stack),
@@ -129,7 +131,11 @@ def example_on_the_fly_analysis(graphs: Dict[str, Any], grapher: Graphing):
     # 3. Compute any other igraph metric using get_metric()
     print("\n• Pagerank (computed on-demand):")
     pagerank_values = results.get_metric('pagerank', return_format='dict')
-    top_pagerank = sorted(pagerank_values.items(), key=lambda item: item[1], reverse=True)
+    # Filter out None values that can appear in disconnected graphs before sorting
+    valid_pagerank_items = [
+        item for item in pagerank_values.items() if item[1] is not None
+    ]
+    top_pagerank = sorted(valid_pagerank_items, key=lambda item: item[1], reverse=True)
     print(f"    Top 3 by Pagerank: {[(node, f'{val:.3f}') for node, val in top_pagerank[:3]]}")
 
 
