@@ -122,7 +122,7 @@ def create_enhanced_random_graph(data_points: np.ndarray, dimension: tuple, **kw
                 common_neighbors = neighbors_i & neighbors_j
                 
                 for k in common_neighbors:
-                    if not temp_graph.are_connected(i, k):
+                    if not temp_graph.are_adjacent(i, k):
                         triangle_prob = (clustering_factor - 1.0) * 0.1
                         if random.random() < triangle_prob:
                             clustering_edges.append((min(i, k), max(i, k)))

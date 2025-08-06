@@ -60,7 +60,7 @@ def example_easy_configuration():
             dimension=(500, 500),
             line_color=(0, 128, 255),  # Routed to DrawingConfig
             point_radius=10,           # Routed to DrawingConfig
-            proximity_thresh=100.0     # Routed to GraphConfig
+            proximity_threshold=100.0  # Routed to GraphConfig
         )
 
         # Create a graph using these settings

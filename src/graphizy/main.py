@@ -1476,12 +1476,13 @@ class Graphing:
 
     def init_weight_computer(self, **kwargs):
         """Initialize flexible weight computer."""
-        # If no method is passed, use the one from config
+        # If parameters are not passed directly, use the ones from the config
         if 'method' not in kwargs:
             kwargs['method'] = self.config.weight.weight_method
-        # If no target_attribute is passed, use the one from config
         if 'target_attribute' not in kwargs:
             kwargs['target_attribute'] = self.config.weight.weight_attribute
+        if 'formula' not in kwargs and kwargs.get('method') == "formula":
+            kwargs['formula'] = self.config.weight.weight_formula
 
         self.weight_computer = WeightComputer(**kwargs)
         self.config.weight.auto_compute_weights = True
@@ -2353,4 +2354,3 @@ class Graphing:
 
         # The method is now just a factory. All computation is deferred.
         return GraphAnalysisResult(graph, self)
-

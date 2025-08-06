@@ -48,6 +48,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+.pymon
 
 # Translations
 *.mo
@@ -195,20 +196,7 @@ tmp/
 /venv/
 /doc/
 
-*.log
-
 
 # Dev sides
-/src/swarmaster/
-/src/train_and_test/
-/src/raw/
-/src/digital_microscope/
 */sandbox
-
-/src/swarmtracker/datamanager/
-/src/swarmtracker/results
-
-/media/
-
-
-/old/
+*/old

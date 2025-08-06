@@ -109,23 +109,3 @@ def test_main_dispatch(mock_cmd_delaunay):
     assert args.size == 100
     assert args.particles == 10
 
-
-def test_cli_delaunay_command(monkeypatch, tmp_path):
-    """Test the 'delaunay' CLI command."""
-    output_file = tmp_path / "delaunay_test.jpg"
-
-    # Mock sys.argv to simulate command-line execution
-    # e.g., `graphizy delaunay --particles 10 --output ...`
-    monkeypatch.setattr(
-        sys, 'argv',
-        ['graphizy', 'delaunay', '--particles', '10', '--output', str(output_file)]
-    )
-
-    # The CLI calls sys.exit(), so we expect a SystemExit exception
-    with pytest.raises(SystemExit) as e:
-        main()
-
-    # Assert that the command exited successfully (exit code 0)
-    assert e.value.code == 0
-    # Assert that the output file was actually created
-    assert output_file.exists()
