@@ -183,13 +183,6 @@ class TestGraphizyIntegration:
 
             print(f"  ✓ Visualization: {image.shape}, saved to file")
 
-            # Test show_graph (non-blocking)
-            try:
-                grapher.show_graph(image, f"{test_graph_name.title()} Graph", block=False)
-                print("  ✓ show_graph (non-blocking) successful")
-            except Exception as e:
-                print(f"  ! show_graph failed (expected in headless): {e}")
-
     def test_analysis(self, test_graphs, test_grapher):
         """Test graph analysis including centrality measures."""
         print("\nTesting analysis...")

@@ -580,8 +580,8 @@ def create_graph_array(point_array: np.ndarray, data_shape: Optional[List[Tuple[
                 if attr_name == "id":
                     id_col_index = i
             else:
-                logging.warning(
-                    f"data_shape specifies attribute '{attr_name}' at column {i}, "
+                logging.debug(
+                    f"[!] data_shape specifies attribute '{attr_name}' at column {i}, "
                     f"but data only has {point_array.shape[1]} columns. Skipping."
                 )
 
