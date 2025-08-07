@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ParticleSystemConfig:
     """Configuration for particle system simulations"""
-    box_size: Tuple[float, float] = (1000.0, 1000.0)
+    box_size: Tuple[int, int] = (1000, 1000)  # Changed to int
     num_particles: int = 500
     interaction_range: float = 50.0
     temperature: float = 1.0
@@ -63,26 +63,32 @@ class ParticleSystemAnalyzer:
     def __init__(self, config: ParticleSystemConfig):
         self.config = config
         
-        # Setup Graphizy for particle analysis
+        # Setup Graphizy for particle analysis - ensure integers for dimensions
         graphizy_config = GraphizyConfig(dimension=config.box_size)
         
         self.grapher = Graphing(config=graphizy_config)
         
-        # Update drawing configuration
-        self.grapher.update_config(
-            drawing={
-                "point_color": (100, 255, 100),    # Green for particles
-                "line_color": (255, 200, 100),     # Orange for interactions
-                "point_radius": 6,
-                "line_thickness": 1
-            }
-        )
+        # Update drawing configuration with proper integer values
+        try:
+            self.grapher.update_config(
+                drawing={
+                    "point_color": (100, 255, 100),    # Green for particles
+                    "line_color": (255, 200, 100),     # Orange for interactions
+                    "point_radius": 6,                 # Ensure integer
+                    "line_thickness": 1                # Ensure integer
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Could not update drawing config: {e}")
         
         # Initialize memory for temporal analysis
-        self.grapher.init_memory_manager(
-            max_memory_size=1000,
-            track_edge_ages=True
-        )
+        try:
+            self.grapher.init_memory_manager(
+                max_memory_size=1000,
+                track_edge_ages=True
+            )
+        except Exception as e:
+            logger.warning(f"Could not initialize memory manager: {e}")
         
         self.analysis_history = []
         
@@ -235,9 +241,9 @@ class ParticleSystemAnalyzer:
                     results['cluster_counts'].append(len(cluster_sizes))
                     results['largest_cluster_evolution'].append(max(cluster_sizes) if cluster_sizes else 0)
                     
-                    # Network density
+                    # Network density - fixed API call
                     graph_info = self.grapher.get_graph_info(graph)
-                    results['network_density_evolution'].append(graph_info['density'])
+                    results['network_density_evolution'].append(graph_info.density)
                 
                 # Evolve particle positions (simple brownian motion)
                 if t < timesteps - 1:
@@ -271,11 +277,35 @@ class ParticleSystemAnalyzer:
         try:
             # 1. Percolation visualization at critical point
             critical_range = percolation_results['critical_range']
-            critical_graph = self.grapher.make_graph("proximity", positions, proximity_thresh=critical_range)
-            critical_image = self.grapher.draw_graph(critical_graph)
-            self.grapher.save_graph(critical_image, str(output_path / "percolation_critical.png"))
+            if critical_range is not None and critical_range > 0:
+                try:
+                    critical_graph = self.grapher.make_graph("proximity", positions, proximity_thresh=critical_range)
+                    if critical_graph.vcount() > 0:  # Only draw if graph has vertices
+                        critical_image = self.grapher.draw_graph(critical_graph)
+                        self.grapher.save_graph(critical_image, str(output_path / "percolation_critical.png"))
+                except Exception as e:
+                    logger.warning(f"Could not create critical percolation visualization: {e}")
             
-            # 2. Clustering evolution plots
+            # 2. Additional network visualizations at different scales
+            try:
+                # Small range network
+                small_range = percolation_results['interaction_ranges'][2] if len(percolation_results['interaction_ranges']) > 2 else 20.0
+                small_graph = self.grapher.make_graph("proximity", positions, proximity_thresh=small_range)
+                if small_graph.vcount() > 0:
+                    small_image = self.grapher.draw_graph(small_graph)
+                    self.grapher.save_graph(small_image, str(output_path / "network_small_range.png"))
+                
+                # Large range network
+                large_range = percolation_results['interaction_ranges'][-3] if len(percolation_results['interaction_ranges']) > 2 else 40.0
+                large_graph = self.grapher.make_graph("proximity", positions, proximity_thresh=large_range)
+                if large_graph.vcount() > 0:
+                    large_image = self.grapher.draw_graph(large_graph)
+                    self.grapher.save_graph(large_image, str(output_path / "network_large_range.png"))
+                    
+            except Exception as e:
+                logger.warning(f"Could not create additional network visualizations: {e}")
+            
+            # 3. Clustering evolution plots
             if clustering_results['timesteps'] and len(clustering_results['timesteps']) > 1:
                 try:
                     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
@@ -307,12 +337,13 @@ class ParticleSystemAnalyzer:
                     # Percolation probability
                     axes[1,1].plot(percolation_results['interaction_ranges'], 
                                   percolation_results['percolation_probabilities'], 'mo-', linewidth=2)
-                    axes[1,1].axvline(critical_range, color='red', linestyle='--', 
-                                     label=f'Critical = {critical_range:.2f}')
+                    if critical_range is not None:
+                        axes[1,1].axvline(critical_range, color='red', linestyle='--', 
+                                         label=f'Critical = {critical_range:.2f}')
+                        axes[1,1].legend()
                     axes[1,1].set_title('Percolation Probability')
                     axes[1,1].set_xlabel('Interaction Range')
                     axes[1,1].set_ylabel('P(percolation)')
-                    axes[1,1].legend()
                     axes[1,1].grid(True, alpha=0.3)
                     
                     plt.tight_layout()
@@ -333,9 +364,9 @@ def main():
     logger.info("Starting Particle Physics Analysis Research Tutorial")
     
     try:
-        # System configuration
+        # System configuration - ensure integer dimensions
         config = ParticleSystemConfig(
-            box_size=(600.0, 600.0),
+            box_size=(600, 600),  # Changed to integers
             num_particles=150,
             interaction_range=35.0,
             boundary_conditions="periodic"

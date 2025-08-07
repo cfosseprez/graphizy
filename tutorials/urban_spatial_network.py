@@ -50,7 +50,7 @@ class UrbanFeatureType(Enum):
 @dataclass
 class UrbanAnalysisConfig:
     """Configuration for urban spatial analysis"""
-    city_bounds: Tuple[float, float] = (4000.0, 3200.0)
+    city_bounds: Tuple[int, int] = (4000, 3200)  # Changed to int
     walking_distance: float = 800.0
     service_standards: Dict[str, float] = None
     
@@ -77,21 +77,27 @@ class UrbanSpatialAnalyzer:
         
         self.grapher = Graphing(config=graphizy_config)
         
-        # Update drawing configuration
-        self.grapher.update_config(
-            drawing={
-                "point_color": (100, 150, 255),
-                "line_color": (255, 150, 100),
-                "point_radius": 5,
-                "line_thickness": 1
-            }
-        )
+        # Update drawing configuration with proper integer values
+        try:
+            self.grapher.update_config(
+                drawing={
+                    "point_color": (100, 150, 255),
+                    "line_color": (255, 150, 100),
+                    "point_radius": 5,
+                    "line_thickness": 1
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Could not update drawing config: {e}")
         
         # Initialize memory for temporal urban analysis
-        self.grapher.init_memory_manager(
-            max_memory_size=2000,
-            track_edge_ages=True
-        )
+        try:
+            self.grapher.init_memory_manager(
+                max_memory_size=2000,
+                track_edge_ages=True
+            )
+        except Exception as e:
+            logger.warning(f"Could not initialize memory manager: {e}")
         
         # Urban features storage
         self.urban_features = {}
@@ -298,40 +304,50 @@ class UrbanSpatialAnalyzer:
         all_features = np.array(all_features)
         
         # Create network at walking scale
-        graph = self.grapher.make_graph("proximity", all_features, proximity_thresh=self.config.walking_distance)
-        
-        if graph.vcount() > 0:
-            graph_info = self.grapher.get_graph_info(graph)
+        try:
+            graph = self.grapher.make_graph("proximity", all_features, proximity_thresh=self.config.walking_distance)
             
-            results['network_properties']['walking'] = {
-                'node_count': graph_info['vertex_count'],
-                'edge_count': graph_info['edge_count'],
-                'density': graph_info['density'],
-                'mean_degree': graph_info['mean_degree'],
-                'clustering': graph_info.get('clustering', 0),
-                'component_count': graph_info['component_count']
-            }
+            if graph.vcount() > 0:
+                graph_info = self.grapher.get_graph_info(graph)
+                
+                # Calculate mean degree manually
+                degrees = graph.degree()
+                mean_degree = np.mean(degrees) if degrees else 0.0
+                
+                results['network_properties']['walking'] = {
+                    'node_count': graph_info.vertex_count,
+                    'edge_count': graph_info.edge_count,
+                    'density': graph_info.density,
+                    'mean_degree': mean_degree,
+                    'clustering': graph_info.transitivity if graph_info.transitivity is not None else 0.0,
+                    'component_count': graph_info.num_components
+                }
+        except Exception as e:
+            logger.warning(f"Walking network analysis failed: {e}")
         
         # Feature integration analysis
         for feature_type in self.urban_features.keys():
             feature_positions = self.urban_features[feature_type]
             
             if len(feature_positions) > 1:
-                integration_graph = self.grapher.make_graph(
-                    "proximity", 
-                    feature_positions, 
-                    proximity_thresh=self.config.walking_distance
-                )
-                
-                if integration_graph.vcount() > 0:
-                    integration_info = self.grapher.get_graph_info(integration_graph)
+                try:
+                    integration_graph = self.grapher.make_graph(
+                        "proximity", 
+                        feature_positions, 
+                        proximity_thresh=self.config.walking_distance
+                    )
                     
-                    results['feature_integration'][feature_type] = {
-                        'internal_connectivity': integration_info['density'],
-                        'clustering': integration_info.get('clustering', 0),
-                        'component_count': integration_info['component_count'],
-                        'integration_score': integration_info['density']
-                    }
+                    if integration_graph.vcount() > 0:
+                        integration_info = self.grapher.get_graph_info(integration_graph)
+                        
+                        results['feature_integration'][feature_type] = {
+                            'internal_connectivity': integration_info.density,
+                            'clustering': integration_info.transitivity if integration_info.transitivity is not None else 0.0,
+                            'component_count': integration_info.num_components,
+                            'integration_score': integration_info.density
+                        }
+                except Exception as e:
+                    logger.warning(f"Integration analysis failed for {feature_type}: {e}")
         
         logger.info("Network integration analysis complete")
         return results
@@ -347,138 +363,157 @@ class UrbanSpatialAnalyzer:
         
         logger.info(f"Creating urban visualizations in: {output_path}")
         
-        # 1. Urban features overview
-        if self.urban_features:
-            sample_features = []
-            for positions in self.urban_features.values():
-                sample_size = min(30, len(positions))
-                sample_indices = np.random.choice(len(positions), sample_size, replace=False)
-                sample_features.extend(positions[sample_indices].tolist())
-            
-            if sample_features:
-                sample_array = np.array(sample_features)
-                overview_graph = self.grapher.make_graph("proximity", sample_array, proximity_thresh=300)
-                overview_image = self.grapher.draw_graph(overview_graph)
-                self.grapher.save_graph(overview_image, str(output_path / "urban_overview.png"))
-        
-        # 2. Statistical plots
-        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-        fig.suptitle('Urban Spatial Analysis Results', fontsize=14)
-        
-        # Feature distribution
-        if self.urban_features:
-            feature_counts = {k: len(v) for k, v in self.urban_features.items()}
-            axes[0,0].pie(feature_counts.values(), 
-                         labels=[k.replace('_', ' ').title() for k in feature_counts.keys()], 
-                         autopct='%1.1f%%')
-            axes[0,0].set_title('Urban Feature Distribution')
-        
-        # Service coverage
-        if accessibility_results and 'coverage_statistics' in accessibility_results:
-            coverage = accessibility_results['coverage_statistics']['served_percentage']
-            underserved = 100 - coverage
-            
-            axes[0,1].bar(['Served', 'Underserved'], [coverage, underserved], 
-                         color=['green', 'red'])
-            axes[0,1].set_ylabel('Percentage (%)')
-            axes[0,1].set_title(f'{accessibility_results["service_type"].title()} Coverage')
-            axes[0,1].set_ylim(0, 100)
-        
-        # Network properties
-        if 'network_properties' in integration_results:
-            props = integration_results['network_properties'].get('walking', {})
-            if props:
-                metrics = ['Density', 'Clustering']
-                values = [props.get('density', 0), props.get('clustering', 0)]
+        try:
+            # 1. Urban features overview
+            if self.urban_features:
+                sample_features = []
+                for positions in self.urban_features.values():
+                    sample_size = min(30, len(positions))
+                    sample_indices = np.random.choice(len(positions), sample_size, replace=False)
+                    sample_features.extend(positions[sample_indices].tolist())
                 
-                axes[1,0].bar(metrics, values, color='purple')
-                axes[1,0].set_ylabel('Value')
-                axes[1,0].set_title('Network Properties')
-        
-        # Integration scores
-        if 'feature_integration' in integration_results:
-            features = list(integration_results['feature_integration'].keys())
-            scores = [integration_results['feature_integration'][f].get('integration_score', 0) 
-                     for f in features]
+                if sample_features:
+                    sample_array = np.array(sample_features)
+                    try:
+                        overview_graph = self.grapher.make_graph("proximity", sample_array, proximity_thresh=300)
+                        if overview_graph.vcount() > 0:
+                            overview_image = self.grapher.draw_graph(overview_graph)
+                            self.grapher.save_graph(overview_image, str(output_path / "urban_overview.png"))
+                    except Exception as e:
+                        logger.warning(f"Could not create urban overview visualization: {e}")
             
-            axes[1,1].barh(range(len(features)), scores, color='orange')
-            axes[1,1].set_xlabel('Integration Score')
-            axes[1,1].set_title('Feature Integration')
-            axes[1,1].set_yticks(range(len(features)))
-            axes[1,1].set_yticklabels([f.replace('_', ' ').title() for f in features])
-        
-        plt.tight_layout()
-        plt.savefig(output_path / "urban_analysis.png", dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        logger.info("Urban visualizations completed")
+            # 2. Statistical plots
+            try:
+                fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+                fig.suptitle('Urban Spatial Analysis Results', fontsize=14)
+                
+                # Feature distribution
+                if self.urban_features:
+                    feature_counts = {k: len(v) for k, v in self.urban_features.items()}
+                    axes[0,0].pie(feature_counts.values(), 
+                                 labels=[k.replace('_', ' ').title() for k in feature_counts.keys()], 
+                                 autopct='%1.1f%%')
+                    axes[0,0].set_title('Urban Feature Distribution')
+                
+                # Service coverage
+                if accessibility_results and 'coverage_statistics' in accessibility_results:
+                    coverage = accessibility_results['coverage_statistics']['served_percentage']
+                    underserved = 100 - coverage
+                    
+                    axes[0,1].bar(['Served', 'Underserved'], [coverage, underserved], 
+                                 color=['green', 'red'])
+                    axes[0,1].set_ylabel('Percentage (%)')
+                    axes[0,1].set_title(f'{accessibility_results["service_type"].title()} Coverage')
+                    axes[0,1].set_ylim(0, 100)
+                
+                # Network properties
+                if 'network_properties' in integration_results:
+                    props = integration_results['network_properties'].get('walking', {})
+                    if props:
+                        metrics = ['Density', 'Clustering']
+                        values = [props.get('density', 0), props.get('clustering', 0)]
+                        
+                        axes[1,0].bar(metrics, values, color='purple')
+                        axes[1,0].set_ylabel('Value')
+                        axes[1,0].set_title('Network Properties')
+                
+                # Integration scores
+                if 'feature_integration' in integration_results:
+                    features = list(integration_results['feature_integration'].keys())
+                    scores = [integration_results['feature_integration'][f].get('integration_score', 0) 
+                             for f in features]
+                    
+                    if features and scores:
+                        axes[1,1].barh(range(len(features)), scores, color='orange')
+                        axes[1,1].set_xlabel('Integration Score')
+                        axes[1,1].set_title('Feature Integration')
+                        axes[1,1].set_yticks(range(len(features)))
+                        axes[1,1].set_yticklabels([f.replace('_', ' ').title() for f in features])
+                
+                plt.tight_layout()
+                plt.savefig(output_path / "urban_analysis.png", dpi=300, bbox_inches='tight')
+                plt.close()
+                
+            except Exception as e:
+                logger.warning(f"Could not create matplotlib plots: {e}")
+            
+            logger.info("Urban visualizations completed")
+            
+        except Exception as e:
+            logger.error(f"Visualization creation failed: {e}")
 
 
 def main():
     """Main urban analysis research workflow"""
     logger.info("Starting Urban Spatial Analysis Research Tutorial")
     
-    # Configuration
-    config = UrbanAnalysisConfig(
-        city_bounds=(3000.0, 2500.0),
-        walking_distance=600.0,
-        service_standards={
-            "school": 400.0,
-            "hospital": 1500.0,
-            "park": 500.0,
-            "transit_stop": 400.0
+    try:
+        # Configuration - ensure integer dimensions
+        config = UrbanAnalysisConfig(
+            city_bounds=(3000, 2500),  # Changed to integers
+            walking_distance=600.0,
+            service_standards={
+                "school": 400.0,
+                "hospital": 1500.0,
+                "park": 500.0,
+                "transit_stop": 400.0
+            }
+        )
+        
+        analyzer = UrbanSpatialAnalyzer(config)
+        
+        # Generate urban features
+        logger.info("Generating urban feature distribution...")
+        feature_counts = {
+            "residential": 300,
+            "commercial": 60,
+            "school": 12,
+            "hospital": 4,
+            "park": 20,
+            "transit_stop": 45
         }
-    )
-    
-    analyzer = UrbanSpatialAnalyzer(config)
-    
-    # Generate urban features
-    logger.info("Generating urban feature distribution...")
-    feature_counts = {
-        "residential": 300,
-        "commercial": 60,
-        "school": 12,
-        "hospital": 4,
-        "park": 20,
-        "transit_stop": 45
-    }
-    
-    urban_features = analyzer.generate_urban_features(feature_counts)
-    
-    # Analyze service accessibility
-    logger.info("Analyzing service accessibility...")
-    school_accessibility = analyzer.analyze_service_accessibility("school")
-    hospital_accessibility = analyzer.analyze_service_accessibility("hospital")
-    park_accessibility = analyzer.analyze_service_accessibility("park")
-    
-    # Analyze network integration
-    logger.info("Analyzing network integration...")
-    integration_results = analyzer.analyze_network_integration()
-    
-    # Create visualizations
-    logger.info("Creating urban analysis visualizations...")
-    analyzer.create_urban_visualizations(
-        school_accessibility,
-        integration_results,
-        "urban_analysis_outputs"
-    )
-    
-    # Print summary
-    print("\n" + "="*60)
-    print("URBAN SPATIAL ANALYSIS COMPLETE")
-    print("="*60)
-    print(f"🏙️  Analyzed {sum(feature_counts.values())} urban features")
-    print(f"🏫 School accessibility: {school_accessibility.get('coverage_statistics', {}).get('served_percentage', 0):.1f}% coverage")
-    print(f"🏥 Hospital accessibility: {hospital_accessibility.get('coverage_statistics', {}).get('served_percentage', 0):.1f}% coverage")
-    print(f"🌳 Park accessibility: {park_accessibility.get('coverage_statistics', {}).get('served_percentage', 0):.1f}% coverage")
-    
-    if integration_results and 'network_properties' in integration_results:
-        walking_density = integration_results['network_properties'].get('walking', {}).get('density', 0)
-        print(f"🚶 Walking network density: {walking_density:.4f}")
-    
-    print(f"🎨 Visualizations in: urban_analysis_outputs/")
-    print("\nThis analysis provides evidence-based insights")
-    print("for urban planning and spatial policy development!")
+        
+        urban_features = analyzer.generate_urban_features(feature_counts)
+        
+        # Analyze service accessibility
+        logger.info("Analyzing service accessibility...")
+        school_accessibility = analyzer.analyze_service_accessibility("school")
+        hospital_accessibility = analyzer.analyze_service_accessibility("hospital")
+        park_accessibility = analyzer.analyze_service_accessibility("park")
+        
+        # Analyze network integration
+        logger.info("Analyzing network integration...")
+        integration_results = analyzer.analyze_network_integration()
+        
+        # Create visualizations
+        logger.info("Creating urban analysis visualizations...")
+        analyzer.create_urban_visualizations(
+            school_accessibility,
+            integration_results,
+            "urban_analysis_outputs"
+        )
+        
+        # Print summary
+        print("\n" + "="*60)
+        print("URBAN SPATIAL ANALYSIS COMPLETE")
+        print("="*60)
+        print(f"🏙️  Analyzed {sum(feature_counts.values())} urban features")
+        print(f"🏫 School accessibility: {school_accessibility.get('coverage_statistics', {}).get('served_percentage', 0):.1f}% coverage")
+        print(f"🏥 Hospital accessibility: {hospital_accessibility.get('coverage_statistics', {}).get('served_percentage', 0):.1f}% coverage")
+        print(f"🌳 Park accessibility: {park_accessibility.get('coverage_statistics', {}).get('served_percentage', 0):.1f}% coverage")
+        
+        if integration_results and 'network_properties' in integration_results:
+            walking_density = integration_results['network_properties'].get('walking', {}).get('density', 0)
+            print(f"🚶 Walking network density: {walking_density:.4f}")
+        
+        print(f"🎨 Visualizations in: urban_analysis_outputs/")
+        print("\nThis analysis provides evidence-based insights")
+        print("for urban planning and spatial policy development!")
+        
+    except Exception as e:
+        logger.error(f"Tutorial failed: {e}")
+        print(f"❌ Tutorial failed: {e}")
+        raise
 
 
 if __name__ == "__main__":

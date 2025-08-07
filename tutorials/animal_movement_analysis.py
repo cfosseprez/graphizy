@@ -158,18 +158,31 @@ class AnimalBehaviorAnalyzer:
                 except Exception as e:
                     logger.warning(f"Memory update failed at timestep {timestep}: {e}")
                 
-                # Analyze graph properties
+                # Analyze graph properties using the correct API
                 graph_info = self.grapher.get_graph_info(graph)
                 
-                # Calculate behavioral metrics
+                # Calculate behavioral metrics using proper GraphAnalysisResult properties
                 metrics = {
                     'timestep': timestep,
-                    'edge_count': graph_info['edge_count'],
-                    'density': graph_info['density'],
-                    'mean_degree': graph_info['mean_degree'],
-                    'clustering': graph_info.get('clustering', 0),
-                    'components': graph_info['component_count']
+                    'edge_count': graph_info.edge_count,
+                    'density': graph_info.density,
+                    'vertex_count': graph_info.vertex_count,
+                    'is_connected': graph_info.is_connected,
+                    'num_components': graph_info.num_components
                 }
+                
+                # Add clustering coefficient if available
+                try:
+                    metrics['clustering'] = graph_info.transitivity if graph_info.transitivity is not None else 0.0
+                except Exception:
+                    metrics['clustering'] = 0.0
+                
+                # Calculate mean degree
+                if graph.vcount() > 0:
+                    degrees = graph.degree()
+                    metrics['mean_degree'] = np.mean(degrees) if degrees else 0.0
+                else:
+                    metrics['mean_degree'] = 0.0
                 
                 # Individual centrality measures
                 if graph.vcount() > 0:
@@ -179,7 +192,10 @@ class AnimalBehaviorAnalyzer:
                         degree = graph.degree()
                         
                         # Store individual metrics
-                        for i, animal_id in enumerate(graph.vs["id"]):
+                        for i, vertex in enumerate(graph.vs):
+                            # Get animal ID from vertex attributes
+                            animal_id = vertex["id"] if "id" in vertex.attributes() else i
+                            
                             if animal_id not in results['individual_centralities']:
                                 results['individual_centralities'][animal_id] = {
                                     'betweenness': [], 'closeness': [], 'degree': []
@@ -212,6 +228,17 @@ class AnimalBehaviorAnalyzer:
             
             except Exception as e:
                 logger.error(f"Analysis failed at timestep {timestep}: {e}")
+                # Add empty results to maintain timestep alignment
+                results['network_metrics'].append({
+                    'timestep': timestep,
+                    'edge_count': 0,
+                    'density': 0.0,
+                    'vertex_count': 0,
+                    'is_connected': False,
+                    'num_components': 0,
+                    'clustering': 0.0,
+                    'mean_degree': 0.0
+                })
                 continue
         
         logger.info(f"Completed proximity network analysis for {len(results['network_metrics'])} timesteps")
@@ -285,8 +312,9 @@ class AnimalBehaviorAnalyzer:
             for i, timestep in enumerate(sample_timesteps):
                 if timestep < len(results['timestep_graphs']):
                     graph = results['timestep_graphs'][timestep]
-                    image = self.grapher.draw_graph(graph)
-                    self.grapher.save_graph(image, str(output_path / f"network_t{timestep:03d}.png"))
+                    if graph.vcount() > 0:  # Only draw if graph has vertices
+                        image = self.grapher.draw_graph(graph)
+                        self.grapher.save_graph(image, str(output_path / f"network_t{timestep:03d}.png"))
             
             # 2. Plot temporal metrics if matplotlib is available
             if len(results['network_metrics']) > 1:
