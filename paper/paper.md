@@ -22,46 +22,70 @@ bibliography: paper.bib
 # Graphizy: Memory-Enhanced Graph Construction for Computational Geometry and Temporal Network Analysis
 
 ## Summary
+Graphizy is a Python package for constructing dynamic graphs from spatial data with built-in support for memory-enhanced temporal analysis and flexible edge weighting. Designed with ease of use and integration in mind, Graphizy streamlines workflows by combining computational geometry, real-time graph generation, and edge memory tracking into a single, extensible framework.
 
-Graphizy is a Python package that provides a unified framework for constructing and analyzing graphs from spatial data with a novel memory-enhanced system for temporal network analysis. Unlike existing graph libraries that focus primarily on static graph analysis, Graphizy specializes in the dynamic construction of graphs from point data using computational geometry algorithms, while maintaining temporal memory of connections for longitudinal analysis. The package integrates multiple graph construction methods—including Delaunay triangulation, proximity graphs, k-nearest neighbors, minimum spanning trees, and Gabriel graphs—with a unified API that enables real-time graph evolution tracking and visualization.
+Graphizy enables researchers to build evolving networks using various geometric methods (e.g., Delaunay, proximity, k-NN), but its core innovation lies in its **temporal memory system** and **custom edge weight engine**—allowing graphs to reflect historical, spatial, or behavioral persistence in a configurable way.
 
+Ideal for researchers studying particle systems, animal tracking, urban mobility, or cell interactions, Graphizy offers a performant and intuitive API to generate, analyze, and visualize dynamic networks with minimal setup.
 ## Statement of Need
 
-Graph-based analysis of spatial data is fundamental across numerous scientific domains, from analyzing social animal behavior and ecological networks to studying particle dynamics and urban spatial structures. However, existing tools often fall short in three critical areas:
+Graph-based analysis of spatial data plays a central role in fields ranging from behavioral ecology and physics to urban planning and computational biology. However, widely used graph libraries are generally designed for abstract graph theory and overlook the unique challenges of spatial and temporal dynamics. Specifically, they fall short in three critical areas:
 
-1. **Dynamic Graph Construction**: While libraries like NetworkX [@hagberg2008networkx] excel at analyzing pre-existing graphs, they lack specialized tools for efficiently constructing graphs from evolving spatial point data.
+1. **Lack of True Spatial Integration**  
+   In most libraries such as NetworkX [@hagberg2008networkx], spatiality is treated merely as metadata—typically stored as attributes of nodes (e.g., coordinates)—but the graph structure itself is agnostic to geometry. There is no built-in support for using spatial relationships (e.g., distance, angle, topology) to determine edges, making spatial manipulation cumbersome and error-prone. Researchers must manually construct edges based on external geometric logic, fragmenting workflows and increasing the chance of bugs or inconsistencies.
 
-2. **Temporal Memory Systems**: Traditional graph analysis treats each time step independently, losing valuable information about connection persistence and temporal patterns that are crucial for understanding dynamic systems.
+2. **Dynamic Graph Construction from Evolving Point Data**  
+   Traditional graph libraries are optimized for static or pre-defined graphs. When working with dynamic systems—like particle movement, animal tracking, or evolving social spaces—researchers must repeatedly reconstruct graphs from scratch using ad-hoc methods. These libraries provide little to no support for building or updating graphs based on real-time spatial data, such as shifting positions or reappearing nodes.
 
-3. **Computational Geometry Integration**: Existing solutions require researchers to manually integrate multiple libraries (SciPy for triangulation, NetworkX for analysis, matplotlib for visualization), creating friction in the research workflow.
+3. **Temporal Memory Systems for Longitudinal Analysis**  
+   Conventional graph tools analyze each time step independently, discarding historical context. This neglects the importance of temporal continuity: which connections persist, which disappear, and how the network evolves over time. Memory of past edges must be manually tracked and managed by the user, which quickly becomes complex and unscalable.
 
-Graphizy addresses these gaps by providing a specialized framework designed specifically for researchers working with spatial-temporal data who need to construct, analyze, and visualize evolving graph structures. The package's memory-enhanced system enables novel analyses of connection stability, temporal clustering, and network evolution patterns that are not readily available in existing tools.
+4. **Fragmented Computational Geometry Workflow**  
+   Researchers typically rely on a patchwork of external libraries—such as SciPy for triangulation, matplotlib for visualization, and NetworkX for graph representation—to perform spatial graph analysis. This requires significant boilerplate code and domain knowledge just to integrate these tools, slowing down research and increasing barriers for new users.
+
+
+**Graphizy** addresses these challenges by offering a unified and intuitive Python framework for spatial-temporal network construction and analysis. It treats spatiality as a *first-class citizen*—not an afterthought—allowing users to generate, visualize, and analyze dynamic graphs derived directly from geometric relationships. With a configurable temporal memory system and a plugin-based architecture for custom graph logic, Graphizy enables powerful analyses of persistence, stability, and evolution in dynamic spatial systems.
 
 ## Key Features and Innovations
 
-### Memory-Enhanced Graph System
+### Temporal Memory System for Dynamic Graph Persistence
+A central innovation in Graphizy is its temporal memory system, which transforms a sequence of independent spatial graphs into a longitudinal network that tracks the persistence of connections over time. Most graph libraries treat each graph snapshot as a self-contained object, discarding past structure. In contrast, Graphizy introduces a native memory layer that retains edge histories across frames, enabling rich temporal analysis of evolving spatial systems.This system is:
 
-Graphizy's primary innovation is its memory-enhanced graph system, which tracks the temporal persistence of connections across multiple time steps. This system enables researchers to:
+- **Configurable**: Users can define how long edges are kept—by number of frames, duration, or even custom logic (e.g., remove if distance increases too much).
+- **Lightweight and Automatic**: Edge aging and pruning happen transparently with each graph update.
+- **Spatially Aware**: The memory system operates on real geometry, not abstract IDs.
 
-- **Analyze Connection Stability**: Identify which spatial relationships persist over time versus those that are transient
-- **Visualize Temporal Patterns**: Display connection age through color-coding and transparency effects  
-- **Quantify Network Dynamics**: Calculate metrics such as connection lifetime distributions and temporal clustering coefficients
+### Key Concepts
+- Edge Persistence: Edges can persist across multiple time steps, allowing researchers to study not just who is connected, but for how long and under what conditions.
 
-```python
-# Initialize memory system
-grapher.init_memory_manager(max_memory_size=100, track_edge_ages=True)
+- Spatial-Aware Memory: Unlike typical approaches where edges are tracked by node IDs alone, Graphizy ties memory to geometric configurations, allowing memory retention rules based on real-world movement or distance.
 
-# Update over time
-for timestep in simulation_data:
-    current_graph = grapher.make_delaunay(timestep)
-    grapher.update_memory_with_graph(current_graph)
+### Configurable Memory Policies: The system supports flexible retention rules, such as:
+
+- Fixed lifetime (e.g., retain edges for 10 time steps)
+
+- Conditional decay (e.g., remove edge if nodes drift beyond threshold)
+
+- Custom logic (e.g., weight edges by interaction frequency or proximity)
+
+### Practical Capabilities
+
+- Temporal Stability Analysis
+Track which relationships are stable over time (e.g., long-term spatial proximity) and identify transient or noisy connections.
+
+- Age-Aware Visualization
+Visualize edge "lifespans" through age-based color gradients or transparency. Older, stable connections appear more prominently, revealing hidden structural patterns.
+
+- Temporal Network Metrics
+Extract statistics such as:
+
+    - Edge lifetime distributions
     
-    # Create memory-enhanced graph combining current + historical connections
-    memory_graph = grapher.make_memory_graph(timestep)
+    - First/last appearance times
     
-    # Visualize with age-based coloring
-    visualization = grapher.draw_memory_graph(memory_graph, use_age_colors=True)
-```
+    - Reappearance frequency
+    
+    - Temporal clustering coefficients
 
 ### Unified Computational Geometry API
 
@@ -74,18 +98,6 @@ The package provides a consistent interface for multiple graph construction algo
 - **Gabriel Graphs**: Geometric proximity graphs for shape analysis
 
 All methods share a common API pattern and return igraph objects for downstream analysis:
-
-```python
-# Unified API across all graph types
-positions = generate_positions(800, 600, 100)  # Generate test data
-data = np.column_stack((np.arange(100), positions))
-
-delaunay_graph = grapher.make_delaunay(data)
-proximity_graph = grapher.make_proximity(data, proximity_thresh=50.0)
-knn_graph = grapher.make_knn(data, k=4)
-mst_graph = grapher.make_mst(data)
-gabriel_graph = grapher.make_gabriel(data)
-```
 
 ### Performance-Optimized Implementation
 
@@ -101,24 +113,6 @@ Performance benchmarks demonstrate construction times of <50ms for graphs with 1
 ### Extensible Plugin Architecture
 
 The package includes a plugin system for adding custom graph types:
-
-```python
-from graphizy.plugins import GraphTypePlugin, register_graph_type
-
-@register_graph_type
-class CustomGraphPlugin(GraphTypePlugin):
-    @property
-    def info(self):
-        return GraphTypeInfo(
-            name="custom_graph",
-            description="Custom graph construction algorithm",
-            parameters={"threshold": {"type": float, "default": 1.0}}
-        )
-    
-    def create_graph(self, data_points, aspect, dimension, **kwargs):
-        # Custom implementation
-        return graph
-```
 
 ## Research Applications
 

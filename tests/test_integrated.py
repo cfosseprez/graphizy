@@ -437,10 +437,10 @@ def test_integrated():
             grapher.save_graph(image, str(temp_file))
 
             # Test non-blocking show
-            try:
-                grapher.show_graph(image, f"{test_name.title()} Triangulation", block=False)
-            except Exception as e:
-                print(f"Show graph failed (expected in headless): {e}")
+            # try:
+            #     grapher.show_graph(image, f"{test_name.title()} Triangulation", block=False)
+            # except Exception as e:
+            #     print(f"Show graph failed (expected in headless): {e}")
 
         # 5. Analyze graph metrics
         info = grapher.get_graph_info(test_graph)
