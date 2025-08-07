@@ -76,6 +76,13 @@ def get_examples():
             'name': 'Performance Benchmarks',
             'description': 'Compares Graphizy performance against NetworkX + SciPy/Scikit-learn.',
             'duration': '~2-3 minutes',
+        },
+        {
+            'id': 8,
+            'file': '7_custom_weight_functions.py',
+            'name': 'custom weight function example',
+            'description': 'Show how to deal with the custom weights',
+            'duration': '~2-3 minutes',
         }
     ]
     return examples

@@ -256,6 +256,8 @@ class GraphizyBenchmarkSuite:
             grapher.call_method_safe(graph_gz, 'closeness', "list", default_value=0.0)
             grapher.call_method_safe(graph_gz, 'degree', "list")
             grapher.call_method_safe(graph_gz, 'diameter', "raw", default_value=0)
+            grapher.call_method_safe(graph_gz, 'eigenvector_centrality', "list", default_value=0.0)
+            grapher.call_method_safe(graph_gz, 'transitivity_undirected', "raw", default_value=0.0)
             metrics_time_gz = (time.perf_counter() - start_metrics) * 1000
             total_time_gz = (time.perf_counter() - start_total_gz) * 1000
 
@@ -289,6 +291,8 @@ class GraphizyBenchmarkSuite:
             dict(G_nx.degree())
             if nx.is_connected(G_nx):
                 nx.diameter(G_nx)
+            nx.eigenvector_centrality(G_nx, max_iter=1000)
+            nx.transitivity(G_nx)
             metrics_time_nx = (time.perf_counter() - start_metrics) * 1000
             total_time_nx = (time.perf_counter() - start_total_nx) * 1000
 
@@ -363,6 +367,8 @@ class GraphizyBenchmarkSuite:
             grapher.call_method_safe(graph_gz, 'transitivity_local_undirected', "list", default_value=[])
             grapher.call_method_safe(graph_gz, 'degree', "list")
             grapher.call_method_safe(graph_gz, 'transitivity_undirected', "raw", default_value=0.0)
+            grapher.call_method_safe(graph_gz, 'betweenness', "list", default_value=0.0)
+            grapher.call_method_safe(graph_gz, 'closeness', "list", default_value=0.0)
             metrics_time_gz = (time.perf_counter() - start_metrics) * 1000
             total_time_gz = (time.perf_counter() - start_total_gz) * 1000
 
@@ -391,6 +397,8 @@ class GraphizyBenchmarkSuite:
             nx.clustering(G_nx)
             dict(G_nx.degree())
             nx.transitivity(G_nx)
+            nx.betweenness_centrality(G_nx)
+            nx.closeness_centrality(G_nx)
             metrics_time_nx = (time.perf_counter() - start_metrics) * 1000
             total_time_nx = (time.perf_counter() - start_total_nx) * 1000
 
@@ -460,6 +468,8 @@ class GraphizyBenchmarkSuite:
             grapher.call_method_safe(graph_gz, 'degree', "list")
             grapher.call_method_safe(graph_gz, 'pagerank', "list", default_value=0.0)
             grapher.call_method_safe(graph_gz, 'connected_components', "raw")
+            grapher.call_method_safe(graph_gz, 'betweenness', "list", default_value=0.0)
+            grapher.call_method_safe(graph_gz, 'closeness', "list", default_value=0.0)
             metrics_time_gz = (time.perf_counter() - start_metrics) * 1000
             total_time_gz = (time.perf_counter() - start_total_gz) * 1000
 
@@ -479,6 +489,8 @@ class GraphizyBenchmarkSuite:
             dict(G_nx.degree())
             nx.pagerank(G_nx)
             list(nx.connected_components(G_nx.to_undirected()))
+            nx.betweenness_centrality(G_nx)
+            nx.closeness_centrality(G_nx)
             metrics_time_nx = (time.perf_counter() - start_metrics) * 1000
             total_time_nx = (time.perf_counter() - start_total_nx) * 1000
 
@@ -546,6 +558,7 @@ class GraphizyBenchmarkSuite:
             grapher.call_method_safe(graph_gz, 'diameter', "raw", default_value=0)
             grapher.call_method_safe(graph_gz, 'average_path_length', "raw", default_value=0)
             grapher.call_method_safe(graph_gz, 'betweenness', "list", default_value=0.0)
+            grapher.call_method_safe(graph_gz, 'closeness', "list", default_value=0.0)
             metrics_time_gz = (time.perf_counter() - start_metrics) * 1000
             total_time_gz = (time.perf_counter() - start_total_gz) * 1000
 
@@ -576,6 +589,7 @@ class GraphizyBenchmarkSuite:
                 nx.diameter(G_nx)
                 nx.average_shortest_path_length(G_nx)
                 nx.betweenness_centrality(G_nx)
+                nx.closeness_centrality(G_nx)
             metrics_time_nx = (time.perf_counter() - start_metrics) * 1000
             total_time_nx = (time.perf_counter() - start_total_nx) * 1000
 
@@ -996,7 +1010,7 @@ def generate_benchmark_plots(results_file: str = None):
     graph_types = df['graph_type'].unique()
     speedup_data = [df[df['graph_type'] == gt]['total_speedup'].values for gt in graph_types]
 
-    box_plot = plt.boxplot(speedup_data, labels=[gt.title() for gt in graph_types],
+    box_plot = plt.boxplot(speedup_data, tick_labels=[gt.title() for gt in graph_types],
                            patch_artist=True, showmeans=True)
 
     # Color the boxes

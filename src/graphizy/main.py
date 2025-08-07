@@ -856,7 +856,7 @@ class Graphing:
                 start_time_weights = time.perf_counter()
 
             # STEP 3: Compute weights (adds attributes to existing edges)
-            graph = self._maybe_compute_weights(graph)
+            graph = self._maybe_compute_weights(graph, compute_weights)
 
             if do_timing:
                 end_time_weights = time.perf_counter() - start_time_weights
@@ -1510,13 +1510,19 @@ class Graphing:
             )
         return graph
 
-    def _maybe_compute_weights(self, graph: Any) -> Any:
+    def _maybe_compute_weights(self, graph: Any, compute_weights: bool = None) -> Any:
         """Internal method to auto-compute weights if enabled"""
+
+        # Use the passed parameter, falling back to config if None
+        if compute_weights is None:
+            compute_weights = self.config.weight.auto_compute_weights
 
         if self.fast_computer:
             self.compute_all_attributes_fast(graph)
-        if self.config.weight.auto_compute_weights and self.weight_computer is not None:
+
+        if compute_weights and self.weight_computer is not None:
             return self.weight_computer.compute_weights(graph)
+
         return graph
 
     def get_weight_analysis(self) -> Dict[str, Any]:

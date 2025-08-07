@@ -84,9 +84,11 @@ The package has been designed to support research across multiple domains where 
 
 # Performance and Validation
 
-Comprehensive benchmarking demonstrates significant performance advantages over general-purpose graph libraries for spatial applications. When compared to NetworkX implementations, Graphizy achieves 21× speedup for Delaunay triangulation analysis and 12× speedup for minimum spanning tree construction on 1000-node networks. The temporal memory system adds minimal computational overhead (typically <5ms per update), making it suitable for real-time applications.
+Comprehensive benchmarking demonstrates significant performance advantages over general-purpose graph libraries for spatial applications. When compared to NetworkX+SciPy implementations, Graphizy achieves variable performance gains depending on the algorithm: 22× speedup for Delaunay triangulation and analysis, 25× speedup for proximity graphs, 14× speedup for minimum spanning tree construction, and 15× speedup for k-nearest neighbor graphs on 1000-node networks. Overall, the package provides an average 18× performance improvement across all node number, graph type and tested algorithms.
 
-The package includes extensive validation through unit tests (>50% code coverage), integration tests across multiple graph types, and performance benchmarks that demonstrate consistent scalability. All algorithms have been validated against established implementations to ensure correctness.
+The temporal memory system adds minimal computational overhead (few ms per update), tracking connection persistence efficiently while maintaining real-time capability. Performance scales well across different graph types, with speedups depending on the specific algorithm and topology analysis type.
+
+The package includes extensive validation through unit tests (>50% code coverage), integration tests across multiple graph types, and performance benchmarks that demonstrate consistent scalability. All algorithms have been validated against established implementations to ensure correctness and produce structurally similar results.
 
 # Acknowledgements
 

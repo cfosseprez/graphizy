@@ -20,12 +20,12 @@ class TestDataInterface:
         # Test with string IDs (should fail)
         string_id_data = np.array([["a", 10, 20], ["b", 30, 40]], dtype=object)
         with pytest.raises(InvalidPointArrayError, match="must be numeric"):
-            dinter.to_array(string_id_data)
+            dinter.to_array(string_id_data, validate_data=True)
 
         # Test with insufficient columns
         small_array = np.array([[1, 10]])  # Missing y column
         with pytest.raises(InvalidPointArrayError, match="enough columns"):
-            dinter.to_array(small_array)
+            dinter.to_array(small_array, validate_data=True)
 
         # Test valid array
         valid_array = np.array([[1, 10, 20], [2, 30, 40]], dtype=float)
