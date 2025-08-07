@@ -61,7 +61,7 @@ class BrownianSimulator:
         self.proximity_threshold = 100.0
 
         # Display parameters
-        self.window_name = "Graphizy - Simplified (Press m to toggle memory / 1-5 to change graph type)"
+        self.window_name = "Graphizy - Simplified (Press m to toggle memory / 1-5 to change graph type)/ Esc to end"
         self.paused = False
         self.current_graph_type = 1
 

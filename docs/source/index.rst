@@ -27,22 +27,17 @@ Quick Start
    delaunay_graph = grapher.make_graph("delaunay", data)
    proximity_graph = grapher.make_graph("proximity", data, proximity_thresh=50.0)
    knn_graph = grapher.make_graph("knn", data, k=4)
-   mst_graph = grapher.make_graph("mst", data)
-   gabriel_graph = grapher.make_graph("gabriel", data)
 
-   # Visualize results
-   image = grapher.draw_graph(delaunay_graph)
-   grapher.show_graph(image, "Delaunay Graph")
-   grapher.save_graph(image, "delaunay.jpg")
-
-   # Comprehensive graph analysis
-   info = grapher.get_graph_info(delaunay_graph)
-   print(f"Density: {info['density']:.3f}")
-   print(f"Connected: {info['is_connected']}")
+   # Advanced analysis with new API
+   graph_info = grapher.get_graph_info(delaunay_graph)
+   print(f"Density: {graph_info.density:.3f}")
+   print(f"Connected: {graph_info.is_connected}")
    
-   # Resilient centrality analysis
-   betweenness = grapher.call_method_safe(delaunay_graph, 'betweenness')
-   connectivity_info = grapher.get_connectivity_info(delaunay_graph)
+   # Use advanced analyzers
+   social_roles = graph_info.social_analyzer.identify_social_roles(delaunay_graph)
+   percolation_result = graph_info.percolation_analyzer.analyze_percolation_threshold(
+       data, [20, 30, 40, 50, 60]
+   )
 
 Key Features
 ------------
@@ -60,6 +55,12 @@ Key Features
    - **Minimum Spanning Tree**: Minimal connected graph with shortest total edge length
    - **Gabriel Graph**: Geometric proximity graph (subset of Delaunay triangulation)
    - **Custom Graphs**: Extensible plugin system for domain-specific algorithms
+
+🔬 **Advanced Analysis Tools** *(New!)*
+   - **Percolation Analysis**: Critical threshold detection and phase transition analysis
+   - **Social Network Analysis**: Role identification, temporal tracking, stability metrics
+   - **Accessibility Analysis**: Service coverage, spatial equity, gap identification
+   - **Temporal Dynamics**: Evolution tracking with memory-enhanced analysis
 
 🧠 **Advanced Memory Systems**
    - Temporal analysis tracking connections across time steps
@@ -85,6 +86,27 @@ Key Features
    - Flexible configuration using runtime-configurable parameters with type-safe dataclasses
    - Interactive demos and built-in CLI tools
 
+What's New in v0.1.18
+---------------------
+
+✨ **Advanced Analysis API**
+   - New `PercolationAnalyzer` for automated critical threshold detection
+   - New `SocialNetworkAnalyzer` for role identification and temporal tracking
+   - New `AccessibilityAnalyzer` for spatial equity and service coverage analysis
+   - All analyzers accessible through `GraphAnalysisResult.analyzer_name`
+
+🚀 **Enhanced Tutorials**
+   - Updated research tutorials demonstrating real-world applications
+   - Particle physics with percolation analysis
+   - Animal behavior with social role tracking
+   - Urban planning with accessibility analysis
+
+🔧 **API Improvements**
+   - Simplified graph creation with `make_graph()` unified interface
+   - Enhanced `GraphAnalysisResult` with lazy-loaded properties
+   - Better error handling and user-friendly messages
+   - Improved type safety throughout
+
 User Guide
 ==========
 
@@ -94,11 +116,9 @@ User Guide
    user_guide/installation
    user_guide/quickstart
    user_guide/data_formats
-   user_guide/data_validation
    user_guide/basic_usage
    user_guide/advanced_analysis
    user_guide/configuration
-   user_guide/examples
 
 Core Systems
 ============
@@ -109,6 +129,7 @@ Core Systems
    graph_types/index
    memory/index  
    weight/index
+   advanced_analysis/index
 
 Advanced Features
 =================
@@ -120,7 +141,17 @@ Advanced Features
    advanced/plugin_system
    advanced/performance
    advanced/networkx_bridge
-   advanced/async_processing
+
+Research Applications
+====================
+
+.. toctree::
+   :maxdepth: 2
+
+   research/particle_physics
+   research/behavioral_ecology
+   research/urban_planning
+   research/overview
 
 API Reference
 =============
@@ -131,11 +162,11 @@ API Reference
    api/graphing
    api/config
    api/algorithms
+   api/analysis
    api/memory
    api/weight
    api/drawing
    api/exceptions
-   api/utils
 
 Examples & Tutorials
 ====================
@@ -144,13 +175,12 @@ Examples & Tutorials
    :maxdepth: 2
 
    examples/basic_usage
-   examples/graph_metrics
-   examples/advanced_memory
+   examples/advanced_analysis
+   examples/graph_types
+   examples/memory_system
    examples/weight_computation
-   examples/custom_graph_types
    examples/streaming
-   examples/scientific_computing
-   examples/network_analysis
+   examples/custom_plugins
 
 Development
 ===========

@@ -51,10 +51,10 @@ def get_examples():
         },
         {
             'id': 4,
-            'file': '4_weight_computation.py',
-            'name': 'Example of modified weight computation',
-            'description': 'Complete simulation with dynamic networks and movie generation',
-            'duration': '~5-10 minutes',
+            'file': '4_configuration_and_weights.py',
+            'name': 'Configuration & Weights',
+            'description': 'Demonstrates easy/advanced configuration and the edge weight system.',
+            'duration': '~1 minute',
         },
         {
             'id': 5,
@@ -69,6 +69,13 @@ def get_examples():
             'name': 'Stream example',
             'description': 'Example of stream',
             'duration': '~5-10 minutes',
+        },
+        {
+            'id': 7,
+            'file': 'benchmark_comparison.py',
+            'name': 'Performance Benchmarks',
+            'description': 'Compares Graphizy performance against NetworkX + SciPy/Scikit-learn.',
+            'duration': '~2-3 minutes',
         }
     ]
     return examples

@@ -30,7 +30,8 @@ from dataclasses import dataclass
 from enum import Enum
 
 from graphizy import (
-    Graphing, GraphizyConfig, generate_and_format_positions
+    Graphing, GraphizyConfig, generate_and_format_positions,
+    AccessibilityAnalyzer, AccessibilityResult
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -50,7 +51,7 @@ class UrbanFeatureType(Enum):
 @dataclass
 class UrbanAnalysisConfig:
     """Configuration for urban spatial analysis"""
-    city_bounds: Tuple[int, int] = (4000, 3200)  # Changed to int
+    city_bounds: Tuple[int, int] = (4000, 3200)
     walking_distance: float = 800.0
     service_standards: Dict[str, float] = None
     
@@ -214,72 +215,51 @@ class UrbanSpatialAnalyzer:
         
         return np.array(positions)
     
-    def analyze_service_accessibility(self, service_type: str) -> Dict:
+    def analyze_accessibility_with_new_api(self, service_types: List[str]) -> Dict[str, AccessibilityResult]:
         """
-        Analyze accessibility to urban services
-        
-        Args:
-            service_type: Type of service to analyze
-            
-        Returns:
-            Dictionary with accessibility analysis results
+        Analyze accessibility using the new advanced analysis API
         """
-        logger.info(f"Analyzing accessibility to {service_type} services")
+        logger.info(f"Analyzing accessibility with new API for services: {service_types}")
         
         population_points = self.urban_features.get("residential")
-        service_points = self.urban_features.get(service_type)
-        
-        if population_points is None or service_points is None:
-            logger.warning(f"Missing data for {service_type} accessibility analysis")
+        if population_points is None:
+            logger.warning("No residential data available for accessibility analysis")
             return {}
         
-        # Get service standard distance
-        service_distance = self.config.service_standards.get(service_type, self.config.walking_distance)
+        accessibility_results = {}
         
-        results = {
-            'service_type': service_type,
-            'service_distance': service_distance,
-            'population_count': len(population_points),
-            'service_count': len(service_points),
-            'coverage_statistics': {},
-            'underserved_areas': []
-        }
-        
-        # Simple accessibility calculation
-        served_count = 0
-        well_served_count = 0
-        
-        for pop_point in population_points:
-            accessible_services = 0
+        for service_type in service_types:
+            service_points = self.urban_features.get(service_type)
+            if service_points is None:
+                logger.warning(f"No {service_type} data available")
+                continue
             
-            # Check distance to each service
-            for service_point in service_points:
-                distance = np.linalg.norm(pop_point[1:3] - service_point[1:3])
-                if distance <= service_distance:
-                    accessible_services += 1
+            service_distance = self.config.service_standards.get(service_type, self.config.walking_distance)
             
-            if accessible_services > 0:
-                served_count += 1
-            if accessible_services >= 2:
-                well_served_count += 1
+            # Get accessibility analyzer from any graph analysis result
+            sample_graph = self.grapher.make_graph("proximity", population_points[:10], proximity_thresh=100)
+            graph_info = self.grapher.get_graph_info(sample_graph)
             
-            if accessible_services == 0:
-                results['underserved_areas'].append({
-                    'position': pop_point[1:3].tolist(),
-                    'accessible_services': accessible_services
-                })
+            # Use the new accessibility analyzer
+            accessibility_result = graph_info.accessibility_analyzer.analyze_service_accessibility(
+                population_points, service_points, service_type, service_distance
+            )
+            
+            # Identify service gaps
+            service_gaps = graph_info.accessibility_analyzer.identify_service_gaps(
+                accessibility_result, cluster_distance=200.0
+            )
+            
+            # Store results with gap analysis
+            accessibility_results[service_type] = {
+                'accessibility': accessibility_result,
+                'service_gaps': service_gaps
+            }
+            
+            logger.info(f"{service_type}: {accessibility_result.get_coverage_percentage():.1f}% coverage, "
+                       f"{len(service_gaps)} service gaps identified")
         
-        # Coverage statistics
-        results['coverage_statistics'] = {
-            'served_population': served_count,
-            'served_percentage': (served_count / len(population_points)) * 100,
-            'well_served_population': well_served_count,
-            'well_served_percentage': (well_served_count / len(population_points)) * 100,
-            'underserved_count': len(results['underserved_areas'])
-        }
-        
-        logger.info(f"Accessibility analysis complete: {results['coverage_statistics']['served_percentage']:.1f}% served")
-        return results
+        return accessibility_results
     
     def analyze_network_integration(self) -> Dict:
         """Analyze integration and connectivity of urban networks"""
@@ -352,16 +332,58 @@ class UrbanSpatialAnalyzer:
         logger.info("Network integration analysis complete")
         return results
     
+    def perform_comparative_analysis(self, accessibility_results: Dict[str, Dict]) -> Dict[str, any]:
+        """
+        Perform comparative analysis across services using new API
+        """
+        logger.info("Performing comparative accessibility analysis")
+        
+        # Extract AccessibilityResult objects
+        accessibility_list = [result['accessibility'] for result in accessibility_results.values()]
+        
+        if not accessibility_list:
+            return {}
+        
+        # Get accessibility analyzer and perform comparison
+        sample_graph = self.grapher.make_graph("proximity", 
+                                             self.urban_features["residential"][:10], 
+                                             proximity_thresh=100)
+        graph_info = self.grapher.get_graph_info(sample_graph)
+        
+        comparison = graph_info.accessibility_analyzer.compare_accessibility(accessibility_list)
+        
+        # Add service gap analysis
+        total_gaps = sum(len(result['service_gaps']) for result in accessibility_results.values())
+        critical_gaps = []
+        
+        for service_type, result in accessibility_results.items():
+            for gap in result['service_gaps']:
+                if gap['severity'] > 0.1:  # More than 10% of underserved population
+                    critical_gaps.append({
+                        'service_type': service_type,
+                        'gap_info': gap
+                    })
+        
+        comparison['total_service_gaps'] = total_gaps
+        comparison['critical_gaps'] = critical_gaps
+        comparison['equity_analysis'] = {
+            service_type: result['accessibility'].get_equity_score() 
+            for service_type, result in accessibility_results.items()
+        }
+        
+        return comparison
+    
     def create_urban_visualizations(self, 
                                   accessibility_results: Dict,
                                   integration_results: Dict,
+                                  comparative_analysis: Dict,
                                   output_dir: str = "urban_analysis_outputs"):
         """Create comprehensive urban analysis visualizations"""
         
         output_path = Path(output_dir)
         output_path.mkdir(exist_ok=True)
         
-        logger.info(f"Creating urban visualizations in: {output_path}")
+        logger.info(f"Creating enhanced urban visualizations in: {output_path}")
         
         try:
             # 1. Urban features overview
@@ -382,10 +404,10 @@ class UrbanSpatialAnalyzer:
                     except Exception as e:
                         logger.warning(f"Could not create urban overview visualization: {e}")
             
-            # 2. Statistical plots
+            # 2. Enhanced statistical plots
             try:
-                fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-                fig.suptitle('Urban Spatial Analysis Results', fontsize=14)
+                fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+                fig.suptitle('Enhanced Urban Spatial Analysis Results', fontsize=14)
                 
                 # Feature distribution
                 if self.urban_features:
@@ -395,16 +417,31 @@ class UrbanSpatialAnalyzer:
                                  autopct='%1.1f%%')
                     axes[0,0].set_title('Urban Feature Distribution')
                 
-                # Service coverage
-                if accessibility_results and 'coverage_statistics' in accessibility_results:
-                    coverage = accessibility_results['coverage_statistics']['served_percentage']
-                    underserved = 100 - coverage
+                # Service coverage comparison
+                if accessibility_results:
+                    services = list(accessibility_results.keys())
+                    coverages = [accessibility_results[s]['accessibility'].get_coverage_percentage() 
+                               for s in services]
                     
-                    axes[0,1].bar(['Served', 'Underserved'], [coverage, underserved], 
-                                 color=['green', 'red'])
-                    axes[0,1].set_ylabel('Percentage (%)')
-                    axes[0,1].set_title(f'{accessibility_results["service_type"].title()} Coverage')
+                    bars = axes[0,1].bar(services, coverages, color=['green', 'blue', 'orange', 'purple'])
+                    axes[0,1].set_ylabel('Coverage Percentage (%)')
+                    axes[0,1].set_title('Service Coverage Comparison')
                     axes[0,1].set_ylim(0, 100)
+                    axes[0,1].tick_params(axis='x', rotation=45)
+                    
+                    # Add coverage threshold line
+                    axes[0,1].axhline(y=80, color='red', linestyle='--', alpha=0.7, label='Target: 80%')
+                    axes[0,1].legend()
+                
+                # Equity scores
+                if 'equity_analysis' in comparative_analysis:
+                    equity_services = list(comparative_analysis['equity_analysis'].keys())
+                    equity_scores = list(comparative_analysis['equity_analysis'].values())
+                    
+                    axes[0,2].barh(equity_services, equity_scores, color='teal')
+                    axes[0,2].set_xlabel('Equity Score')
+                    axes[0,2].set_title('Spatial Equity Analysis')
+                    axes[0,2].set_xlim(0, 1)
                 
                 # Network properties
                 if 'network_properties' in integration_results:
@@ -417,40 +454,57 @@ class UrbanSpatialAnalyzer:
                         axes[1,0].set_ylabel('Value')
                         axes[1,0].set_title('Network Properties')
                 
-                # Integration scores
-                if 'feature_integration' in integration_results:
-                    features = list(integration_results['feature_integration'].keys())
-                    scores = [integration_results['feature_integration'][f].get('integration_score', 0) 
-                             for f in features]
+                # Service gaps analysis
+                if accessibility_results:
+                    gap_counts = [len(result['service_gaps']) for result in accessibility_results.values()]
+                    services = list(accessibility_results.keys())
                     
-                    if features and scores:
-                        axes[1,1].barh(range(len(features)), scores, color='orange')
-                        axes[1,1].set_xlabel('Integration Score')
-                        axes[1,1].set_title('Feature Integration')
-                        axes[1,1].set_yticks(range(len(features)))
-                        axes[1,1].set_yticklabels([f.replace('_', ' ').title() for f in features])
+                    bars = axes[1,1].bar(services, gap_counts, color='red', alpha=0.7)
+                    axes[1,1].set_ylabel('Number of Service Gaps')
+                    axes[1,1].set_title('Service Gap Distribution')
+                    axes[1,1].tick_params(axis='x', rotation=45)
+                
+                # Summary statistics
+                summary_text = []
+                if 'best_service' in comparative_analysis:
+                    summary_text.append(f"Best Coverage: {comparative_analysis['best_service']}")
+                if 'worst_service' in comparative_analysis:
+                    summary_text.append(f"Needs Improvement: {comparative_analysis['worst_service']}")
+                if 'average_coverage' in comparative_analysis:
+                    summary_text.append(f"Average Coverage: {comparative_analysis['average_coverage']:.1f}%")
+                if 'total_service_gaps' in comparative_analysis:
+                    summary_text.append(f"Total Service Gaps: {comparative_analysis['total_service_gaps']}")
+                if 'critical_gaps' in comparative_analysis:
+                    summary_text.append(f"Critical Gaps: {len(comparative_analysis['critical_gaps'])}")
+                
+                for i, text in enumerate(summary_text):
+                    axes[1,2].text(0.1, 0.9 - i*0.15, text, transform=axes[1,2].transAxes, 
+                                  fontsize=11, bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
+                
+                axes[1,2].set_title('Analysis Summary')
+                axes[1,2].axis('off')
                 
                 plt.tight_layout()
-                plt.savefig(output_path / "urban_analysis.png", dpi=300, bbox_inches='tight')
+                plt.savefig(output_path / "enhanced_urban_analysis.png", dpi=300, bbox_inches='tight')
                 plt.close()
                 
             except Exception as e:
                 logger.warning(f"Could not create matplotlib plots: {e}")
             
-            logger.info("Urban visualizations completed")
+            logger.info("Enhanced urban visualizations completed")
             
         except Exception as e:
             logger.error(f"Visualization creation failed: {e}")
 
 
 def main():
-    """Main urban analysis research workflow"""
-    logger.info("Starting Urban Spatial Analysis Research Tutorial")
+    """Main urban analysis research workflow using new advanced analysis API"""
+    logger.info("Starting Enhanced Urban Spatial Analysis Research Tutorial")
     
     try:
-        # Configuration - ensure integer dimensions
+        # Configuration
         config = UrbanAnalysisConfig(
-            city_bounds=(3000, 2500),  # Changed to integers
+            city_bounds=(3000, 2500),
             walking_distance=600.0,
             service_standards={
                 "school": 400.0,
@@ -475,38 +529,61 @@ def main():
         
         urban_features = analyzer.generate_urban_features(feature_counts)
         
-        # Analyze service accessibility
-        logger.info("Analyzing service accessibility...")
-        school_accessibility = analyzer.analyze_service_accessibility("school")
-        hospital_accessibility = analyzer.analyze_service_accessibility("hospital")
-        park_accessibility = analyzer.analyze_service_accessibility("park")
+        # Analyze service accessibility with new API
+        logger.info("Analyzing service accessibility with advanced API...")
+        accessibility_results = analyzer.analyze_accessibility_with_new_api(
+            ["school", "hospital", "park", "transit_stop"]
+        )
         
         # Analyze network integration
         logger.info("Analyzing network integration...")
         integration_results = analyzer.analyze_network_integration()
         
-        # Create visualizations
-        logger.info("Creating urban analysis visualizations...")
+        # Perform comparative analysis
+        logger.info("Performing comparative analysis...")
+        comparative_analysis = analyzer.perform_comparative_analysis(accessibility_results)
+        
+        # Create enhanced visualizations
+        logger.info("Creating enhanced urban analysis visualizations...")
         analyzer.create_urban_visualizations(
-            school_accessibility,
+            accessibility_results,
             integration_results,
+            comparative_analysis,
             "urban_analysis_outputs"
         )
         
-        # Print summary
+        # Enhanced summary with new API results
         print("\n" + "="*60)
-        print("URBAN SPATIAL ANALYSIS COMPLETE")
+        print("ENHANCED URBAN SPATIAL ANALYSIS COMPLETE")
         print("="*60)
         print(f"🏙️  Analyzed {sum(feature_counts.values())} urban features")
-        print(f"🏫 School accessibility: {school_accessibility.get('coverage_statistics', {}).get('served_percentage', 0):.1f}% coverage")
-        print(f"🏥 Hospital accessibility: {hospital_accessibility.get('coverage_statistics', {}).get('served_percentage', 0):.1f}% coverage")
-        print(f"🌳 Park accessibility: {park_accessibility.get('coverage_statistics', {}).get('served_percentage', 0):.1f}% coverage")
+        
+        for service_type, result in accessibility_results.items():
+            coverage = result['accessibility'].get_coverage_percentage()
+            equity = result['accessibility'].get_equity_score()
+            gaps = len(result['service_gaps'])
+            print(f"🏢 {service_type.title()}: {coverage:.1f}% coverage, equity={equity:.3f}, {gaps} gaps")
         
         if integration_results and 'network_properties' in integration_results:
             walking_density = integration_results['network_properties'].get('walking', {}).get('density', 0)
             print(f"🚶 Walking network density: {walking_density:.4f}")
         
-        print(f"🎨 Visualizations in: urban_analysis_outputs/")
+        print(f"\n🔬 Advanced Analysis Results:")
+        if 'best_service' in comparative_analysis:
+            print(f"   ✅ Best service coverage: {comparative_analysis['best_service']}")
+        if 'worst_service' in comparative_analysis:
+            print(f"   ❌ Needs improvement: {comparative_analysis['worst_service']}")
+        if 'total_service_gaps' in comparative_analysis:
+            print(f"   🕳️  Total service gaps identified: {comparative_analysis['total_service_gaps']}")
+        if 'critical_gaps' in comparative_analysis:
+            print(f"   🚨 Critical gaps requiring intervention: {len(comparative_analysis['critical_gaps'])}")
+        
+        print(f"\n🎨 Enhanced visualizations in: urban_analysis_outputs/")
+        print("\n🔬 New Advanced Analysis Features:")
+        print("   - Automated service gap identification")
+        print("   - Spatial equity scoring")
+        print("   - Comparative accessibility analysis")
+        print("   - Critical gap prioritization")
         print("\nThis analysis provides evidence-based insights")
         print("for urban planning and spatial policy development!")
         

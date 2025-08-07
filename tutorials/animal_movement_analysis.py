@@ -14,9 +14,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 import logging
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 
-from graphizy import Graphing, GraphizyConfig, generate_and_format_positions
+from graphizy import (
+    Graphing, GraphizyConfig, generate_and_format_positions,
+    SocialNetworkAnalyzer, SocialRole
+)
 
 # Configure logging for research reproducibility
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -128,20 +131,24 @@ class AnimalBehaviorAnalyzer:
         logger.info(f"Generated trajectory with {len(trajectory)} timesteps")
         return trajectory
     
-    def analyze_proximity_networks(self, 
-                                 trajectory: List[np.ndarray],
-                                 proximity_threshold: float = 80.0) -> Dict:
+    def analyze_proximity_networks_with_new_api(self, 
+                                               trajectory: List[np.ndarray],
+                                               proximity_threshold: float = 80.0) -> Dict:
         """
-        Analyze social networks based on spatial proximity
+        Analyze social networks using the new advanced analysis API
         """
-        logger.info(f"Analyzing proximity networks with {proximity_threshold}m threshold")
+        logger.info(f"Analyzing proximity networks with new API, threshold: {proximity_threshold}m")
         
         results = {
             'timestep_graphs': [],
             'network_metrics': [],
-            'individual_centralities': {},
+            'temporal_social_roles': {},
+            'role_stability_scores': {},
             'group_cohesion': []
         }
+        
+        # Store graphs for temporal analysis
+        graph_sequence = []
         
         for timestep, positions in enumerate(trajectory):
             try:
@@ -158,7 +165,7 @@ class AnimalBehaviorAnalyzer:
                 except Exception as e:
                     logger.warning(f"Memory update failed at timestep {timestep}: {e}")
                 
-                # Analyze graph properties using the correct API
+                # Analyze graph properties using new API
                 graph_info = self.grapher.get_graph_info(graph)
                 
                 # Calculate behavioral metrics using proper GraphAnalysisResult properties
@@ -184,32 +191,9 @@ class AnimalBehaviorAnalyzer:
                 else:
                     metrics['mean_degree'] = 0.0
                 
-                # Individual centrality measures
-                if graph.vcount() > 0:
-                    try:
-                        betweenness = graph.betweenness()
-                        closeness = graph.closeness()
-                        degree = graph.degree()
-                        
-                        # Store individual metrics
-                        for i, vertex in enumerate(graph.vs):
-                            # Get animal ID from vertex attributes
-                            animal_id = vertex["id"] if "id" in vertex.attributes() else i
-                            
-                            if animal_id not in results['individual_centralities']:
-                                results['individual_centralities'][animal_id] = {
-                                    'betweenness': [], 'closeness': [], 'degree': []
-                                }
-                            
-                            results['individual_centralities'][animal_id]['betweenness'].append(betweenness[i])
-                            results['individual_centralities'][animal_id]['closeness'].append(closeness[i])
-                            results['individual_centralities'][animal_id]['degree'].append(degree[i])
-                    
-                    except Exception as e:
-                        logger.warning(f"Centrality calculation failed at timestep {timestep}: {e}")
-                
                 results['timestep_graphs'].append(graph)
                 results['network_metrics'].append(metrics)
+                graph_sequence.append(graph)
                 
                 # Group cohesion based on spatial clustering
                 if len(positions) > 1:
@@ -241,69 +225,96 @@ class AnimalBehaviorAnalyzer:
                 })
                 continue
         
+        # Perform temporal social role analysis using new API
+        if graph_sequence:
+            try:
+                # Get social analyzer from first valid graph
+                first_graph = next(g for g in graph_sequence if g.vcount() > 0)
+                if first_graph:
+                    first_graph_info = self.grapher.get_graph_info(first_graph)
+                    social_analyzer = first_graph_info.social_analyzer
+                    
+                    # Track temporal roles
+                    results['temporal_social_roles'] = social_analyzer.track_temporal_roles(graph_sequence)
+                    
+                    # Calculate role stability
+                    results['role_stability_scores'] = social_analyzer.get_role_stability(
+                        results['temporal_social_roles']
+                    )
+                    
+                    logger.info(f"Temporal social role analysis complete for {len(results['temporal_social_roles'])} individuals")
+            
+            except Exception as e:
+                logger.warning(f"Temporal social role analysis failed: {e}")
+        
         logger.info(f"Completed proximity network analysis for {len(results['network_metrics'])} timesteps")
         return results
     
-    def identify_social_roles(self, results: Dict) -> Dict:
+    def get_social_insights(self, results: Dict) -> Dict[str, Any]:
         """
-        Identify social roles based on network position
+        Extract behavioral insights from social network analysis
         """
-        logger.info("Identifying social roles from network centrality measures")
+        insights = {
+            'consistent_bridges': [],
+            'consistent_hubs': [],
+            'stable_individuals': [],
+            'dynamic_individuals': [],
+            'leadership_patterns': {}
+        }
         
-        social_roles = {}
-        centralities = results['individual_centralities']
+        if not results['temporal_social_roles']:
+            return insights
         
-        if not centralities:
-            logger.warning("No centrality data available for role identification")
-            return social_roles
-        
-        # Calculate average centrality measures for each individual
-        individual_stats = {}
-        for animal_id, measures in centralities.items():
-            individual_stats[animal_id] = {
-                'avg_betweenness': np.mean(measures['betweenness']) if measures['betweenness'] else 0,
-                'avg_closeness': np.mean(measures['closeness']) if measures['closeness'] else 0,
-                'avg_degree': np.mean(measures['degree']) if measures['degree'] else 0
-            }
-        
-        # Calculate thresholds (top 20% for each measure)
-        all_betweenness = [stats['avg_betweenness'] for stats in individual_stats.values()]
-        all_degree = [stats['avg_degree'] for stats in individual_stats.values()]
-        
-        betweenness_threshold = np.percentile(all_betweenness, 80) if all_betweenness else 0
-        degree_threshold = np.percentile(all_degree, 80) if all_degree else 0
-        
-        # Assign roles based on centrality patterns
-        for animal_id, stats in individual_stats.items():
-            roles = []
+        # Analyze role consistency
+        for animal_id, temporal_data in results['temporal_social_roles'].items():
+            roles_over_time = temporal_data['roles']
             
-            # Bridge/Broker: High betweenness centrality
-            if stats['avg_betweenness'] >= betweenness_threshold:
-                roles.append('bridge')
+            # Check for consistent roles
+            bridge_count = sum(1 for roles in roles_over_time if 'bridge' in roles)
+            hub_count = sum(1 for roles in roles_over_time if 'hub' in roles)
             
-            # Hub/Popular: High degree centrality  
-            if stats['avg_degree'] >= degree_threshold:
-                roles.append('hub')
+            bridge_consistency = bridge_count / len(roles_over_time)
+            hub_consistency = hub_count / len(roles_over_time)
             
-            # Peripheral: Low on all measures
-            if (stats['avg_betweenness'] < np.percentile(all_betweenness, 20) and
-                stats['avg_degree'] < np.percentile(all_degree, 20)):
-                roles.append('peripheral')
+            if bridge_consistency > 0.6:
+                insights['consistent_bridges'].append({
+                    'animal_id': animal_id,
+                    'consistency': bridge_consistency
+                })
             
-            social_roles[animal_id] = {
-                'roles': roles if roles else ['regular'],
-                'stats': stats
-            }
+            if hub_consistency > 0.6:
+                insights['consistent_hubs'].append({
+                    'animal_id': animal_id,
+                    'consistency': hub_consistency
+                })
+            
+            # Stability analysis
+            stability = results['role_stability_scores'].get(animal_id, 0.0)
+            if stability > 0.8:
+                insights['stable_individuals'].append({
+                    'animal_id': animal_id,
+                    'stability': stability
+                })
+            elif stability < 0.5:
+                insights['dynamic_individuals'].append({
+                    'animal_id': animal_id,
+                    'stability': stability
+                })
         
-        logger.info(f"Identified social roles for {len(social_roles)} individuals")
-        return social_roles
+        # Sort by consistency/stability
+        insights['consistent_bridges'].sort(key=lambda x: x['consistency'], reverse=True)
+        insights['consistent_hubs'].sort(key=lambda x: x['consistency'], reverse=True)
+        insights['stable_individuals'].sort(key=lambda x: x['stability'], reverse=True)
+        insights['dynamic_individuals'].sort(key=lambda x: x['stability'])
+        
+        return insights
     
-    def create_visualizations(self, results: Dict, output_dir: str = "animal_behavior_outputs"):
-        """Create visualizations for the analysis"""
+    def create_visualizations(self, results: Dict, insights: Dict, output_dir: str = "animal_behavior_outputs"):
+        """Create enhanced visualizations using new analysis results"""
         output_path = Path(output_dir)
         output_path.mkdir(exist_ok=True)
         
-        logger.info(f"Creating visualizations in: {output_path}")
+        logger.info(f"Creating enhanced visualizations in: {output_path}")
         
         try:
             # 1. Network evolution over time (sample timesteps)
@@ -312,15 +323,15 @@ class AnimalBehaviorAnalyzer:
             for i, timestep in enumerate(sample_timesteps):
                 if timestep < len(results['timestep_graphs']):
                     graph = results['timestep_graphs'][timestep]
-                    if graph.vcount() > 0:  # Only draw if graph has vertices
+                    if graph.vcount() > 0:
                         image = self.grapher.draw_graph(graph)
                         self.grapher.save_graph(image, str(output_path / f"network_t{timestep:03d}.png"))
             
-            # 2. Plot temporal metrics if matplotlib is available
+            # 2. Enhanced plots with social role information
             if len(results['network_metrics']) > 1:
                 try:
-                    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-                    fig.suptitle('Animal Social Network Analysis', fontsize=14)
+                    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+                    fig.suptitle('Animal Social Network Analysis with Role Dynamics', fontsize=14)
                     
                     timesteps = [m['timestep'] for m in results['network_metrics']]
                     densities = [m['density'] for m in results['network_metrics']]
@@ -343,31 +354,78 @@ class AnimalBehaviorAnalyzer:
                     # Group cohesion
                     if results['group_cohesion']:
                         cohesion_distances = [gc['mean_distance'] for gc in results['group_cohesion']]
-                        axes[1,0].plot(timesteps[:len(cohesion_distances)], cohesion_distances, 'm-', linewidth=2)
-                        axes[1,0].set_title('Group Cohesion')
-                        axes[1,0].set_xlabel('Timestep')
-                        axes[1,0].set_ylabel('Mean Distance')
+                        axes[0,2].plot(timesteps[:len(cohesion_distances)], cohesion_distances, 'm-', linewidth=2)
+                        axes[0,2].set_title('Group Cohesion')
+                        axes[0,2].set_xlabel('Timestep')
+                        axes[0,2].set_ylabel('Mean Distance')
+                        axes[0,2].grid(True, alpha=0.3)
+                    
+                    # Role consistency analysis
+                    if insights['consistent_bridges'] or insights['consistent_hubs']:
+                        bridge_ids = [b['animal_id'] for b in insights['consistent_bridges'][:5]]
+                        bridge_consistencies = [b['consistency'] for b in insights['consistent_bridges'][:5]]
+                        
+                        hub_ids = [h['animal_id'] for h in insights['consistent_hubs'][:5]]
+                        hub_consistencies = [h['consistency'] for h in insights['consistent_hubs'][:5]]
+                        
+                        x_pos = np.arange(max(len(bridge_ids), len(hub_ids)))
+                        
+                        if bridge_ids:
+                            axes[1,0].bar(x_pos[:len(bridge_ids)] - 0.2, bridge_consistencies, 
+                                         width=0.4, label='Bridges', color='orange')
+                        if hub_ids:
+                            axes[1,0].bar(x_pos[:len(hub_ids)] + 0.2, hub_consistencies, 
+                                         width=0.4, label='Hubs', color='purple')
+                        
+                        axes[1,0].set_title('Role Consistency')
+                        axes[1,0].set_xlabel('Individual Rank')
+                        axes[1,0].set_ylabel('Consistency Score')
+                        axes[1,0].legend()
                         axes[1,0].grid(True, alpha=0.3)
                     
-                    # Clear unused subplot
-                    axes[1,1].axis('off')
+                    # Stability scores
+                    if results['role_stability_scores']:
+                        stability_values = list(results['role_stability_scores'].values())
+                        axes[1,1].hist(stability_values, bins=10, alpha=0.7, color='green')
+                        axes[1,1].set_title('Role Stability Distribution')
+                        axes[1,1].set_xlabel('Stability Score')
+                        axes[1,1].set_ylabel('Number of Individuals')
+                        axes[1,1].grid(True, alpha=0.3)
+                    
+                    # Summary statistics
+                    axes[1,2].text(0.1, 0.9, f"Consistent Bridges: {len(insights['consistent_bridges'])}", 
+                                  transform=axes[1,2].transAxes, fontsize=12)
+                    axes[1,2].text(0.1, 0.8, f"Consistent Hubs: {len(insights['consistent_hubs'])}", 
+                                  transform=axes[1,2].transAxes, fontsize=12)
+                    axes[1,2].text(0.1, 0.7, f"Stable Individuals: {len(insights['stable_individuals'])}", 
+                                  transform=axes[1,2].transAxes, fontsize=12)
+                    axes[1,2].text(0.1, 0.6, f"Dynamic Individuals: {len(insights['dynamic_individuals'])}", 
+                                  transform=axes[1,2].transAxes, fontsize=12)
+                    
+                    if results['network_metrics']:
+                        avg_density = np.mean([m['density'] for m in results['network_metrics']])
+                        axes[1,2].text(0.1, 0.4, f"Avg Network Density: {avg_density:.3f}", 
+                                      transform=axes[1,2].transAxes, fontsize=12)
+                    
+                    axes[1,2].set_title('Analysis Summary')
+                    axes[1,2].axis('off')
                     
                     plt.tight_layout()
-                    plt.savefig(output_path / "temporal_analysis.png", dpi=150, bbox_inches='tight')
+                    plt.savefig(output_path / "enhanced_temporal_analysis.png", dpi=150, bbox_inches='tight')
                     plt.close()
                     
                 except Exception as e:
                     logger.warning(f"Could not create matplotlib plots: {e}")
             
-            logger.info("Visualizations completed")
+            logger.info("Enhanced visualizations completed")
             
         except Exception as e:
             logger.error(f"Visualization creation failed: {e}")
 
 
 def main():
-    """Main research workflow demonstrating animal behavior analysis"""
-    logger.info("Starting Animal Behavior Analysis Research Tutorial")
+    """Main research workflow demonstrating enhanced animal behavior analysis"""
+    logger.info("Starting Enhanced Animal Behavior Analysis Research Tutorial")
     
     try:
         # Initialize analyzer
@@ -376,43 +434,50 @@ def main():
         # Simulate realistic animal movement
         logger.info("Simulating herd movement patterns...")
         trajectory = analyzer.simulate_herd_movement(
-            num_animals=20,  # Reduced for stability
-            num_timesteps=30,  # Reduced for speed
+            num_animals=20,
+            num_timesteps=30,
             cohesion_strength=0.25,
             exploration_rate=0.08
         )
         
-        # Analyze proximity-based social networks
-        logger.info("Analyzing proximity-based social networks...")
-        network_results = analyzer.analyze_proximity_networks(
+        # Analyze proximity-based social networks with new API
+        logger.info("Analyzing proximity-based social networks with advanced API...")
+        network_results = analyzer.analyze_proximity_networks_with_new_api(
             trajectory, 
             proximity_threshold=120.0
         )
         
-        # Identify social roles
-        logger.info("Identifying individual social roles...")
-        social_roles = analyzer.identify_social_roles(network_results)
+        # Extract behavioral insights
+        logger.info("Extracting behavioral insights...")
+        social_insights = analyzer.get_social_insights(network_results)
         
-        # Create visualizations
-        logger.info("Creating research visualizations...")
-        analyzer.create_visualizations(network_results, "animal_behavior_outputs")
+        # Create enhanced visualizations
+        logger.info("Creating enhanced research visualizations...")
+        analyzer.create_visualizations(network_results, social_insights, "animal_behavior_outputs")
         
-        # Print summary
+        # Enhanced summary with new API results
         print("\n" + "="*60)
-        print("ANIMAL BEHAVIOR ANALYSIS COMPLETE")
+        print("ENHANCED ANIMAL BEHAVIOR ANALYSIS COMPLETE")
         print("="*60)
         print(f"📊 Analyzed {len(trajectory)} timesteps")
-        print(f"🐾 Tracked {len(social_roles)} individual animals")
-        print(f"🔗 Identified {len([r for r in social_roles.values() if 'bridge' in r['roles']])} social bridges")
-        print(f"⭐ Found {len([r for r in social_roles.values() if 'hub' in r['roles']])} hub individuals")
+        print(f"🐾 Tracked {len(network_results['temporal_social_roles'])} individual animals")
+        print(f"🔗 Identified {len(social_insights['consistent_bridges'])} consistent social bridges")
+        print(f"⭐ Found {len(social_insights['consistent_hubs'])} consistent hub individuals")
+        print(f"🎯 Detected {len(social_insights['stable_individuals'])} stable social roles")
+        print(f"🔄 Identified {len(social_insights['dynamic_individuals'])} dynamic individuals")
         
         if network_results['network_metrics']:
             avg_density = np.mean([m['density'] for m in network_results['network_metrics']])
             print(f"📈 Average network density: {avg_density:.3f}")
         
-        print(f"🎨 Visualizations saved to: animal_behavior_outputs/")
-        print("\nThis analysis demonstrates how Graphizy enables")
-        print("comprehensive behavioral ecology research!")
+        print(f"🎨 Enhanced visualizations saved to: animal_behavior_outputs/")
+        print("\n🔬 New Advanced Analysis Features:")
+        print("   - Temporal social role tracking")
+        print("   - Role stability analysis")
+        print("   - Behavioral consistency metrics")
+        print("   - Leadership pattern detection")
+        print("\nThis analysis demonstrates how Graphizy's advanced API")
+        print("enables comprehensive behavioral ecology research!")
         
     except Exception as e:
         logger.error(f"Tutorial failed: {e}")

@@ -26,6 +26,10 @@ from graphizy.drawing import (
     draw_point, draw_line, draw_delaunay, show_graph, save_graph,
     draw_memory_graph_with_aging, create_memory_graph_image
 )
+from graphizy.analysis import (
+    GraphAnalysisResult, PercolationAnalyzer, SocialNetworkAnalyzer, AccessibilityAnalyzer,
+    PercolationResult, SocialRole, AccessibilityResult
+)
 from graphizy.exceptions import (
     GraphizyError, InvalidDimensionError, InvalidDataShapeError,
     InvalidAspectError, InvalidPointArrayError, SubdivisionError,
@@ -49,7 +53,7 @@ __author__ = "Charles Fosseprez"
 __email__ = "charles.fosseprez.pro@gmail.com"
 __license__ = "GPL2 or later"
 
-__version__ = "0.1.19"
+__version__ = "0.1.18"
 
 __all__ = [
     # Main class
@@ -98,6 +102,15 @@ __all__ = [
     "save_graph",
     "draw_memory_graph_with_aging",
     "create_memory_graph_image",
+
+    # Analysis classes and results
+    "GraphAnalysisResult",
+    "PercolationAnalyzer", 
+    "SocialNetworkAnalyzer",
+    "AccessibilityAnalyzer",
+    "PercolationResult",
+    "SocialRole",
+    "AccessibilityResult",
 
     # Exceptions
     "GraphizyError",

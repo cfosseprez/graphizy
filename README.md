@@ -20,6 +20,22 @@
 
 ## ✨ Key Features
 
+ 
+ 📖 **[Full Documentation](https://graphizy.readthedocs.io/en/latest/)**
+ 
+ ## ✨ Key Features
+ 
+ *   **Create Spatial Graphs Instantly**: A single, intuitive API (`make_graph`) to create multiple geometric graphs (Delaunay, Proximity, k-NN, MST, Gabriel). No more boilerplate code.
+ 
+ *   **Analyze Network Topology in Real-Time**: Get immediate insights with a powerful, lazy-loading analysis object. Full `igraph` backend for 200+ algorithms, with robust methods that handle complex, real-world data gracefully. NetworkX compatibility for less time constrained analysis.
+ 
+ *   **Track Network Evolution with Memory**: Go beyond static snapshots. The built-in memory system tracks how connections persist or change over time, perfect for analyzing dynamic systems and information transmission.
+ 
+ *   **Customize with Weights & Plugins**: Define custom edge weights using simple formulas or functions. Extend `graphizy` with your own graph algorithms using the simple plugin system.
+ 
+ *   **Visualize and Interact**: Generate clean visualizations of your graphs, including age-based coloring for temporal networks. Save images or display them in real-time.
+
+
 ### 🔄 **Unified Graph Creation Interface**
 - **Modern API**: Single `make_graph()` method for all graph types
 - **Plugin System**: Easily add custom graph algorithms 

@@ -30,7 +30,8 @@ from typing import Dict, List, Tuple, Optional, Union
 from dataclasses import dataclass
 
 from graphizy import (
-    Graphing, GraphizyConfig, generate_and_format_positions
+    Graphing, GraphizyConfig, generate_and_format_positions,
+    PercolationAnalyzer, PercolationResult
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ParticleSystemConfig:
     """Configuration for particle system simulations"""
-    box_size: Tuple[int, int] = (1000, 1000)  # Changed to int
+    box_size: Tuple[int, int] = (1000, 1000)
     num_particles: int = 500
     interaction_range: float = 50.0
     temperature: float = 1.0
@@ -63,7 +64,7 @@ class ParticleSystemAnalyzer:
     def __init__(self, config: ParticleSystemConfig):
         self.config = config
         
-        # Setup Graphizy for particle analysis - ensure integers for dimensions
+        # Setup Graphizy for particle analysis
         graphizy_config = GraphizyConfig(dimension=config.box_size)
         
         self.grapher = Graphing(config=graphizy_config)
@@ -74,8 +75,8 @@ class ParticleSystemAnalyzer:
                 drawing={
                     "point_color": (100, 255, 100),    # Green for particles
                     "line_color": (255, 200, 100),     # Orange for interactions
-                    "point_radius": 6,                 # Ensure integer
-                    "line_thickness": 1                # Ensure integer
+                    "point_radius": 6,
+                    "line_thickness": 1
                 }
             )
         except Exception as e:
@@ -138,74 +139,29 @@ class ParticleSystemAnalyzer:
         
         return np.array(positions)
     
-    def analyze_percolation(self, positions: np.ndarray, interaction_ranges: List[float]) -> Dict:
+    def analyze_percolation_with_new_api(self, positions: np.ndarray, 
+                                        interaction_ranges: List[float]) -> PercolationResult:
         """
-        Analyze percolation behavior as a function of interaction range
-        
-        Args:
-            positions: Particle positions
-            interaction_ranges: List of interaction ranges to test
-            
-        Returns:
-            Dictionary with percolation analysis results
+        Analyze percolation using the new advanced analysis API
         """
-        logger.info(f"Analyzing percolation for {len(interaction_ranges)} interaction ranges")
+        logger.info(f"Analyzing percolation with new API for {len(interaction_ranges)} ranges")
         
-        results = {
-            'interaction_ranges': interaction_ranges,
-            'largest_cluster_sizes': [],
-            'total_clusters': [],
-            'percolation_probabilities': [],
-            'critical_range': None
-        }
+        # Get the percolation analyzer from any graph analysis result
+        sample_graph = self.grapher.make_graph("proximity", positions, proximity_thresh=interaction_ranges[0])
+        graph_info = self.grapher.get_graph_info(sample_graph)
         
-        for interaction_range in interaction_ranges:
-            try:
-                # Create proximity graph
-                graph = self.grapher.make_graph("proximity", positions, proximity_thresh=interaction_range)
-                
-                if graph.vcount() > 0:
-                    # Find connected components (clusters)
-                    clusters = graph.connected_components()
-                    cluster_sizes = [len(cluster) for cluster in clusters]
-                    
-                    largest_cluster = max(cluster_sizes) if cluster_sizes else 0
-                    results['largest_cluster_sizes'].append(largest_cluster)
-                    results['total_clusters'].append(len(cluster_sizes))
-                    
-                    # Percolation probability
-                    percolation_prob = largest_cluster / len(positions)
-                    results['percolation_probabilities'].append(percolation_prob)
-                else:
-                    results['largest_cluster_sizes'].append(0)
-                    results['total_clusters'].append(0)
-                    results['percolation_probabilities'].append(0)
-                    
-            except Exception as e:
-                logger.warning(f"Percolation analysis failed for range {interaction_range}: {e}")
-                results['largest_cluster_sizes'].append(0)
-                results['total_clusters'].append(0)
-                results['percolation_probabilities'].append(0)
+        # Use the new percolation analyzer
+        percolation_result = graph_info.percolation_analyzer.analyze_percolation_threshold(
+            positions, interaction_ranges
+        )
         
-        # Estimate critical threshold
-        results['critical_range'] = self._estimate_critical_threshold(results)
+        # Analyze phase transition characteristics
+        phase_transition = graph_info.percolation_analyzer.detect_phase_transition(percolation_result)
         
-        logger.info(f"Percolation analysis complete. Critical range ≈ {results['critical_range']:.2f}")
-        return results
-    
-    def _estimate_critical_threshold(self, percolation_results: Dict) -> float:
-        """Estimate critical percolation threshold"""
-        probs = percolation_results['percolation_probabilities']
-        ranges = percolation_results['interaction_ranges']
+        logger.info(f"Percolation analysis complete. Critical range: {percolation_result.critical_range:.2f}")
+        logger.info(f"Phase transition detected: {phase_transition['has_transition']}")
         
-        if not probs or max(probs) < 0.1:
-            return ranges[-1] if ranges else 0
-        
-        # Find steepest increase in percolation probability
-        derivatives = np.gradient(probs, ranges)
-        critical_idx = np.argmax(derivatives)
-        
-        return ranges[critical_idx]
+        return percolation_result, phase_transition
     
     def analyze_clustering_dynamics(self, positions: np.ndarray, timesteps: int = 30) -> Dict:
         """Analyze temporal clustering dynamics through network evolution"""
@@ -241,7 +197,7 @@ class ParticleSystemAnalyzer:
                     results['cluster_counts'].append(len(cluster_sizes))
                     results['largest_cluster_evolution'].append(max(cluster_sizes) if cluster_sizes else 0)
                     
-                    # Network density - fixed API call
+                    # Network density - using new API
                     graph_info = self.grapher.get_graph_info(graph)
                     results['network_density_evolution'].append(graph_info.density)
                 
@@ -264,7 +220,8 @@ class ParticleSystemAnalyzer:
     
     def create_visualizations(self, 
                             positions: np.ndarray,
-                            percolation_results: Dict,
+                            percolation_result: PercolationResult,
+                            phase_transition: Dict,
                             clustering_results: Dict,
                             output_dir: str = "particle_physics_outputs"):
         """Create comprehensive visualizations for physics analysis"""
@@ -276,36 +233,38 @@ class ParticleSystemAnalyzer:
         
         try:
             # 1. Percolation visualization at critical point
-            critical_range = percolation_results['critical_range']
+            critical_range = percolation_result.critical_range
             if critical_range is not None and critical_range > 0:
                 try:
                     critical_graph = self.grapher.make_graph("proximity", positions, proximity_thresh=critical_range)
-                    if critical_graph.vcount() > 0:  # Only draw if graph has vertices
+                    if critical_graph.vcount() > 0:
                         critical_image = self.grapher.draw_graph(critical_graph)
                         self.grapher.save_graph(critical_image, str(output_path / "percolation_critical.png"))
                 except Exception as e:
                     logger.warning(f"Could not create critical percolation visualization: {e}")
             
-            # 2. Additional network visualizations at different scales
+            # 2. Network visualizations at different scales
             try:
-                # Small range network
-                small_range = percolation_results['interaction_ranges'][2] if len(percolation_results['interaction_ranges']) > 2 else 20.0
-                small_graph = self.grapher.make_graph("proximity", positions, proximity_thresh=small_range)
-                if small_graph.vcount() > 0:
-                    small_image = self.grapher.draw_graph(small_graph)
-                    self.grapher.save_graph(small_image, str(output_path / "network_small_range.png"))
-                
-                # Large range network
-                large_range = percolation_results['interaction_ranges'][-3] if len(percolation_results['interaction_ranges']) > 2 else 40.0
-                large_graph = self.grapher.make_graph("proximity", positions, proximity_thresh=large_range)
-                if large_graph.vcount() > 0:
-                    large_image = self.grapher.draw_graph(large_graph)
-                    self.grapher.save_graph(large_image, str(output_path / "network_large_range.png"))
+                ranges = percolation_result.interaction_ranges
+                if len(ranges) >= 3:
+                    # Small range network
+                    small_range = ranges[2]
+                    small_graph = self.grapher.make_graph("proximity", positions, proximity_thresh=small_range)
+                    if small_graph.vcount() > 0:
+                        small_image = self.grapher.draw_graph(small_graph)
+                        self.grapher.save_graph(small_image, str(output_path / "network_small_range.png"))
                     
+                    # Large range network
+                    large_range = ranges[-3]
+                    large_graph = self.grapher.make_graph("proximity", positions, proximity_thresh=large_range)
+                    if large_graph.vcount() > 0:
+                        large_image = self.grapher.draw_graph(large_graph)
+                        self.grapher.save_graph(large_image, str(output_path / "network_large_range.png"))
+                        
             except Exception as e:
                 logger.warning(f"Could not create additional network visualizations: {e}")
             
-            # 3. Clustering evolution plots
+            # 3. Enhanced plots with phase transition information
             if clustering_results['timesteps'] and len(clustering_results['timesteps']) > 1:
                 try:
                     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
@@ -334,16 +293,30 @@ class ParticleSystemAnalyzer:
                     axes[1,0].set_ylabel('Network Density')
                     axes[1,0].grid(True, alpha=0.3)
                     
-                    # Percolation probability
-                    axes[1,1].plot(percolation_results['interaction_ranges'], 
-                                  percolation_results['percolation_probabilities'], 'mo-', linewidth=2)
+                    # Enhanced percolation plot with phase transition info
+                    axes[1,1].plot(percolation_result.interaction_ranges, 
+                                  percolation_result.percolation_probabilities, 'mo-', linewidth=2)
+                    
                     if critical_range is not None:
                         axes[1,1].axvline(critical_range, color='red', linestyle='--', 
                                          label=f'Critical = {critical_range:.2f}')
-                        axes[1,1].legend()
-                    axes[1,1].set_title('Percolation Probability')
+                    
+                    # Add phase transition information
+                    if phase_transition['has_transition']:
+                        transition_range = phase_transition['transition_range']
+                        axes[1,1].axvline(transition_range, color='orange', linestyle=':', 
+                                         label=f'Transition = {transition_range:.2f}')
+                        
+                        # Add sharpness annotation
+                        sharpness = phase_transition['transition_sharpness']
+                        axes[1,1].text(0.05, 0.95, f'Transition sharpness: {sharpness:.3f}', 
+                                      transform=axes[1,1].transAxes, fontsize=10,
+                                      bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+                    
+                    axes[1,1].set_title('Percolation Probability & Phase Transition')
                     axes[1,1].set_xlabel('Interaction Range')
                     axes[1,1].set_ylabel('P(percolation)')
+                    axes[1,1].legend()
                     axes[1,1].grid(True, alpha=0.3)
                     
                     plt.tight_layout()
@@ -360,13 +333,13 @@ class ParticleSystemAnalyzer:
 
 
 def main():
-    """Main physics research workflow"""
+    """Main physics research workflow using new advanced analysis API"""
     logger.info("Starting Particle Physics Analysis Research Tutorial")
     
     try:
-        # System configuration - ensure integer dimensions
+        # System configuration
         config = ParticleSystemConfig(
-            box_size=(600, 600),  # Changed to integers
+            box_size=(600, 600),
             num_particles=150,
             interaction_range=35.0,
             boundary_conditions="periodic"
@@ -378,32 +351,45 @@ def main():
         logger.info("Generating particle configuration...")
         positions = analyzer.generate_particle_configuration("clustered")
         
-        # Percolation analysis
-        logger.info("Analyzing percolation behavior...")
+        # Percolation analysis using new API
+        logger.info("Analyzing percolation behavior with advanced API...")
         interaction_ranges = np.linspace(15, 60, 10)
-        percolation_results = analyzer.analyze_percolation(positions, interaction_ranges)
+        percolation_result, phase_transition = analyzer.analyze_percolation_with_new_api(
+            positions, interaction_ranges
+        )
         
         # Clustering dynamics
         logger.info("Analyzing clustering dynamics...")
         clustering_results = analyzer.analyze_clustering_dynamics(positions, timesteps=25)
         
-        # Create visualizations
+        # Create enhanced visualizations
         logger.info("Creating physics visualizations...")
         analyzer.create_visualizations(
-            positions, percolation_results, clustering_results, "particle_physics_outputs"
+            positions, percolation_result, phase_transition, clustering_results, 
+            "particle_physics_outputs"
         )
         
-        # Print summary
+        # Enhanced summary with new API results
         print("\n" + "="*60)
         print("PARTICLE PHYSICS ANALYSIS COMPLETE")
         print("="*60)
         print(f"⚛️  Analyzed {config.num_particles} particles")
-        print(f"🌐 Critical percolation range: {percolation_results['critical_range']:.2f}")
-        print(f"📊 Max cluster size: {max(percolation_results['largest_cluster_sizes'])}")
+        print(f"🌐 Critical percolation range: {percolation_result.critical_range:.2f}")
+        print(f"📊 Max cluster size: {max(percolation_result.largest_cluster_sizes)}")
+        print(f"🔄 Phase transition detected: {phase_transition['has_transition']}")
+        
+        if phase_transition['has_transition']:
+            print(f"📈 Transition sharpness: {phase_transition['transition_sharpness']:.3f}")
+            print(f"🎯 Transition range: {phase_transition['transition_range']:.2f}")
+        
         print(f"📈 Clustering timesteps: {len(clustering_results['timesteps'])}")
         print(f"🎨 Visualizations saved to: particle_physics_outputs/")
         print("\nThis analysis demonstrates network-based approaches")
         print("to computational physics and many-body systems!")
+        print("🔬 New advanced analysis API provides:")
+        print("   - Automated percolation threshold detection")
+        print("   - Phase transition characterization")
+        print("   - Enhanced visualization capabilities")
         
     except Exception as e:
         logger.error(f"Tutorial failed: {e}")

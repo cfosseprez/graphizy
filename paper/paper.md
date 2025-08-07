@@ -1,11 +1,12 @@
 ---
-title: 'Graphizy: A Python Package for Memory-Enhanced Spatial Graph Construction and Temporal Network Analysis'
+title: 'Graphizy: Memory-Enhanced Graph Construction for Computational Geometry and Temporal Network Analysis'
 tags:
   - Python
   - graph theory
   - computational geometry
   - spatial analysis
   - temporal networks
+  - Delaunay triangulation
   - network visualization
 authors:
   - name: Charles Fosseprez
@@ -14,9 +15,34 @@ authors:
 affiliations:
  - name: Independent Researcher
    index: 1
-date: 7 August 2025
+date: 28 July 2025
 bibliography: paper.bib
 ---
+
+# Graphizy: Memory-Enhanced Graph Construction for Computational Geometry and Temporal Network Analysis
+---
+title: 'Graphizy: Memory-Enhanced Graph Construction for Computational Geometry and Temporal Network Analysis'
+tags:
+  - Python
+  - graph theory
+  - computational geometry
+  - spatial analysis
+  - temporal networks
+  - Delaunay triangulation
+  - network visualization
+authors:
+  - name: Charles Fosseprez
+    orcid: 0009-0000-4524-0399 
+    affiliation: 1
+affiliations:
+ - name: Independent Researcher
+   index: 1
+date: 07 August 2025
+bibliography: paper.bib
+---
+
+# Graphizy: Memory-Enhanced Graph Construction for Computational Geometry and Temporal Network Analysis
+
 
 # Summary
 
