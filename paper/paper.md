@@ -19,7 +19,6 @@ date: 28 July 2025
 bibliography: paper.bib
 ---
 
-# Graphizy: Memory-Enhanced Graph Construction for Computational Geometry and Temporal Network Analysis
 ---
 title: 'Graphizy: Memory-Enhanced Graph Construction for Computational Geometry and Temporal Network Analysis'
 tags:
