@@ -18,23 +18,28 @@
 
 📖 **[Full Documentation](https://graphizy.readthedocs.io/en/latest/)**
 
-## ✨ Key Features
-
- 
- 📖 **[Full Documentation](https://graphizy.readthedocs.io/en/latest/)**
- 
  ## ✨ Key Features
  
- *   **Create Spatial Graphs Instantly**: A single, intuitive API (`make_graph`) to create multiple geometric graphs (Delaunay, Proximity, k-NN, MST, Gabriel). No more boilerplate code.
- 
- *   **Analyze Network Topology in Real-Time**: Get immediate insights with a powerful, lazy-loading analysis object. Full `igraph` backend for 200+ algorithms, with robust methods that handle complex, real-world data gracefully. NetworkX compatibility for less time constrained analysis.
- 
- *   **Track Network Evolution with Memory**: Go beyond static snapshots. The built-in memory system tracks how connections persist or change over time, perfect for analyzing dynamic systems and information transmission.
- 
- *   **Customize with Weights & Plugins**: Define custom edge weights using simple formulas or functions. Extend `graphizy` with your own graph algorithms using the simple plugin system.
- 
- *   **Visualize and Interact**: Generate clean visualizations of your graphs, including age-based coloring for temporal networks. Save images or display them in real-time.
+- **One API for All Graphs**
+Create Delaunay, k-NN, MST, Gabriel, Proximity, and even custom graphs with a single make_graph() call. Plugin-friendly, smart defaults, and fully type-safe.
 
+- **Temporal Memory System**
+Track how connections evolve over time. Use built-in memory features for persistence-aware analysis, temporal filtering, and age-based visualization.
+
+- **Rich Graph Types, Easily Extended**
+From spatial graphs to domain-specific topologies: support includes Delaunay triangulations, proximity graphs, k-nearest neighbors, MSTs, and custom plugins.
+
+- **Instant Network Analysis**
+Access over 200 igraph algorithms with real-time stats: clustering, centrality, components, and more. All robust to disconnections. NetworkX compatible.
+
+- **Custom Weights, Real-Time Ready**
+Define weights using distance, inverse, Gaussian, or custom formulas. Memory-aware weight updates and vectorized for performance.
+
+- **Advanced Tools for Spatial & Temporal Insights**
+Includes percolation thresholds, service accessibility, social dynamics, and time-aware community tracking — all tailored for dynamic networks.
+
+- **Visualization & Streaming**
+Visualize network memory with age-based coloring and transparency. Stream updates in real time, or export static snapshots. Comes with CLI tools and interactive demos.
 
 ### 🔄 **Unified Graph Creation Interface**
 - **Modern API**: Single `make_graph()` method for all graph types

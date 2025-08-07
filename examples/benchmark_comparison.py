@@ -847,7 +847,7 @@ class GraphizyBenchmarkSuite:
 # ============================================================================
 
 def generate_benchmark_plots(results_file: str = None):
-    """Generate comprehensive visualization plots from benchmark results"""
+    """Generate comprehensive visualization plots from benchmark results with separate figures"""
     try:
         import matplotlib.pyplot as plt
         import pandas as pd
@@ -881,67 +881,122 @@ def generate_benchmark_plots(results_file: str = None):
 
     # Convert to DataFrame
     df = pd.DataFrame(data['graph_benchmarks'])
+    timestamp = time.strftime('%Y%m%d_%H%M%S')
 
-    # Create comprehensive plot
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    fig.suptitle('Graphizy vs NetworkX+SciPy: Comprehensive Performance Analysis',
-                 fontsize=16, fontweight='bold')
-
-    # Plot 1: Total Speedup by Graph Type and Node Count
-    ax1 = axes[0, 0]
+    # === PLOT 1: Total Speedup by Graph Type and Node Count ===
+    plt.figure(figsize=(10, 6))
     for graph_type in df['graph_type'].unique():
         subset = df[df['graph_type'] == graph_type]
-        ax1.plot(subset['nodes'], subset['total_speedup'],
+        plt.plot(subset['nodes'], subset['total_speedup'],
                  marker='o', linewidth=2.5, markersize=8,
                  label=graph_type.title())
 
-    ax1.set_xlabel('Number of Nodes')
-    ax1.set_ylabel('Speedup (x faster)')
-    ax1.set_title('Total Workflow Speedup')
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
-    ax1.set_xscale('log')
+    plt.xlabel('Number of Nodes')
+    plt.ylabel('Speedup (x faster)')
+    plt.title('Total Workflow Speedup vs Node Count')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.xscale('log')
+    
+    # Save plot 1
+    plot1_filename = results_dir / f'speedup_vs_nodes_{timestamp}.png'
+    plt.savefig(plot1_filename, dpi=300, bbox_inches='tight')
+    plt.savefig(results_dir / 'speedup_vs_nodes_latest.png', dpi=300, bbox_inches='tight')
+    print(f"📊 Plot 1 saved: {plot1_filename}")
+    plt.show()
 
-    # Plot 2: Construction vs Metrics Speedup
-    ax2 = axes[0, 1]
-    scatter = ax2.scatter(df['construction_speedup'], df['metrics_speedup'],
+    # === PLOT 2: Total Speedup vs Number of Edges ===
+    plt.figure(figsize=(10, 6))
+    
+    for graph_type in df['graph_type'].unique():
+        subset = df[df['graph_type'] == graph_type]
+        plt.plot(subset['graphizy_edges'], subset['total_speedup'],
+                 marker='s', linewidth=2.5, markersize=8,
+                 label=graph_type.title())
+
+    plt.xlabel('Number of Edges')
+    plt.ylabel('Total Speedup (x faster)')
+    plt.title('Total Speedup vs Number of Edges')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.xscale('log')
+    
+    # Save plot 2
+    plot2_filename = results_dir / f'speedup_vs_edges_{timestamp}.png'
+    plt.savefig(plot2_filename, dpi=300, bbox_inches='tight')
+    plt.savefig(results_dir / 'speedup_vs_edges_latest.png', dpi=300, bbox_inches='tight')
+    print(f"📊 Plot 2 saved: {plot2_filename}")
+    plt.show()
+
+    # === PLOT 3: Construction vs Metrics Speedup ===
+    plt.figure(figsize=(10, 8))
+    scatter = plt.scatter(df['construction_speedup'], df['metrics_speedup'],
                           c=df['nodes'], s=100, alpha=0.7, cmap='viridis')
-    ax2.set_xlabel('Construction Speedup')
-    ax2.set_ylabel('Metrics Speedup')
-    ax2.set_title('Construction vs Metrics Performance')
-    ax2.grid(True, alpha=0.3)
-    plt.colorbar(scatter, ax=ax2, label='Node Count')
+    plt.xlabel('Construction Speedup')
+    plt.ylabel('Metrics Speedup')
+    plt.title('Construction vs Metrics Performance')
+    plt.grid(True, alpha=0.3)
+    plt.colorbar(scatter, label='Node Count')
 
     # Add diagonal line for reference
-    max_val = max(ax2.get_xlim()[1], ax2.get_ylim()[1])
-    ax2.plot([0, max_val], [0, max_val], 'k--', alpha=0.5, label='Equal Performance')
-    ax2.legend()
+    max_val = max(plt.xlim()[1], plt.ylim()[1])
+    plt.plot([0, max_val], [0, max_val], 'k--', alpha=0.5, label='Equal Performance')
+    plt.legend()
+    
+    # Save plot 3
+    plot3_filename = results_dir / f'construction_vs_metrics_{timestamp}.png'
+    plt.savefig(plot3_filename, dpi=300, bbox_inches='tight')
+    plt.savefig(results_dir / 'construction_vs_metrics_latest.png', dpi=300, bbox_inches='tight')
+    print(f"📊 Plot 3 saved: {plot3_filename}")
+    plt.show()
 
-    # Plot 3: Timing Breakdown
-    ax3 = axes[1, 0]
+    # === PLOT 4: Timing Breakdown for 500 Nodes Case ===
+    plt.figure(figsize=(12, 6))
+    
+    # Filter for 500 nodes only
+    df_500 = df[df['nodes'] == 500]
+    
+    if len(df_500) > 0:
+        graph_types = df_500['graph_type'].unique()
+        x_pos = np.arange(len(graph_types))
+
+        # Get times for 500 nodes case
+        construction_times = [df_500[df_500['graph_type'] == gt]['graphizy_construction_time'].iloc[0] for gt in graph_types]
+        metrics_times = [df_500[df_500['graph_type'] == gt]['graphizy_metrics_time'].iloc[0] for gt in graph_types]
+
+        bars1 = plt.bar(x_pos, construction_times, 0.6, label='Construction', alpha=0.8)
+        bars2 = plt.bar(x_pos, metrics_times, 0.6, bottom=construction_times, label='Metrics', alpha=0.8)
+
+        plt.xlabel('Graph Type')
+        plt.ylabel('Time (ms)')
+        plt.title('Graphizy Timing Breakdown (500 Nodes)')
+        plt.xticks(x_pos, [gt.title() for gt in graph_types])
+        plt.legend()
+        plt.grid(True, alpha=0.3, axis='y')
+        
+        # Add value labels on bars
+        for i, (c_time, m_time) in enumerate(zip(construction_times, metrics_times)):
+            plt.text(i, c_time/2, f'{c_time:.1f}ms', ha='center', va='center')
+            plt.text(i, c_time + m_time/2, f'{m_time:.1f}ms', ha='center', va='center')
+            plt.text(i, c_time + m_time + max(construction_times + metrics_times)*0.02, 
+                    f'{c_time + m_time:.1f}ms', ha='center', va='bottom', fontweight='bold')
+    else:
+        plt.text(0.5, 0.5, 'No 500-node data available', ha='center', va='center', transform=plt.gca().transAxes)
+        plt.title('Graphizy Timing Breakdown (500 Nodes) - No Data')
+    
+    # Save plot 4
+    plot4_filename = results_dir / f'timing_breakdown_500nodes_{timestamp}.png'
+    plt.savefig(plot4_filename, dpi=300, bbox_inches='tight')
+    plt.savefig(results_dir / 'timing_breakdown_500nodes_latest.png', dpi=300, bbox_inches='tight')
+    print(f"📊 Plot 4 saved: {plot4_filename}")
+    plt.show()
+
+    # === PLOT 5: Performance Distribution ===
+    plt.figure(figsize=(10, 6))
     graph_types = df['graph_type'].unique()
-    x_pos = np.arange(len(graph_types))
-
-    # Calculate average times for each graph type
-    avg_construction = [df[df['graph_type'] == gt]['graphizy_construction_time'].mean() for gt in graph_types]
-    avg_metrics = [df[df['graph_type'] == gt]['graphizy_metrics_time'].mean() for gt in graph_types]
-
-    bars1 = ax3.bar(x_pos, avg_construction, 0.6, label='Construction', alpha=0.8)
-    bars2 = ax3.bar(x_pos, avg_metrics, 0.6, bottom=avg_construction, label='Metrics', alpha=0.8)
-
-    ax3.set_xlabel('Graph Type')
-    ax3.set_ylabel('Average Time (ms)')
-    ax3.set_title('Graphizy Timing Breakdown')
-    ax3.set_xticks(x_pos)
-    ax3.set_xticklabels([gt.title() for gt in graph_types])
-    ax3.legend()
-    ax3.grid(True, alpha=0.3, axis='y')
-
-    # Plot 4: Performance Distribution
-    ax4 = axes[1, 1]
     speedup_data = [df[df['graph_type'] == gt]['total_speedup'].values for gt in graph_types]
 
-    box_plot = ax4.boxplot(speedup_data, labels=[gt.title() for gt in graph_types],
+    box_plot = plt.boxplot(speedup_data, labels=[gt.title() for gt in graph_types],
                            patch_artist=True, showmeans=True)
 
     # Color the boxes
@@ -950,24 +1005,19 @@ def generate_benchmark_plots(results_file: str = None):
         patch.set_facecolor(color)
         patch.set_alpha(0.7)
 
-    ax4.set_ylabel('Total Speedup (x faster)')
-    ax4.set_title('Speedup Distribution by Graph Type')
-    ax4.grid(True, alpha=0.3, axis='y')
-
-    plt.tight_layout()
-
-    # Save plots to results_benchmark folder
-    timestamp = time.strftime('%Y%m%d_%H%M%S')
-    plot_filename = results_dir / f'graphizy_benchmark_plots_{timestamp}.png'
-    plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
-    print(f"📊 Plots saved to: {plot_filename}")
-
-    # Also save latest version
-    latest_plot_filename = results_dir / 'graphizy_benchmark_plots_latest.png'
-    plt.savefig(latest_plot_filename, dpi=300, bbox_inches='tight')
-    print(f"📊 Latest plots: {latest_plot_filename}")
-
+    plt.ylabel('Total Speedup (x faster)')
+    plt.title('Speedup Distribution by Graph Type')
+    plt.grid(True, alpha=0.3, axis='y')
+    
+    # Save plot 5
+    plot5_filename = results_dir / f'speedup_distribution_{timestamp}.png'
+    plt.savefig(plot5_filename, dpi=300, bbox_inches='tight')
+    plt.savefig(results_dir / 'speedup_distribution_latest.png', dpi=300, bbox_inches='tight')
+    print(f"📊 Plot 5 saved: {plot5_filename}")
     plt.show()
+
+    print(f"📊 All plots saved with timestamp: {timestamp}")
+    print(f"📊 Latest versions also saved for easy access")
 
 
 # ============================================================================

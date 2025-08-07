@@ -35,13 +35,11 @@ authors:
     orcid: 0009-0000-4524-0399 
     affiliation: 1
 affiliations:
- - name: Independent Researcher
+ - name: Research Center of Mathematics for Social Creativity, Japan
    index: 1
 date: 07 August 2025
 bibliography: paper.bib
 ---
-
-# Graphizy: Memory-Enhanced Graph Construction for Computational Geometry and Temporal Network Analysis
 
 
 # Summary
@@ -78,7 +76,7 @@ Graphizy provides a comprehensive toolkit for spatial-temporal network analysis 
 
 # Research Applications
 
-The package provides detailed documentation for characterizing topological interactions within Paramecium populations in real-time, showcasing how the temporal memory system can track collective behavior patterns and spatial organization in microbial communities. This allows us to study (and perturb in real time) swarm topological dynamics.
+The package provides detailed documentation for characterizing topological interactions within Paramecium populations in real-time, showcasing how the temporal memory system can track collective behavior patterns and spatial organization in microbial communities. This allows us to study (and perturb in real time at 20 FPS) swarms topological dynamics.
 
 Graphizy includes comprehensive tutorials and examples demonstrating its application to real biological systems. These tutorials demonstrate the package's capability to handle high-frequency spatial data and extract meaningful interaction patterns from complex biological systems.
 
@@ -88,10 +86,10 @@ The package has been designed to support research across multiple domains where 
 
 Comprehensive benchmarking demonstrates significant performance advantages over general-purpose graph libraries for spatial applications. When compared to NetworkX implementations, Graphizy achieves 21× speedup for Delaunay triangulation analysis and 12× speedup for minimum spanning tree construction on 1000-node networks. The temporal memory system adds minimal computational overhead (typically <5ms per update), making it suitable for real-time applications.
 
-The package includes extensive validation through unit tests (>95% code coverage), integration tests across multiple graph types, and performance benchmarks that demonstrate consistent scalability. All algorithms have been validated against established implementations to ensure correctness.
+The package includes extensive validation through unit tests (>50% code coverage), integration tests across multiple graph types, and performance benchmarks that demonstrate consistent scalability. All algorithms have been validated against established implementations to ensure correctness.
 
 # Acknowledgements
 
-We acknowledge the Sasakawa Science Research Grant number 2023-5025 (C.F.) and MEXT KAKENHI Grant numbers 21H05308 (Y.N.), 21H05310 (C.F.) for financial support. We thank the contributors to the igraph, NumPy, and OpenCV projects, whose excellent libraries form the foundation of Graphizy.
+We acknowledge the Sasakawa Science Research Grant number 2023-5025 (C.F.) and MEXT KAKENHI Grant numbers 21H05308 (Y.N.), 21H05310 (C.F.) for financial support. We thank the contributors to the igraph, NetworkX, NumPy, and OpenCV projects, whose excellent libraries form the foundation of Graphizy.
 
 # References

@@ -724,6 +724,7 @@ class Graphing:
                    use_memory: Optional[bool] = None,
                    compute_weights: Optional[bool] = None,
                    do_timing: bool = False,
+                   validate_data: bool = False,
                    **kwargs) -> Any:
         """
         Create a graph using the extensible plugin system with intelligent memory defaults.
@@ -755,6 +756,7 @@ class Graphing:
                        Only works if memory_manager is initialized.
             compute_weights: Whether to compute edges weights. Only works if weight_computer is initialized.
             do_timing: Whether to print the performances
+            validate_data: Whether to validate the data (careful at each call this will degrade the performances)
             **kwargs: Additional graph-type specific parameters that override graph_params.
                      These are merged with graph_params, with kwargs taking precedence.
 
@@ -830,7 +832,7 @@ class Graphing:
             compute_weights = self.config.weight.auto_compute_weights
 
         try:
-            data_array = self.data_interface.to_array(data_points)
+            data_array = self.data_interface.to_array(data_points, validate_data=validate_data)
 
             # STEP 1: Create base graph
             if do_timing:

@@ -118,7 +118,7 @@ class DataInterface:
                 raise
             raise InvalidPointArrayError(f"Array validation failed: {str(e)}")
 
-    def to_array(self, data_points: Union[np.ndarray, Dict[str, Any]]) -> np.ndarray:
+    def to_array(self, data_points: Union[np.ndarray, Dict[str, Any]], validate_data: bool = False) -> np.ndarray:
         """
         Convert data points to standardized array format.
 
@@ -126,6 +126,7 @@ class DataInterface:
 
         Args:
             data_points: Input data in array or dict format
+            validate_data: Whether to validate the data (careful at each call this will degrade the performances)
 
         Returns:
             np.ndarray: Data in standardized array format
@@ -135,7 +136,8 @@ class DataInterface:
         """
         try:
             if isinstance(data_points, np.ndarray):
-                self.validate_array(data_points)
+                if validate_data:
+                    self.validate_array(data_points)
                 return data_points
 
             elif isinstance(data_points, dict):

@@ -42,70 +42,27 @@ Quick Start
 Key Features
 ------------
 
-🔄 **Unified Graph Creation Interface**
-   - Modern API with single `make_graph()` method for all graph types
-   - Plugin system for easily adding custom graph algorithms
-   - Smart defaults with intelligent parameter handling 
-   - Type-safe runtime configuration validation
+- **One API for All Graphs**
+Create Delaunay, k-NN, MST, Gabriel, Proximity, and even custom graphs with a single make_graph() call. Plugin-friendly, smart defaults, and fully type-safe.
 
-📊 **Comprehensive Graph Types**
-   - **Delaunay Triangulation**: Optimal triangular meshes from point sets
-   - **Proximity Graphs**: Connect nearby points based on distance thresholds  
-   - **K-Nearest Neighbors**: Connect each point to its k closest neighbors
-   - **Minimum Spanning Tree**: Minimal connected graph with shortest total edge length
-   - **Gabriel Graph**: Geometric proximity graph (subset of Delaunay triangulation)
-   - **Custom Graphs**: Extensible plugin system for domain-specific algorithms
+- **Temporal Memory System**
+Track how connections evolve over time. Use built-in memory features for persistence-aware analysis, temporal filtering, and age-based visualization.
 
-🔬 **Advanced Analysis Tools** *(New!)*
-   - **Percolation Analysis**: Critical threshold detection and phase transition analysis
-   - **Social Network Analysis**: Role identification, temporal tracking, stability metrics
-   - **Accessibility Analysis**: Service coverage, spatial equity, gap identification
-   - **Temporal Dynamics**: Evolution tracking with memory-enhanced analysis
+- **Rich Graph Types, Easily Extended**
+From spatial graphs to domain-specific topologies: support includes Delaunay triangulations, proximity graphs, k-nearest neighbors, MSTs, and custom plugins.
 
-🧠 **Advanced Memory Systems**
-   - Temporal analysis tracking connections across time steps
-   - Smart integration with automatic memory updates and configurable retention
-   - Age-based visualization showing connection persistence over time
-   - Performance optimized with vectorized operations for real-time applications
+- **Instant Network Analysis**
+Access over 200 igraph algorithms with real-time stats: clustering, centrality, components, and more. All robust to disconnections. NetworkX compatible.
 
-⚖️ **Sophisticated Weight Computation**  
-   - Multiple methods: distance, inverse distance, Gaussian, and custom formulas
-   - Real-time computation with optimized fast computers for high-performance applications
-   - Compute any edge attribute using mathematical expressions
-   - Memory integration for weight computation on memory-enhanced structures
+- **Custom Weights, Real-Time Ready**
+Define weights using distance, inverse, Gaussian, or custom formulas. Memory-aware weight updates and vectorized for performance.
 
-📈 **Comprehensive Graph Analysis**
-   - Full igraph integration with access to 200+ graph analysis algorithms
-   - Resilient methods providing robust analysis that handles disconnected graphs gracefully
-   - Real-time statistics: vertex count, edge count, connectivity, clustering, centrality
-   - Component analysis with detailed connectivity and community structure analysis
+- **Advanced Tools for Spatial & Temporal Insights**
+Includes percolation thresholds, service accessibility, social dynamics, and time-aware community tracking — all tailored for dynamic networks.
 
-🎨 **Advanced Visualization & Real-Time Processing**
-   - Memory visualization with age-based coloring and transparency effects
-   - Real-time streaming with high-performance streaming and async support
-   - Flexible configuration using runtime-configurable parameters with type-safe dataclasses
-   - Interactive demos and built-in CLI tools
+- **Visualization & Streaming**
+Visualize network memory with age-based coloring and transparency. Stream updates in real time, or export static snapshots. Comes with CLI tools and interactive demos.
 
-What's New in v0.1.18
----------------------
-
-✨ **Advanced Analysis API**
-   - New `PercolationAnalyzer` for automated critical threshold detection
-   - New `SocialNetworkAnalyzer` for role identification and temporal tracking
-   - New `AccessibilityAnalyzer` for spatial equity and service coverage analysis
-   - All analyzers accessible through `GraphAnalysisResult.analyzer_name`
-
-🚀 **Enhanced Tutorials**
-   - Updated research tutorials demonstrating real-world applications
-   - Particle physics with percolation analysis
-   - Animal behavior with social role tracking
-   - Urban planning with accessibility analysis
-
-🔧 **API Improvements**
-   - Simplified graph creation with `make_graph()` unified interface
-   - Enhanced `GraphAnalysisResult` with lazy-loaded properties
-   - Better error handling and user-friendly messages
-   - Improved type safety throughout
 
 User Guide
 ==========
@@ -199,3 +156,4 @@ Indices and Tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
